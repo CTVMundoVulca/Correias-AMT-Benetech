@@ -10,7 +10,7 @@ import { EmendaLista } from './EmendaLista';
 import { EmendaEditor } from './EmendaEditor';
 import { Relatorio } from './Relatorio';
 
-type Phase = 'sdk' | 'fail' | 'ready';
+type Phase = 'sdk' | 'fail' | 'auth-off' | 'ready';
 type Rota = { tela: 'lista' } | { tela: 'editor'; id: string } | { tela: 'relatorio'; id: string };
 
 function lerRota(): Rota {
@@ -35,7 +35,6 @@ export function EmendaApp() {
   const [rota, setRota] = useState<Rota>(lerRota);
   const [pend, setPend] = useState({ pendente: false, offline: false });
   const [online, setOnline] = useState(() => navigator.onLine);
-  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
     const onHash = () => {
@@ -65,7 +64,10 @@ export function EmendaApp() {
         setApi(fb);
         unsub = fb.authMod.onAuthStateChanged(fb.auth, (u) => {
           if (!u) {
-            fb.authMod.signInAnonymously(fb.auth).catch(() => setPhase('fail'));
+            fb.authMod.signInAnonymously(fb.auth).catch((e: { code?: string }) =>
+              // acesso anônimo desligado no console do Firebase ≠ falta de internet
+              setPhase(e?.code === 'auth/admin-restricted-operation' || e?.code === 'auth/operation-not-allowed' ? 'auth-off' : 'fail'),
+            );
             return;
           }
           setPor(u.email ?? 'anônimo');
@@ -78,7 +80,22 @@ export function EmendaApp() {
       cancel = true;
       unsub?.();
     };
-  }, [tentativa]);
+  }, []);
+
+  // Sem internet ao abrir: o navegador guarda a falha do carregamento do SDK, então
+  // tentar de novo exige recarregar. Recarrega sozinho quando a conexão volta.
+  useEffect(() => {
+    if (phase !== 'fail') return;
+    const tentar = () => {
+      if (navigator.onLine !== false) window.location.reload();
+    };
+    window.addEventListener('online', tentar);
+    const t = setInterval(tentar, 30_000);
+    return () => {
+      window.removeEventListener('online', tentar);
+      clearInterval(t);
+    };
+  }, [phase]);
 
   // dados compartilhados: efetivo (cadastro da escala) e listas de materiais
   useEffect(() => {
@@ -98,12 +115,23 @@ export function EmendaApp() {
     [api, por, isAdmin, efetivo, listas, setPendencia],
   );
 
+  const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };
+  if (phase === 'auth-off')
+    return (
+      <Splash
+        title="Registro de Emenda"
+        text="O acesso sem login está desativado no Firebase. Um administrador precisa ativar em Authentication → Sign-in method → Anônimo."
+        action={{ label: 'Tentar de novo', onClick: () => window.location.reload() }}
+        secondary={menu}
+      />
+    );
   if (phase === 'fail')
     return (
       <Splash
         title="Registro de Emenda"
         text="Sem conexão com a nuvem. Na primeira vez neste aparelho é preciso internet."
-        action={{ label: 'Tentar de novo', onClick: () => setTentativa((n) => n + 1) }}
+        action={{ label: 'Tentar de novo', onClick: () => window.location.reload() }}
+        secondary={menu}
       />
     );
   if (phase !== 'ready' || !ctx) return <Splash title="Registro de Emenda" text="Conectando…" />;

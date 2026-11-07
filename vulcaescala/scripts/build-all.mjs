@@ -18,6 +18,11 @@ for (const app of ['escala', 'emenda']) {
   await build({ root, mode, logLevel: 'warn' });
   const out = mode === 'pages' ? join(root, '..', app) : join(root, 'dist', app);
   if (existsSync(join(out, 'emenda.html'))) renameSync(join(out, 'emenda.html'), join(out, 'index.html'));
+  // instalado no celular, qualquer app abre o portal (um único app com todos os módulos)
+  if (mode === 'pages') {
+    const html = join(out, 'index.html');
+    writeFileSync(html, readFileSync(html, 'utf8').replace('<link rel="manifest" href="manifest.json"', '<link rel="manifest" href="../manifest.json"'));
+  }
   for (const f of readdirSync(join(root, 'public', 'shared'))) copyFileSync(join(root, 'public', 'shared', f), join(out, f));
   console.log(`${app}: ${stamp(out)}`);
 }

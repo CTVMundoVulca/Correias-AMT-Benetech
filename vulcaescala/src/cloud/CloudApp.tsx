@@ -153,6 +153,7 @@ export function CloudApp() {
       <Splash
         text="Sem conexão com a nuvem. Na primeira vez neste aparelho é preciso internet."
         action={{ label: 'Tentar de novo', onClick: () => window.location.reload() }}
+        secondary={{ label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') }}
       />
     );
 
