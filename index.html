@@ -109,9 +109,7 @@
     console.log('%c⚠ SOFTWARE PROPRIETÁRIO', 'font-size:18px;font-weight:900;color:#c00');
     console.log('%c© 2024-2026 CTV Consultoria Técnica em Vulcanização — CNPJ 65.601.481/0001-36\nAutor: Glauber Dutra\nProtegido pela Lei nº 9.609/98 (Software) e Lei nº 9.610/98 (Direitos Autorais).\nReprodução, cópia ou modificação sem autorização é crime previsto no Art. 12 da Lei 9.609/98.', 'font-size:11px;color:#333');
   </script>
-<script>
-  // service worker do portal (abre sem internet); registrado na raiz do portal
-  if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).catch(function () {}); });
-</script>
+<!-- atualização automática + service worker único do portal (abre sem internet) -->
+<script src="app-update.js"></script>
 </body>
 </html>

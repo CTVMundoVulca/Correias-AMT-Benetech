@@ -1,9 +1,14 @@
-/* Atualização automática — mesmo mecanismo dos apps CTV.
-   Checa versão nova no load, a cada 30s, ao voltar ao primeiro plano e quando
-   a rede volta. Recarrega quando o novo SW assume, mas nunca com um campo em
-   edição ou uma janela aberta (para não perder o que está sendo digitado). */
+/* Atualização automática — mesmo mecanismo dos Apps CTV Campo.
+   Um único service worker (o da raiz do portal, ao lado deste arquivo) controla
+   todos os módulos. Checa versão nova no load, a cada 30s, ao voltar ao primeiro
+   plano e quando a rede volta. Recarrega quando o novo SW assume, mas nunca com
+   um campo em edição ou uma janela aberta (para não perder o que está sendo digitado).
+   Toda página do portal deve carregar este arquivo (portal, Escala, Emenda, Medidas). */
 (function () {
   if (!('serviceWorker' in navigator)) return;
+
+  // pasta deste script = raiz do portal (vale em /, /escala/, /emenda/ e /medidas/)
+  var base = (document.currentScript && document.currentScript.src || location.href).replace(/[^/]*([?#].*)?$/, '');
 
   var refreshing = false;
   var pending = false;
@@ -47,7 +52,7 @@
   });
 
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).then(function (reg) {
+    navigator.serviceWorker.register(base + 'service-worker.js', { scope: base, updateViaCache: 'none' }).then(function (reg) {
       swReg = reg;
       if (reg.waiting) ativarWaiting(reg.waiting);
       if (reg.installing) monitorarInstalacao(reg.installing);
@@ -55,6 +60,14 @@
         if (reg.installing) monitorarInstalacao(reg.installing);
       });
       checarUpdate();
+      // Migração: remove os service workers antigos de /escala/ e /emenda/ (o da raiz
+      // passa a controlar tudo). Só mexe em registros DENTRO do portal — outros apps
+      // CTV no mesmo domínio não são tocados.
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (r) {
+          if (r.scope !== base && r.scope.indexOf(base) === 0) { try { r.unregister(); } catch (e) {} }
+        });
+      }).catch(function () {});
     }).catch(function () {});
   });
 

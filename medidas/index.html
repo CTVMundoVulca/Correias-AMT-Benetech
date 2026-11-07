@@ -351,9 +351,7 @@ function resetTudo(){if(!editMode){toast("Libere edição primeiro");return}if(!
 
 buildChips();render();syncLockUI();
 </script>
-<script>
-  // service worker do portal (abre sem internet); registrado na raiz do portal
-  if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('../service-worker.js', { scope: '../', updateViaCache: 'none' }).catch(function () {}); });
-</script>
+<!-- atualização automática + service worker único do portal (abre sem internet) -->
+<script src="../app-update.js"></script>
 </body>
 </html>

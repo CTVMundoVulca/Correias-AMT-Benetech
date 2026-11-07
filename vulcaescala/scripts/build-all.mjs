@@ -1,10 +1,11 @@
 // Gera todos os apps do portal AMT.
 //   node scripts/build-all.mjs pages   → ../escala e ../emenda (publicados pelo GitHub Pages)
+//                                         + ../app-update.js e versão do ../service-worker.js (único)
 //   node scripts/build-all.mjs         → dist/escala e dist/emenda
 // Para cada app: build de arquivo único, copia os arquivos compartilhados
 // (logos, app-update.js) e grava a versão do cache no service worker.
 import { build } from 'vite';
-import { copyFileSync, readdirSync, renameSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, readdirSync, renameSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,27 +14,44 @@ import { stamp } from './stamp-sw.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const mode = process.argv[2] === 'pages' ? 'pages' : 'production';
 
+const raiz = join(root, '..');
+const shared = join(root, 'public', 'shared');
+
 for (const app of ['escala', 'emenda']) {
   process.env.APP = app;
   await build({ root, mode, logLevel: 'warn' });
-  const out = mode === 'pages' ? join(root, '..', app) : join(root, 'dist', app);
+  const out = mode === 'pages' ? join(raiz, app) : join(root, 'dist', app);
   if (existsSync(join(out, 'emenda.html'))) renameSync(join(out, 'emenda.html'), join(out, 'index.html'));
-  // instalado no celular, qualquer app abre o portal (um único app com todos os módulos)
+  for (const f of readdirSync(shared)) copyFileSync(join(shared, f), join(out, f));
   if (mode === 'pages') {
+    // Portal = um app só: manifest e atualização (app-update.js + service worker) ficam na raiz
     const html = join(out, 'index.html');
-    writeFileSync(html, readFileSync(html, 'utf8').replace('<link rel="manifest" href="manifest.json"', '<link rel="manifest" href="../manifest.json"'));
-  }
-  for (const f of readdirSync(join(root, 'public', 'shared'))) copyFileSync(join(root, 'public', 'shared', f), join(out, f));
-  console.log(`${app}: ${stamp(out)}`);
+    writeFileSync(
+      html,
+      readFileSync(html, 'utf8')
+        .replace('<link rel="manifest" href="manifest.json"', '<link rel="manifest" href="../manifest.json"')
+        .replace('<script src="app-update.js"></script>', '<script src="../app-update.js"></script>'),
+    );
+    rmSync(join(out, 'app-update.js'), { force: true });
+    console.log(`${app}: ok`);
+  } else console.log(`${app}: ${stamp(out)}`);
 }
 
-// portal (página inicial + Medidas): versão do cache do service worker da raiz
+// Service worker ÚNICO na raiz: a versão muda quando qualquer arquivo do app shell muda,
+// e todos os aparelhos se atualizam sozinhos (mesma regra dos Apps CTV Campo).
 if (mode === 'pages') {
-  const raiz = join(root, '..');
+  copyFileSync(join(shared, 'app-update.js'), join(raiz, 'app-update.js'));
   const sw = join(raiz, 'service-worker.js');
+  const src = readFileSync(sw, 'utf8');
+  const lista = /const APP_SHELL = \[([\s\S]*?)\];/.exec(src)[1].match(/'[^']+'/g).map((s) => s.slice(1, -1));
   const hash = createHash('sha256');
-  for (const f of ['index.html', 'manifest.json', join('medidas', 'index.html')]) hash.update(readFileSync(join(raiz, f)));
-  const v = `portal-amt-${hash.digest('hex').slice(0, 12)}`;
-  writeFileSync(sw, readFileSync(sw, 'utf8').replace(/const CACHE_VERSION = '[^']*';/, `const CACHE_VERSION = '${v}';`));
-  console.log(`portal: ${v}`);
+  for (const u of lista) {
+    const f = join(raiz, u.endsWith('/') ? u + 'index.html' : u);
+    hash.update(u);
+    hash.update(readFileSync(f)); // arquivo faltando = erro no build (melhor que cache incompleto)
+  }
+  hash.update(src.replace(/const CACHE_VERSION = '[^']*';/, ''));
+  const v = `amt-${hash.digest('hex').slice(0, 12)}`;
+  writeFileSync(sw, src.replace(/const CACHE_VERSION = '[^']*';/, `const CACHE_VERSION = '${v}';`));
+  console.log(`service worker único: ${v}`);
 }

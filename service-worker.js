@@ -1,15 +1,48 @@
-/* Service Worker do portal AMT (página inicial e Medidas de Correias).
-   Escala e Emenda têm service worker próprio nas pastas deles.
-   Navegação: network-first com fallback para o cache (abre offline).
-   CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs). */
-const CACHE_VERSION = 'portal-amt-077db60c7d55';
-const APP_SHELL = ['./', './index.html', './manifest.json', './medidas/', './medidas/index.html'];
-const PROPRIOS = ['/escala/', '/emenda/']; // pastas com service worker próprio
+/* Service Worker ÚNICO do portal AMT — mesmo esquema dos Apps CTV Campo.
+   Controla todos os módulos (portal, Escala, Emenda e Medidas) com uma só versão:
+   qualquer publicação muda o CACHE_VERSION e todos os aparelhos se atualizam
+   sozinhos (app-update.js). Navegação = network-first com fallback para o cache
+   (abre offline); demais arquivos = cache-first.
+   CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs),
+   a partir do conteúdo de todos os arquivos do APP_SHELL. */
+const CACHE_VERSION = 'amt-be5cef13d0b1';
+
+const APP_SHELL = [
+  './',
+  './index.html',
+  './manifest.json',
+  './app-update.js',
+  './medidas/',
+  './medidas/index.html',
+  './escala/',
+  './escala/index.html',
+  './escala/logo-benetech.png',
+  './escala/logo-ctv.webp',
+  './escala/icon-192.png',
+  './escala/icon-512.png',
+  './escala/icon-512-maskable.png',
+  './escala/apple-touch-icon.png',
+  './emenda/',
+  './emenda/index.html',
+  './emenda/logo-benetech.png',
+  './emenda/logo-ctv.webp',
+];
+
+/* SDK do Firebase (mesma versão dos apps CTV): guardado para abrir offline */
+const SDK_PREFIX = 'https://www.gstatic.com/firebasejs/';
+
+/* O domínio ctvmundovulca.github.io é compartilhado com outros apps CTV:
+   só apagamos caches deste portal (inclusive os dos service workers antigos). */
+const MEUS_CACHES = ['amt-', 'portal-amt-', 'vulcaescala-amt-', 'emenda-amt-'];
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((c) => Promise.all(APP_SHELL.map((u) => c.add(new Request(u, { cache: 'reload' })).catch(() => null))))
+      .then((cache) => Promise.all(APP_SHELL.map((url) => cache.add(new Request(url, { cache: 'reload' })).catch(() => null))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -17,36 +50,51 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('portal-amt-') && k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys
+        .filter((k) => k !== CACHE_VERSION && MEUS_CACHES.some((p) => k.startsWith(p)))
+        .map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
+
+/* página inicial de cada módulo, para abrir offline */
+function paginaDoModulo(url) {
+  for (const m of ['escala', 'emenda', 'medidas']) if (url.pathname.includes('/' + m + '/')) return './' + m + '/index.html';
+  return './index.html';
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
-  if (PROPRIOS.some((p) => url.pathname.includes(p))) return;
+  // Firestore/Auth (conexões ao vivo) nunca passam pelo cache
+  if (url.origin !== self.location.origin && !req.url.startsWith(SDK_PREFIX)) return;
+
   const nav = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
   if (nav) {
-    const rede = fetch(req).then((resp) => {
-      const copia = resp.clone();
-      caches.open(CACHE_VERSION).then((c) => c.put(req, copia)).catch(() => {});
+    // network-first com timeout de 3 s — sinal fraco serve do cache rápido
+    // 'no-cache': revalida com o servidor em vez de usar a cópia HTTP do navegador
+    // (o GitHub Pages manda guardar por 10 min, o que atrasaria a atualização)
+    const rede = fetch(req, { cache: 'no-cache' }).then((resp) => {
+      if (resp.ok) {
+        const copia = resp.clone();
+        caches.open(CACHE_VERSION).then((c) => c.put(req, copia)).catch(() => {});
+      }
       return resp;
     });
     const espera = new Promise((r) => setTimeout(() => r(null), 3000));
-    const doCache = () => caches.match(req).then((r) => r || caches.match('./index.html'));
+    const doCache = () => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match(paginaDoModulo(url)));
     event.respondWith(Promise.race([rede, espera]).then((r) => r || doCache()).catch(() => doCache()));
     return;
   }
+
   event.respondWith(
-    caches.match(req).then((c) => c || fetch(req).then((resp) => {
+    caches.match(req).then((cached) => cached || fetch(req).then((resp) => {
       if (resp.ok) {
         const copia = resp.clone();
-        caches.open(CACHE_VERSION).then((cc) => cc.put(req, copia)).catch(() => {});
+        caches.open(CACHE_VERSION).then((c) => c.put(req, copia)).catch(() => {});
       }
       return resp;
-    }).catch(() => c)),
+    }).catch(() => cached)),
   );
 });
