@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { reducer, type Action } from '../state/reducer';
 import { AUSENCIAS_PADRAO, AppState, FUNCOES_PADRAO, emptyState, tipoAusencia } from '../domain/types';
 import { ausenciaUsage } from '../state/reducer';
-import { allocationStatus, feriadoDoDia, folgasDeFeriado, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
+import { allocationStatus, feriadoDoDia, folgaAutoDoDia, folgasDeFeriado, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
 import { activityRows, weekKpis, workerGrid } from '../domain/summary';
 import { migrate, InvalidDataError } from '../storage/migrations';
 
@@ -165,9 +165,12 @@ describe('escala', () => {
       { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'a', tipo: 'folga' },
     ]);
     const h = workerHistory(s, 'a', new Date('2026-11-01T00:00:00Z'), new Date('2026-11-30T00:00:00Z'));
-    expect(h.map((r) => [r.date.toISOString().slice(0, 10), r.activities, r.absence])).toEqual([
-      ['2026-11-02', ['EMENDA TR-05'], undefined],
-      ['2026-11-03', [], 'folga'],
+    // (dentro da semana registrada: sábado 07 e domingo 08 entram como folga automática)
+    expect(h.map((r) => [r.date.toISOString().slice(0, 10), r.activities, r.absence, r.feriado])).toEqual([
+      ['2026-11-02', ['EMENDA TR-05'], undefined, undefined],
+      ['2026-11-03', [], 'folga', undefined],
+      ['2026-11-07', [], 'folga', 'Fim de semana'],
+      ['2026-11-08', [], 'folga', 'Fim de semana'],
     ]);
   });
 });
@@ -183,7 +186,8 @@ describe('resumo da semana', () => {
   ]);
 
   it('indicadores', () => {
-    expect(weekKpis(s, W)).toEqual({ activities: 2, allocations: 3, absences: 2, activeWorkers: 3 });
+    // 2 registradas + folga automática de sábado e domingo para os 3 ativos (6)
+    expect(weekKpis(s, W)).toEqual({ activities: 2, allocations: 3, absences: 8, activeWorkers: 3 });
   });
 
   it('tabela colaborador × dia (inativo só aparece se tiver registro)', () => {
@@ -193,7 +197,8 @@ describe('resumo da semana', () => {
     expect(g[0].daysAllocated).toBe(1); // duas atividades no mesmo dia = 1 dia
     expect(g[1].cells[0]).toEqual({ kind: 'abs', tipo: 'atestado' });
     expect(g[3].cells[1]).toEqual({ kind: 'abs', tipo: 'ferias' });
-    expect(g[2].cells[6]).toEqual({ kind: 'none' });
+    expect(g[2].cells[5]).toEqual({ kind: 'abs', tipo: 'folga', feriado: true }); // sábado
+    expect(g[2].cells[2]).toEqual({ kind: 'none' }); // quarta: dia normal sem registro
     const s2 = reducer(s, { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'd', tipo: null });
     expect(workerGrid(s2, W).map((r) => r.worker.id)).toEqual(['a', 'b', 'c']);
   });
@@ -273,9 +278,26 @@ describe('feriados: folga automática', () => {
     expect(g.find((r) => r.worker.id === 'c')!.cells[0]).toEqual({ kind: 'abs', tipo: 'folga', feriado: true });
     expect(g.find((r) => r.worker.id === 'b')!.cells[0]).toEqual({ kind: 'abs', tipo: 'atestado' });
     expect(g.find((r) => r.worker.id === 'a')!.cells[0]).toEqual({ kind: 'on' });
-    expect(weekKpis(s0, W).absences).toBe(2); // atestado + folga automática
+    // segunda (Finados): atestado + 1 folga automática; sábado e domingo: 3 ativos × 2
+    expect(weekKpis(s0, W).absences).toBe(8);
     const h = workerHistory(s0, 'c', new Date('2026-11-01T00:00:00Z'), new Date('2026-11-03T00:00:00Z'));
     expect(h).toEqual([{ date: new Date('2026-11-02T00:00:00Z'), activities: [], absence: 'folga', feriado: 'Finados' }]);
+  });
+
+  it('fim de semana: quem não está escalado fica de folga automaticamente (sem pendência)', () => {
+    const sab = { weekKey: W, dayIndex: 5 }; // sábado 07/11/2026
+    const s = build([
+      ...base,
+      { type: 'activity/add', ...sab, id: 'fs', nome: 'parada' },
+      { type: 'activity/setWorker', allocated: true, ...sab, activityId: 'fs', workerId: 'a' },
+    ]);
+    expect(folgaAutoDoDia(s, W, 5)).toBe('Fim de semana');
+    expect(folgaAutoDoDia(s, W, 6)).toBe('Fim de semana');
+    expect(folgaAutoDoDia(s, W, 4)).toBeNull(); // sexta normal
+    const day = getDay(s, W, 5);
+    expect(pendingWorkers(day, s.workers, folgaAutoDoDia(s, W, 5))).toEqual([]);
+    expect(folgasDeFeriado(day, s.workers, 'Fim de semana').map((w) => w.id)).toEqual(['b', 'c']);
+    expect(weekPending(s, W).days.find((d) => d.dayIndex === 5)).toEqual({ dayIndex: 5, count: 0 });
   });
 
   it('feriado municipal cadastrado também conta', () => {

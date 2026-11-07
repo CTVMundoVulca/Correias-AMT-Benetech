@@ -30,7 +30,7 @@ export function absenceOf(day: Day, workerId: string): AbsenceType | undefined {
  * Dia sem atividade não gera pendência.
  */
 export function pendingWorkers(day: Day, workers: Worker[], feriado: string | null = null): Worker[] {
-  // feriado: quem não está escalado está de folga automaticamente (não é pendência)
+  // feriado ou fim de semana: quem não está escalado está de folga automaticamente (não é pendência)
   if (day.activities.length === 0 || feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
@@ -46,8 +46,25 @@ export function feriadoNaData(state: AppState, date: Date): string | null {
   return feriadoEm(state.feriados, toIsoDate(date));
 }
 
+export const FIM_DE_SEMANA = 'Fim de semana';
+
 /**
- * Folga automática de feriado: ativos que não estão em nenhuma atividade e não têm
+ * Motivo da folga automática do dia: nome do feriado, "Fim de semana" (sábado e
+ * domingo) ou null (dia normal). Nesses dias quem não está escalado fica de folga.
+ */
+export function folgaAutoNaData(state: AppState, date: Date): string | null {
+  const fer = feriadoNaData(state, date);
+  if (fer) return fer;
+  const dow = date.getUTCDay();
+  return dow === 0 || dow === 6 ? FIM_DE_SEMANA : null;
+}
+
+export function folgaAutoDoDia(state: AppState, weekKey: string, dayIndex: number): string | null {
+  return folgaAutoNaData(state, weekDates(weekKey)[dayIndex]);
+}
+
+/**
+ * Folga automática (feriado ou fim de semana — veja folgaAutoNaData): ativos que não estão em nenhuma atividade e não têm
  * outra ausência registrada. Não é gravada: alocar a pessoa ou registrar outra
  * ausência (ex.: atestado) muda o status na hora.
  */
@@ -71,7 +88,7 @@ export function weekPending(state: AppState, weekKey: string): { days: DayPendin
     const day = getDay(state, weekKey, i);
     if (!day.activities.length) continue;
     hasActivities = true;
-    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers, feriadoDoDia(state, weekKey, i)).length });
+    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers, folgaAutoDoDia(state, weekKey, i)).length });
   }
   return { days, total: days.reduce((s, d) => s + d.count, 0), hasActivities };
 }
@@ -136,7 +153,7 @@ export function workerHistory(state: AppState, workerId: string, from: Date, to:
     const absence = absenceOf(day, workerId);
     if (activities.length || absence) out.push({ date, activities, absence });
     else {
-      const fer = feriadoNaData(state, date);
+      const fer = folgaAutoNaData(state, date);
       if (fer && state.workers.some((w) => w.id === workerId && w.ativo)) out.push({ date, activities, absence: FOLGA_FERIADO, feriado: fer });
     }
   }

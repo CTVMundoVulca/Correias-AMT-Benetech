@@ -77,11 +77,11 @@ ausência): nome, sigla (letra da tabela do resumo) e cor. Os registros guardam 
 editar vale também para o histórico. Tipo já usado não pode ser removido — use **Ocultar** (sai das
 opções, o histórico continua com o nome). Na nuvem: `escala_config/ausencias`.
 
-### Feriados (folga automática)
+### Feriados e fins de semana (folga automática)
 
 Feriados nacionais calculados como no Registro de Horários (fixos + Carnaval, Sexta-feira Santa e
 Corpus Christi pela Páscoa); municipais de **Vitória** cadastrados em **Dados → Feriados**
-(`escala_config/feriados`). Num feriado, quem não está em nenhuma atividade aparece como
+(`escala_config/feriados`). Num feriado **ou no sábado/domingo**, quem não está em nenhuma atividade aparece como
 **folga automática** (não gravada, não conta como pendência). Alocar a pessoa ou registrar outra
 ausência muda o status na hora.
 
