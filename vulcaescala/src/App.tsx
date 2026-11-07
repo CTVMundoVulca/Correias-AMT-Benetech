@@ -6,6 +6,7 @@ import { SummaryView } from './features/summary/SummaryView';
 import { WorkersView } from './features/workers/WorkersView';
 import { ReportsView } from './features/reports/ReportsView';
 import { DataView } from './features/data/DataView';
+import { Header } from './ui/Header';
 
 const TABS = [
   { id: 'escala', label: 'Escala' },
@@ -29,29 +30,32 @@ export function App() {
 
   return (
     <>
-      <header className="app-header">
-        <div className="app-header-inner">
-          <div className="brand">
-            Vulca<span>Escala</span>
-          </div>
-          <nav className="tabs" aria-label="Seções">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                className={'tab' + (tab === t.id ? ' on' : '')}
-                aria-current={tab === t.id ? 'page' : undefined}
-                onClick={() => go(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </header>
+      <Header>
+        <nav className="tabs" aria-label="Seções">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              className={'tab' + (tab === t.id ? ' on' : '')}
+              aria-current={tab === t.id ? 'page' : undefined}
+              onClick={() => go(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </Header>
       <main className="container">
         {notices.map((n, i) => (
           <div key={i} className={`banner ${n.kind}`} role="alert">
             {n.text}
+            {n.action && (
+              <>
+                {' '}
+                <button className="link" onClick={n.action.onClick}>
+                  {n.action.label}
+                </button>
+              </>
+            )}
           </div>
         ))}
         {saveError && (

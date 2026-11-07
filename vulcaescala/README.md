@@ -1,49 +1,80 @@
-# VulcaEscala
+# VulcaEscala — contrato AMT
 
-Escala semanal das equipes de vulcanização. Substitui a planilha de 52 abas.
-Vite + React + TypeScript, sem backend (dados no `localStorage` do navegador).
+Escala semanal das equipes de vulcanização (contrato **AMT**). Substitui a planilha de 52 abas.
+Segue as mesmas configurações do App de Registro de Horários (contrato Suzano), **mas com
+projeto Firebase próprio**: dados e contas do AMT não se misturam com os do Suzano.
+
+- **Endereço (após o merge na `main`)**: `https://ctvmundovulca.github.io/Correias-AMT-Benetech/escala/`
+- Arquivo único em `../escala/index.html` (gerado), com service worker e atualização automática.
+- Login por e-mail e senha (Firebase Auth); dados no Firestore; funciona offline.
+
+## Ligar a nuvem (uma vez)
+
+Enquanto `src/cloud/config.ts` tiver `COLE_AQUI`, o app roda em **modo local** (só no aparelho).
+
+1. Em <https://console.firebase.google.com> crie um projeto **novo** (ex.: `vulcaescala-amt`).
+   Não use o `rdo-benetech` (é do contrato Suzano).
+2. **Authentication → Sign-in method → E-mail/senha → Ativar.**
+3. **Authentication → Settings → Domínios autorizados → adicionar** `ctvmundovulca.github.io`.
+4. **Firestore Database → Criar banco** (modo de produção; região sugerida `southamerica-east1`, São Paulo).
+5. **Firestore → Regras**: cole o conteúdo de `firebase/firestore.rules` e **Publicar**.
+6. **Configurações do projeto → Seus apps → Web (`</>`)**: registre o app e copie os 6 valores do
+   `firebaseConfig` para `src/cloud/config.ts`.
+7. `npm run build:pages` e faça commit da pasta `../escala`.
+
+Primeiro acesso: um administrador (lista `ADMIN_EMAILS` em `src/cloud/config.ts` **e** em
+`firebase/firestore.rules` — as duas precisam ser iguais) cria a conta, confirma o e-mail e entra.
+A nuvem vazia recebe o efetivo inicial (ou os dados que estavam neste aparelho no modo local).
+Depois, em **Dados → Acesso da liderança**, ele libera os e-mails da liderança.
+
+### Segurança
+
+- Só e-mails **liberados e confirmados** leem ou gravam (regras do Firestore, no servidor).
+  Qualquer pessoa pode criar conta, mas sem liberação não vê nada.
+- A confirmação de e-mail impede que alguém crie conta com o e-mail de um líder antes dele.
+- Os valores do `firebaseConfig` são públicos por natureza (ficam no app); quem protege são as regras.
+- Ao sair da conta, a cópia local da escala é apagada do aparelho.
 
 ## Rodar
 
 ```bash
 cd vulcaescala
 npm install
-npm run dev        # desenvolvimento
-npm test           # testes (Vitest)
-npm run build      # checa tipos e gera dist/ (base relativa: funciona em qualquer subpasta)
+npm run dev             # desenvolvimento (modo local)
+npm test                # testes unitários (Vitest)
+npm run test:firebase   # regras + sincronização no emulador do Firebase (precisa de Java e firebase-tools)
+npm run build:pages     # gera ../escala (arquivo único + service worker com versão automática)
 ```
+
+Teste manual com o emulador: `firebase emulators:start --config firebase/firebase.json --project demo-vulcaescala`
+e, no navegador, `localStorage.setItem('vulcaescala:emulador', '127.0.0.1')`.
 
 ## Estrutura
 
 ```
-src/
-├── main.tsx              cria o repositório e monta o app
-├── App.tsx               abas: Escala | Resumo | Efetivo | Consultas | Dados
-├── styles/               tokens.css (cores claro/escuro, fontes) e app.css
-├── domain/               regras puras, sem React
-│   ├── types.ts          modelo de dados + version
-│   ├── isoWeek.ts        semana ISO 8601, datas, navegação
-│   ├── names.ts          padronização e comparação de nomes
-│   ├── schedule.ts       pendência, status de alocação, consultas
-│   ├── summary.ts        indicadores e tabelas do resumo
-│   └── seed.ts           efetivo inicial
-├── storage/              StorageRepository, LocalStorage, Memory, migrações
-├── state/                reducer (todas as ações) e store
-├── ui/                   Modal, ConfirmDialog (substitui confirm()), Toast
-├── features/             week, summary, workers, reports, data
-├── io/                   reservado: exportar .xlsx / importar a planilha antiga
-└── __tests__/
+vulcaescala/
+├── firebase/             firestore.rules, firebase.json (emulador) e testes no emulador
+├── public/               service-worker.js, app-update.js, manifest, ícones, logo (copiados para ../escala)
+├── scripts/stamp-sw.mjs  grava CACHE_VERSION a cada build (força atualização nos aparelhos)
+└── src/
+    ├── cloud/            config do Firebase AMT, carregador do SDK, sincronização, login
+    ├── domain/           regras puras (semana ISO, pendência, resumo, nomes)
+    ├── storage/          modo local (StorageRepository, localStorage, migrações)
+    ├── state/            reducer (ações idempotentes) e store (local ou nuvem)
+    ├── ui/               cabeçalho, modal, confirmação, toast
+    ├── features/         escala, resumo, efetivo, consultas, dados
+    └── io/               reservado: exportar .xlsx / importar a planilha antiga
 ```
 
-### Trocar o backend (ex.: Supabase)
+### Como a sincronização funciona (`src/cloud/sync.ts`)
 
-Implemente `StorageRepository` (`load`, `save`, `clear`, `persistent`) e troque a instância em
-`src/main.tsx`. Os componentes não acessam o armazenamento diretamente.
-
-### Nova versão do formato de dados
-
-Suba `CURRENT_VERSION` em `src/domain/types.ts` e adicione a migração em
-`src/storage/migrations.ts`. Backups antigos passam pela mesma migração ao serem importados.
+Mesmo padrão dos apps CTV: abre na hora com a cópia do aparelho; a nuvem conecta em segundo plano.
+Cada alteração entra numa fila salva no aparelho e é enviada por **transação** no documento do dia
+(`escala_dias/AAAA-Www_D`) ou do colaborador (`escala_efetivo/{id}`). Duas pessoas editando o mesmo
+dia não se sobrescrevem: cada uma aplica só a própria alteração sobre a versão mais nova.
+Sem internet (ou sinal fraco, com tempo-limite de 15 s), a fila espera e é reenviada depois — as
+ações são idempotentes, então reenviar nunca duplica. O que chega da nuvem nunca apaga alterações
+ainda não enviadas.
 
 ## Regras
 

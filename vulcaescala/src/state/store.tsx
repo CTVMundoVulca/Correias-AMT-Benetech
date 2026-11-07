@@ -1,27 +1,54 @@
-import { createContext, useCallback, useContext, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import { AppState, emptyState } from '../domain/types';
 import { seedState } from '../domain/seed';
 import { newId } from '../domain/ids';
 import { CorruptDataError, type StorageRepository } from '../storage/StorageRepository';
+import type { CloudSync, SyncInfo } from '../cloud/sync';
 import { Action, reducer } from './reducer';
 
 export interface Notice {
   kind: 'warn' | 'danger';
   text: string;
+  action?: { label: string; onClick: () => void };
 }
 
-interface Store {
+/** Recursos que só existem com a nuvem (Firebase) ligada. */
+export interface CloudInfo {
+  info: SyncInfo;
+  email: string;
+  isAdmin: boolean;
+  setMembros: (emails: string[]) => Promise<void>;
+  logout: () => void;
+  retry: () => void;
+}
+
+export interface Store {
   state: AppState;
   dispatch: (a: Action) => void;
   ready: boolean;
   notices: Notice[];
   saveError: string | null;
+  /** os dados sobrevivem ao fechar o app */
   persistent: boolean;
   /** Substitui todos os dados (importar backup / apagar tudo). */
-  replaceAll: (s: AppState) => void;
+  replaceAll: (s: AppState) => Promise<void>;
+  /** `null` = modo local (só neste aparelho) */
+  cloud: CloudInfo | null;
 }
 
 const Ctx = createContext<Store | null>(null);
+
+// ---------------------------------------------------------------- modo local
 
 export function StoreProvider({ repository, children }: { repository: StorageRepository; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, emptyState);
@@ -51,7 +78,7 @@ export function StoreProvider({ repository, children }: { repository: StorageRep
       })
       .then((s) => {
         if (cancel) return;
-        const initial = s ?? seedState(newId);
+        const initial = s ?? seedState(() => newId());
         loaded.current = s; // estado novo (semente) será gravado na primeira passada
         dispatch({ type: 'state/replace', state: initial });
         setNotices(extra);
@@ -70,13 +97,54 @@ export function StoreProvider({ repository, children }: { repository: StorageRep
       .catch((e: unknown) => setSaveError(e instanceof Error ? e.message : String(e)));
   }, [state, ready, repository]);
 
-  const replaceAll = useCallback((s: AppState) => dispatch({ type: 'state/replace', state: s }), []);
+  const replaceAll = useCallback(async (s: AppState) => dispatch({ type: 'state/replace', state: s }), []);
 
   return (
-    <Ctx.Provider value={{ state, dispatch, ready, notices, saveError, persistent: repository.persistent, replaceAll }}>
+    <Ctx.Provider
+      value={{ state, dispatch, ready, notices, saveError, persistent: repository.persistent, replaceAll, cloud: null }}
+    >
       {children}
     </Ctx.Provider>
   );
+}
+
+// ---------------------------------------------------------------- modo nuvem
+
+interface CloudProps {
+  sync: CloudSync;
+  extraNotices?: Notice[];
+  email: string;
+  isAdmin: boolean;
+  logout: () => void;
+  children: ReactNode;
+}
+
+export function CloudStoreProvider({ sync, email, isAdmin, logout, extraNotices = [], children }: CloudProps) {
+  const state = useSyncExternalStore(sync.subscribe, sync.getState);
+  const info = useSyncExternalStore(sync.subscribe, sync.getInfo);
+
+  const notices: Notice[] = [...extraNotices];
+  if (info.status === 'denied')
+    notices.push({ kind: 'danger', text: 'Sem permissão na nuvem. Peça a um administrador para liberar o seu e-mail.' });
+
+  const store: Store = {
+    state,
+    dispatch: sync.dispatch,
+    ready: true,
+    notices,
+    saveError: info.status === 'error' ? info.lastError : null,
+    persistent: true,
+    replaceAll: (s) => sync.replaceAll(s),
+    cloud: {
+      info,
+      email,
+      isAdmin,
+      setMembros: (e) => sync.setMembros(e),
+      logout,
+      retry: () => void sync.flush(),
+    },
+  };
+  return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }
 
 export function useStore(): Store {

@@ -1,5 +1,5 @@
 import { AppState, CURRENT_VERSION, Worker } from './types';
-import { cleanName } from './names';
+import { cleanName, nameKey } from './names';
 
 /** Efetivo inicial, usado só na primeira abertura (quando não há dados salvos). */
 export const INITIAL_WORKERS = [
@@ -9,12 +9,16 @@ export const INITIAL_WORKERS = [
   'Sandro', 'Vinicius', 'Vicente', 'Wellington',
 ];
 
-export function seedState(makeId: () => string): AppState {
+/** `makeId` recebe o nome: na nuvem os ids são derivados do nome, para que dois
+ *  aparelhos abrindo ao mesmo tempo pela primeira vez não dupliquem o efetivo. */
+export function seedState(makeId: (nome: string) => string): AppState {
   const workers: Worker[] = INITIAL_WORKERS.map((nome) => ({
-    id: makeId(),
+    id: makeId(nome),
     nome: cleanName(nome),
     funcao: 'Vulcanizador',
     ativo: true,
   }));
   return { version: CURRENT_VERSION, workers, weeks: {} };
 }
+
+export const seedIdFromName = (nome: string) => 'inicial-' + nameKey(nome).toLowerCase().replace(/ /g, '-');

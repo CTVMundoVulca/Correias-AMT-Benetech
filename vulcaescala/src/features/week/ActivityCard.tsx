@@ -114,7 +114,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
                 className="chip-x"
                 aria-label={`Retirar ${w.nome} de ${activity.nome}`}
                 onClick={() => {
-                  dispatch({ type: 'activity/toggleWorker', ...dayRef, activityId: activity.id, workerId: w.id });
+                  dispatch({ type: 'activity/setWorker', allocated: false, ...dayRef, activityId: activity.id, workerId: w.id });
                   toast('Colaborador retirado');
                 }}
               >

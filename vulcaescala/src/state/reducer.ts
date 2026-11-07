@@ -15,7 +15,7 @@ export type Action =
   | ({ type: 'activity/add'; id: string; nome: string } & DayRef)
   | ({ type: 'activity/rename'; activityId: string; nome: string } & DayRef)
   | ({ type: 'activity/remove'; activityId: string } & DayRef)
-  | ({ type: 'activity/toggleWorker'; activityId: string; workerId: string } & DayRef)
+  | ({ type: 'activity/setWorker'; activityId: string; workerId: string; allocated: boolean } & DayRef)
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
 
 /** Já existe colaborador com o mesmo nome (sem diferenciar maiúsculas nem acentos)? */
@@ -38,7 +38,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'worker/add': {
       const nome = cleanName(action.nome);
-      if (!nome || isDuplicateName(state, nome)) return state;
+      if (!nome || isDuplicateName(state, nome) || state.workers.some((w) => w.id === action.id)) return state;
       return { ...state, workers: [...state.workers, { id: action.id, nome, funcao: action.funcao, ativo: true }] };
     }
     case 'worker/update': {
@@ -69,10 +69,11 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'activity/add': {
       const nome = cleanName(action.nome);
       if (!nome) return state;
-      return updateDay(state, action, (d) => ({
-        ...d,
-        activities: [...d.activities, { id: action.id, nome, workerIds: [] }],
-      }));
+      return updateDay(state, action, (d) =>
+        d.activities.some((a) => a.id === action.id)
+          ? d
+          : { ...d, activities: [...d.activities, { id: action.id, nome, workerIds: [] }] },
+      );
     }
     case 'activity/rename': {
       const nome = cleanName(action.nome);
@@ -87,18 +88,19 @@ export function reducer(state: AppState, action: Action): AppState {
         ...d,
         activities: d.activities.filter((a) => a.id !== action.activityId),
       }));
-    case 'activity/toggleWorker':
+    case 'activity/setWorker':
       return updateDay(state, action, (d) => {
         // ausente não pode ser alocado: a ausência precisa ser retirada antes
-        if (d.absences.some((a) => a.workerId === action.workerId)) return d;
+        if (action.allocated && d.absences.some((a) => a.workerId === action.workerId)) return d;
         return {
           ...d,
           activities: d.activities.map((a) => {
             if (a.id !== action.activityId) return a;
             const has = a.workerIds.includes(action.workerId);
+            if (has === action.allocated) return a;
             return {
               ...a,
-              workerIds: has ? a.workerIds.filter((id) => id !== action.workerId) : [...a.workerIds, action.workerId],
+              workerIds: action.allocated ? [...a.workerIds, action.workerId] : a.workerIds.filter((id) => id !== action.workerId),
             };
           }),
         };

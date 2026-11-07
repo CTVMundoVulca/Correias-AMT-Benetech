@@ -30,7 +30,7 @@ describe('escala', () => {
   it('pendentes = ativos sem alocação e sem ausência', () => {
     const s = build([
       ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
       { type: 'absence/set', ...ref, workerId: 'b', tipo: 'folga' },
     ]);
     expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']); // davi inativo não conta
@@ -47,10 +47,10 @@ describe('escala', () => {
   it('pendência é recalculada a cada alteração', () => {
     let s = build(base);
     expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['a', 'b', 'c']);
-    s = reducer(s, { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' });
+    s = reducer(s, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' });
     s = reducer(s, { type: 'absence/set', ...ref, workerId: 'b', tipo: 'exame' });
     expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']);
-    s = reducer(s, { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'c' });
+    s = reducer(s, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'c' });
     expect(pendingWorkers(getDay(s, W, 0), s.workers)).toEqual([]);
     // remover a atividade devolve a pessoa para pendente
     s = reducer(s, { type: 'activity/remove', ...ref, activityId: 'y' });
@@ -61,7 +61,7 @@ describe('escala', () => {
     const s = build([
       ...base,
       { type: 'activity/add', weekKey: W, dayIndex: 3, id: 'z', nome: 'inspeção' },
-      { type: 'activity/toggleWorker', weekKey: W, dayIndex: 3, activityId: 'z', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, weekKey: W, dayIndex: 3, activityId: 'z', workerId: 'a' },
     ]);
     expect(weekPending(s, W)).toEqual({
       days: [
@@ -74,19 +74,23 @@ describe('escala', () => {
     expect(weekPending(s, '2026-W46')).toEqual({ days: [], total: 0, hasActivities: false });
   });
 
-  it('toggle marca e desmarca', () => {
+  it('alocar/desalocar é idempotente', () => {
     const s = build([
       ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
     ]);
-    expect(getDay(s, W, 0).activities[0].workerIds).toEqual([]);
+    // repetir a mesma ação não duplica (idempotente: importante com vários aparelhos)
+    expect(getDay(s, W, 0).activities[0].workerIds).toEqual(['a']);
+    const s2 = reducer(s, { type: 'activity/setWorker', allocated: false, ...ref, activityId: 'x', workerId: 'a' });
+    expect(getDay(s2, W, 0).activities[0].workerIds).toEqual([]);
+    expect(reducer(s2, { type: 'activity/setWorker', allocated: false, ...ref, activityId: 'x', workerId: 'a' })).toEqual(s2);
   });
 
   it('status na janela de alocação', () => {
     const s = build([
       ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
       { type: 'absence/set', ...ref, workerId: 'b', tipo: 'atestado' },
     ]);
     const day = getDay(s, W, 0);
@@ -99,9 +103,9 @@ describe('escala', () => {
   it('ausência retira das atividades e bloqueia alocação', () => {
     const s = build([
       ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
       { type: 'absence/set', ...ref, workerId: 'a', tipo: 'exame' },
-      { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'a' },
     ]);
     const day = getDay(s, W, 0);
     expect(day.activities.flatMap((a) => a.workerIds)).toEqual([]);
@@ -121,12 +125,12 @@ describe('escala', () => {
     const W2 = '2027-W01';
     const s = build([
       ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'c' },
-      { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'c' },
-      { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'c' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'c' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'a' },
       { type: 'absence/set', weekKey: W, dayIndex: 4, workerId: 'c', tipo: 'falta' },
       { type: 'activity/add', weekKey: W2, dayIndex: 2, id: 'k', nome: 'emenda' },
-      { type: 'activity/toggleWorker', weekKey: W2, dayIndex: 2, activityId: 'k', workerId: 'c' },
+      { type: 'activity/setWorker', allocated: true, weekKey: W2, dayIndex: 2, activityId: 'k', workerId: 'c' },
       { type: 'absence/set', weekKey: W2, dayIndex: 5, workerId: 'c', tipo: 'ferias' },
       { type: 'worker/remove', id: 'c' },
     ]);
@@ -141,7 +145,7 @@ describe('escala', () => {
   it('histórico do colaborador', () => {
     const s = build([
       ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
+      { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
       { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'a', tipo: 'folga' },
     ]);
     const h = workerHistory(s, 'a', new Date('2026-11-01T00:00:00Z'), new Date('2026-11-30T00:00:00Z'));
@@ -155,9 +159,9 @@ describe('escala', () => {
 describe('resumo da semana', () => {
   const s = build([
     ...base,
-    { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
-    { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'a' },
-    { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'c' },
+    { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
+    { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'a' },
+    { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'c' },
     { type: 'absence/set', ...ref, workerId: 'b', tipo: 'atestado' },
     { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'd', tipo: 'ferias' },
   ]);
@@ -192,7 +196,7 @@ describe('migração / validação', () => {
   });
 
   it('ida e volta preserva os dados', () => {
-    const s = build([...base, { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' }]);
+    const s = build([...base, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' }]);
     expect(migrate(JSON.parse(JSON.stringify(s)))).toEqual(s);
   });
 

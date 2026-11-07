@@ -28,7 +28,7 @@ export function PendingWorkerDialog({ dayRef, dayLabel, worker, onClose }: Props
             className="act-option"
             data-autofocus={i === 0 ? true : undefined}
             onClick={() => {
-              dispatch({ type: 'activity/toggleWorker', ...dayRef, activityId: a.id, workerId: worker.id });
+              dispatch({ type: 'activity/setWorker', allocated: true, ...dayRef, activityId: a.id, workerId: worker.id });
               toast(`${worker.nome} alocado em ${a.nome}`);
               onClose();
             }}

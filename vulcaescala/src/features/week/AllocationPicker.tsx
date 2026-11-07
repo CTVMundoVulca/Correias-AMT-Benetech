@@ -69,7 +69,7 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
                 aria-pressed={st.kind === 'here'}
                 title={title}
                 onClick={() => {
-                  dispatch({ type: 'activity/toggleWorker', ...dayRef, activityId, workerId: w.id });
+                  dispatch({ type: 'activity/setWorker', allocated: st.kind !== 'here', ...dayRef, activityId, workerId: w.id });
                   toast(st.kind === 'here' ? `${w.nome} retirado` : `${w.nome} alocado`);
                 }}
               >

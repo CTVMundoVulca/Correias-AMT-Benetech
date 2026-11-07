@@ -1,8 +1,17 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { viteSingleFile } from 'vite-plugin-singlefile';
 
-// base relativa: o build funciona em qualquer subpasta (ex.: GitHub Pages /vulcaescala/)
-export default defineConfig({
+// Arquivo HTML único (CSS/JS embutidos), como os demais apps CTV.
+// `npm run build:pages` gera a pasta ../escala, publicada pelo GitHub Pages.
+export default defineConfig(({ mode }) => ({
   base: './',
-  plugins: [react()],
-});
+  plugins: [react(), viteSingleFile({ removeViteModuleLoader: true })],
+  build: {
+    outDir: mode === 'pages' ? '../escala' : 'dist',
+    emptyOutDir: true,
+    assetsInlineLimit: 100_000_000,
+  },
+  test: { include: ['src/**/*.test.ts'] },
+}));
