@@ -129,7 +129,7 @@ export function CloudStoreProvider({ sync, email, isAdmin, logout, extraNotices 
   if (info.rulesOutdated)
     notices.push({
       kind: 'warn',
-      text: 'As regras do Firebase estão desatualizadas: a lista de funções não sincroniza. Um administrador precisa publicar as regras novas (console do Firebase → Firestore → Regras).',
+      text: 'As regras do Firebase estão desatualizadas: funções, tipos de ausência e feriados municipais não sincronizam entre os aparelhos (e o Registro de Emenda não funciona). Um administrador precisa publicar as regras novas: console do Firebase → Firestore → Regras → colar o arquivo firestore.rules → Publicar.',
     });
   if (info.blocked > 0)
     notices.push({
