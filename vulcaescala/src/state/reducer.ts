@@ -1,5 +1,6 @@
 import { AbsenceType, AppState, CorAusencia, Day, Funcao, Worker, cleanFuncao, cleanMatricula, cleanNomeAusencia, cleanSigla, emptyWeek } from '../domain/types';
 import { cleanName, nameKey } from '../domain/names';
+import { FERIADO_NOME_MAX, isoValido } from '../domain/feriados';
 
 export interface DayRef {
   weekKey: string;
@@ -18,6 +19,8 @@ export type Action =
   | { type: 'ausencia/add'; id: string; nome: string; sigla: string; cor: CorAusencia }
   | { type: 'ausencia/update'; id: string; nome?: string; sigla?: string; cor?: CorAusencia; ativo?: boolean }
   | { type: 'ausencia/remove'; id: string }
+  /** feriado municipal: nome = null remove */
+  | { type: 'feriado/set'; data: string; nome: string | null }
   | ({ type: 'activity/add'; id: string; nome: string } & DayRef)
   | ({ type: 'activity/rename'; activityId: string; nome: string } & DayRef)
   | ({ type: 'activity/remove'; activityId: string } & DayRef)
@@ -25,6 +28,9 @@ export type Action =
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
 
 /** Já existe colaborador com o mesmo nome (sem diferenciar maiúsculas nem acentos)? */
+/** Tipo usado automaticamente para quem não está escalado nos feriados. */
+export const FOLGA_ID = 'folga';
+
 /** Quantos registros (dias) usam o tipo de ausência. */
 export function ausenciaUsage(state: AppState, id: string): number {
   let n = 0;
@@ -152,10 +158,22 @@ export function reducer(state: AppState, action: Action): AppState {
       if (JSON.stringify(next) === JSON.stringify(cur)) return state;
       return { ...state, ausencias: state.ausencias.map((a) => (a.id === cur.id ? next : a)) };
     }
+    case 'feriado/set': {
+      if (!isoValido(action.data)) return state;
+      const nome = action.nome?.replace(/\s+/g, ' ').trim().slice(0, FERIADO_NOME_MAX) ?? '';
+      const atual = state.feriados[action.data];
+      if (nome ? atual === nome : atual === undefined) return state;
+      const feriados = { ...state.feriados };
+      if (nome) feriados[action.data] = nome;
+      else delete feriados[action.data];
+      return { ...state, feriados };
+    }
+
     case 'ausencia/remove': {
       const cur = state.ausencias.find((a) => a.id === action.id);
-      // só remove tipo nunca usado (senão: ocultar) e nunca o último visível
-      if (!cur || ausenciaUsage(state, cur.id) > 0) return state;
+      // só remove tipo nunca usado (senão: ocultar) e nunca o último visível;
+      // "folga" é usada automaticamente nos feriados e não pode ser removida
+      if (!cur || cur.id === FOLGA_ID || ausenciaUsage(state, cur.id) > 0) return state;
       if (cur.ativo && state.ausencias.filter((a) => a.ativo).length <= 1) return state;
       return { ...state, ausencias: state.ausencias.filter((a) => a.id !== cur.id) };
     }

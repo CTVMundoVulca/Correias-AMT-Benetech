@@ -21,6 +21,7 @@ export function PendingWorkerDialog({ dayRef, dayLabel, worker, onClose }: Props
   return (
     <Modal title={worker.nome} subtitle={dayLabel} onClose={onClose}>
       <h3>Alocar em</h3>
+      {day.activities.length === 0 && <p className="small muted">Nenhuma atividade criada neste dia.</p>}
       <div className="act-options">
         {day.activities.map((a, i) => (
           <button

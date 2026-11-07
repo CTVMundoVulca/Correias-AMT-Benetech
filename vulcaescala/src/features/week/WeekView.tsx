@@ -5,9 +5,35 @@ import { dayHasData, getDay, weekPending } from '../../domain/schedule';
 import { DayBlock } from './DayBlock';
 import { WeekNav } from './WeekNav';
 
-/** Estado inicial recolhido/expandido: sábado e domingo sem dados começam recolhidos. */
-function initialOpen(state: ReturnType<typeof useStore>['state'], weekKey: string): boolean[] {
-  return Array.from({ length: 7 }, (_, i) => !(i >= 5 && !dayHasData(getDay(state, weekKey, i))));
+/**
+ * Dias recolhidos/abertos. A escolha da pessoa (tocar no cabeçalho do dia) fica
+ * guardada no aparelho por dia da semana e vale para todas as semanas: trocar de
+ * semana, de aba ou tocar nas pendências não reabre o que foi recolhido.
+ * Sem escolha: sábado e domingo sem dados começam recolhidos.
+ */
+const PREF_KEY = 'vulcaescala:dias-recolhidos';
+type Prefs = Partial<Record<number, boolean>>; // true = recolhido
+
+function lerPrefs(): Prefs {
+  try {
+    const p = JSON.parse(localStorage.getItem(PREF_KEY) ?? '{}');
+    return p && typeof p === 'object' ? (p as Prefs) : {};
+  } catch {
+    return {};
+  }
+}
+function gravarPrefs(p: Prefs) {
+  try {
+    localStorage.setItem(PREF_KEY, JSON.stringify(p));
+  } catch {
+    /* sem armazenamento: vale só nesta sessão */
+  }
+}
+
+function isOpen(prefs: Prefs, state: ReturnType<typeof useStore>['state'], weekKey: string, i: number): boolean {
+  const p = prefs[i];
+  if (p !== undefined) return !p;
+  return !(i >= 5 && !dayHasData(getDay(state, weekKey, i)));
 }
 
 interface Props {
@@ -18,7 +44,13 @@ interface Props {
 
 export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
   const { state } = useStore();
-  const [open, setOpen] = useState<boolean[]>(() => initialOpen(state, weekKey));
+  const [prefs, setPrefs] = useState<Prefs>(lerPrefs);
+  const setRecolhido = (i: number, recolhido: boolean) =>
+    setPrefs((p) => {
+      const n = { ...p, [i]: recolhido };
+      gravarPrefs(n);
+      return n;
+    });
   const [scrollTo, setScrollTo] = useState<number | null>(null);
 
   const dates = weekDates(weekKey);
@@ -27,13 +59,11 @@ export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
   const pendingDays = pending.days.filter((d) => d.count > 0);
   const activeCount = state.workers.filter((w) => w.ativo).length;
 
-  const goTo = (key: string) => {
-    setOpen(initialOpen(state, key));
-    onWeekChange(key);
-  };
+  const goTo = (key: string) => onWeekChange(key);
 
+  // botão de pendência ("Seg: 3"): abre SÓ aquele dia e rola até ele
   const showDay = (i: number) => {
-    setOpen((o) => o.map((v, j) => (j === i ? true : v)));
+    if (!isOpen(prefs, state, weekKey, i)) setRecolhido(i, false);
     setScrollTo(i);
   };
 
@@ -87,8 +117,8 @@ export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
           dayIndex={i}
           date={date}
           isToday={today.weekKey === weekKey && today.dayIndex === i}
-          open={open[i]}
-          onToggle={() => setOpen((o) => o.map((v, j) => (j === i ? !v : v)))}
+          open={isOpen(prefs, state, weekKey, i)}
+          onToggle={() => setRecolhido(i, isOpen(prefs, state, weekKey, i))}
         />
       ))}
     </section>

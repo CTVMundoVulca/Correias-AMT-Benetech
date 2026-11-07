@@ -6,6 +6,7 @@ import { useToast } from '../../ui/Toast';
 import { useConfirm } from '../../ui/ConfirmDialog';
 import { syncLabel } from '../../ui/Header';
 import { markLegacyDone, readLegacy } from '../../cloud/legacy';
+import { FeriadosCard } from './FeriadosCard';
 
 export function DataView() {
   const { state, replaceAll, persistent, cloud } = useStore();
@@ -70,6 +71,7 @@ export function DataView() {
       {cloud && <AccountCard />}
       {cloud?.isAdmin && <MembersCard />}
       {cloud && <LegacyCard />}
+      {(!cloud || cloud.info.status !== 'denied') && <FeriadosCard />}
 
       <div className="card pad stack">
         <h1>Dados</h1>

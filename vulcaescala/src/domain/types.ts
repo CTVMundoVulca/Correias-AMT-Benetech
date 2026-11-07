@@ -84,7 +84,7 @@ export interface Week {
   days: Day[];
 }
 
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 export interface AppState {
   version: number;
@@ -93,12 +93,14 @@ export interface AppState {
   funcoes: string[];
   /** tipos de ausência (ordem de exibição) */
   ausencias: TipoAusencia[];
+  /** feriados municipais (Vitória) "AAAA-MM-DD" → nome; os nacionais são calculados */
+  feriados: Record<string, string>;
   /** semanas indexadas pela chave ISO; só existem semanas que já receberam dados */
   weeks: Record<string, Week>;
 }
 
 export function emptyState(): AppState {
-  return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), weeks: {} };
+  return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), feriados: {}, weeks: {} };
 }
 
 export function emptyDay(): Day {

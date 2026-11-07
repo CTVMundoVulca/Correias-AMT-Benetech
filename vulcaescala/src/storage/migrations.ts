@@ -15,6 +15,7 @@ import {
   emptyState,
 } from '../domain/types';
 import { isValidWeekKey } from '../domain/isoWeek';
+import { FERIADO_NOME_MAX, isoValido } from '../domain/feriados';
 import { cleanName, nameKey } from '../domain/names';
 
 /**
@@ -27,6 +28,8 @@ const MIGRATIONS: Record<number, (s: any) => any> = {
   1: (s) => ({ ...s, version: 2, funcoes: [...FUNCOES_PADRAO] }),
   // v3: tipos de ausência editáveis (antes eram fixos no código; mesmos ids)
   2: (s) => ({ ...s, version: 3, ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })) }),
+  // v4: feriados municipais (Vitória); os nacionais são calculados
+  3: (s) => ({ ...s, version: 4, feriados: {} }),
 };
 
 export class InvalidDataError extends Error {}
@@ -98,7 +101,13 @@ function sanitize(s: any): AppState {
     const days: Day[] = Array.from({ length: 7 }, (_, i) => sanitizeDay((wk.days as unknown[])[i], ids));
     weeks[key] = { key, days };
   }
-  return { version: CURRENT_VERSION, workers, funcoes, ausencias, weeks };
+  const feriados: Record<string, string> = {};
+  if (isObj(s.feriados))
+    for (const [k, v] of Object.entries(s.feriados)) {
+      const nome = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, FERIADO_NOME_MAX) : '';
+      if (isoValido(k) && nome) feriados[k] = nome;
+    }
+  return { version: CURRENT_VERSION, workers, funcoes, ausencias, feriados, weeks };
 }
 
 function sanitizeDay(d: any, ids: Set<string>): Day {

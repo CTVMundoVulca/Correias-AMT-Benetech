@@ -77,6 +77,19 @@ ausência): nome, sigla (letra da tabela do resumo) e cor. Os registros guardam 
 editar vale também para o histórico. Tipo já usado não pode ser removido — use **Ocultar** (sai das
 opções, o histórico continua com o nome). Na nuvem: `escala_config/ausencias`.
 
+### Feriados (folga automática)
+
+Feriados nacionais calculados como no Registro de Horários (fixos + Carnaval, Sexta-feira Santa e
+Corpus Christi pela Páscoa); municipais de **Vitória** cadastrados em **Dados → Feriados**
+(`escala_config/feriados`). Num feriado, quem não está em nenhuma atividade aparece como
+**folga automática** (não gravada, não conta como pendência). Alocar a pessoa ou registrar outra
+ausência muda o status na hora.
+
+### Dias recolhidos
+
+O dia recolhido fica recolhido (escolha guardada no aparelho, por dia da semana) ao trocar de
+semana, de aba ou recarregar. O botão de pendência ("Seg: 3") abre só o dia escolhido.
+
 ### Segurança
 
 - Só e-mails **liberados** (ou administradores) leem ou gravam — as regras do Firestore valem no

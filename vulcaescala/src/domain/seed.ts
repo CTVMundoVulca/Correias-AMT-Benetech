@@ -18,7 +18,7 @@ export function seedState(makeId: (nome: string) => string): AppState {
     funcao: 'Vulcanizador',
     ativo: true,
   }));
-  return { version: CURRENT_VERSION, workers, funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), weeks: {} };
+  return { version: CURRENT_VERSION, workers, funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), feriados: {}, weeks: {} };
 }
 
 export const seedIdFromName = (nome: string) => 'inicial-' + nameKey(nome).toLowerCase().replace(/ /g, '-');

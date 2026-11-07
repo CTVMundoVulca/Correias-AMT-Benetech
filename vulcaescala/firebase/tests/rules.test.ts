@@ -136,6 +136,13 @@ describe('validação de formato', () => {
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', nome: 'X'.repeat(81) }));
   });
 
+  it('feriados municipais: membro lê e grava; não liberado não acessa', async () => {
+    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/feriados'), { map: { '2026-09-08': 'Aniversário de Vitória' } }));
+    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/feriados')));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_config/feriados'), { map: {}, outro: 1 }));
+    await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/feriados')));
+  });
+
   it('tipos de ausência: membro lê e grava; não liberado e anônimo não acessam', async () => {
     const lista = [{ id: 'folga', nome: 'Folga', sigla: 'F', cor: 'cinza', ativo: true }];
     await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista }));

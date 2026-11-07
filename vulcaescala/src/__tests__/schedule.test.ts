@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { reducer, type Action } from '../state/reducer';
 import { AUSENCIAS_PADRAO, AppState, FUNCOES_PADRAO, emptyState, tipoAusencia } from '../domain/types';
 import { ausenciaUsage } from '../state/reducer';
-import { allocationStatus, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
+import { allocationStatus, feriadoDoDia, folgasDeFeriado, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
 import { activityRows, weekKpis, workerGrid } from '../domain/summary';
 import { migrate, InvalidDataError } from '../storage/migrations';
 
@@ -64,19 +64,22 @@ describe('escala', () => {
       { type: 'activity/add', weekKey: W, dayIndex: 3, id: 'z', nome: 'inspeção' },
       { type: 'activity/setWorker', allocated: true, weekKey: W, dayIndex: 3, activityId: 'z', workerId: 'a' },
     ]);
+    // segunda 02/11/2026 é Finados: sem pendência (folga automática)
     expect(weekPending(s, W)).toEqual({
       days: [
-        { dayIndex: 0, count: 3 },
+        { dayIndex: 0, count: 0 },
         { dayIndex: 3, count: 2 },
       ],
-      total: 5,
+      total: 2,
       hasActivities: true,
     });
     expect(weekPending(s, '2026-W46')).toEqual({ days: [], total: 0, hasActivities: false });
   });
 
   it('situação da semana para o calendário', () => {
-    const s = build(base); // segunda com atividades e 3 pendentes
+    // segunda (Finados) com atividade: ninguém pendente; terça com atividade: 3 pendentes
+    expect(weekStatus(build(base), W)).toBe('ok');
+    const s = build([...base, { type: 'activity/add', weekKey: W, dayIndex: 1, id: 't1', nome: 'reparo' }]);
     expect(weekStatus(s, W)).toBe('pendente');
     expect(weekStatus(s, '2026-W46')).toBe('vazia');
     const ok = build([...base, { type: 'activity/remove', ...ref, activityId: 'y' }, { type: 'absence/set', ...ref, workerId: 'a', tipo: 'folga' },
@@ -237,9 +240,56 @@ describe('lista de funções', () => {
   it('dados da versão 1 ganham a lista padrão na migração', () => {
     const v1 = { version: 1, workers: [{ id: 'a', nome: 'ANA', funcao: 'Soldador', ativo: true }], weeks: {} };
     const s = migrate(v1);
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.funcoes).toEqual(FUNCOES_PADRAO);
     expect(s.workers[0].funcao).toBe('Soldador');
+  });
+});
+
+describe('feriados: folga automática', () => {
+  const fin = { weekKey: W, dayIndex: 0 }; // 02/11/2026, Finados
+  const s0 = build([
+    ...base,
+    { type: 'activity/setWorker', allocated: true, ...fin, activityId: 'x', workerId: 'a' },
+    { type: 'absence/set', ...fin, workerId: 'b', tipo: 'atestado' },
+  ]);
+
+  it('identifica o feriado do dia', () => {
+    expect(feriadoDoDia(s0, W, 0)).toBe('Finados');
+    expect(feriadoDoDia(s0, W, 1)).toBeNull();
+  });
+
+  it('quem não está escalado fica de folga; alocado trabalha; outra ausência prevalece', () => {
+    const day = getDay(s0, W, 0);
+    expect(folgasDeFeriado(day, s0.workers, 'Finados').map((w) => w.id)).toEqual(['c']); // davi é inativo
+    expect(pendingWorkers(day, s0.workers, 'Finados')).toEqual([]);
+    // alocar a pessoa tira da folga automática
+    const s1 = reducer(s0, { type: 'activity/setWorker', allocated: true, ...fin, activityId: 'y', workerId: 'c' });
+    expect(folgasDeFeriado(getDay(s1, W, 0), s1.workers, 'Finados')).toEqual([]);
+  });
+
+  it('resumo e consultas mostram a folga automática', () => {
+    const g = workerGrid(s0, W);
+    expect(g.find((r) => r.worker.id === 'c')!.cells[0]).toEqual({ kind: 'abs', tipo: 'folga', feriado: true });
+    expect(g.find((r) => r.worker.id === 'b')!.cells[0]).toEqual({ kind: 'abs', tipo: 'atestado' });
+    expect(g.find((r) => r.worker.id === 'a')!.cells[0]).toEqual({ kind: 'on' });
+    expect(weekKpis(s0, W).absences).toBe(2); // atestado + folga automática
+    const h = workerHistory(s0, 'c', new Date('2026-11-01T00:00:00Z'), new Date('2026-11-03T00:00:00Z'));
+    expect(h).toEqual([{ date: new Date('2026-11-02T00:00:00Z'), activities: [], absence: 'folga', feriado: 'Finados' }]);
+  });
+
+  it('feriado municipal cadastrado também conta', () => {
+    let s = reducer(s0, { type: 'feriado/set', data: '2026-11-03', nome: '  Feriado   de teste ' });
+    expect(s.feriados).toEqual({ '2026-11-03': 'Feriado de teste' });
+    expect(feriadoDoDia(s, W, 1)).toBe('Feriado de teste');
+    s = reducer(s, { type: 'feriado/set', data: '2026-11-03', nome: null });
+    expect(feriadoDoDia(s, W, 1)).toBeNull();
+    expect(reducer(s, { type: 'feriado/set', data: '03/11/2026', nome: 'x' })).toBe(s);
+  });
+
+  it('o tipo "folga" não pode ser removido (é usado nos feriados)', () => {
+    const s = build([]);
+    expect(reducer(s, { type: 'ausencia/remove', id: 'folga' })).toBe(s);
   });
 });
 
@@ -295,7 +345,7 @@ describe('tipos de ausência editáveis', () => {
   it('dados da versão 2 ganham os tipos padrão na migração', () => {
     const v2 = { version: 2, workers: [{ id: 'a', nome: 'ANA', funcao: 'Soldador', ativo: true }], funcoes: ['Soldador'], weeks: {} };
     const s = migrate(v2);
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.ausencias).toEqual(AUSENCIAS_PADRAO);
   });
 });

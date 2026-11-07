@@ -263,6 +263,10 @@ a.hdr-btn { text-decoration: none; }
 .pend-strip.warn { background: var(--pend-bg); border-color: var(--pend-line); color: var(--pend-ink); }
 .pend-strip.ok { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-ink); }
 .pend-strip .chips { margin-top: 6px; }
+.pend-strip.feriado { background: var(--violet-bg); border-color: var(--violet-ink); color: var(--violet-ink); }
+.badge.feriado { background: var(--violet-bg); color: var(--violet-ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.chip-btn { cursor: pointer; padding-right: 11px; font-style: italic; }
+.chip-btn:hover { filter: brightness(0.96); }
 .pend-name {
   border: 1px solid var(--pend-line); background: var(--surface); color: var(--ink); border-radius: 999px;
   padding: 4px 12px; min-height: 36px; cursor: pointer; font-weight: 500; font-size: 0.86rem;
@@ -352,6 +356,7 @@ a.hdr-btn { text-decoration: none; }
 .grid-table td.cell.on { color: var(--ok-ink); font-weight: 600; }
 .grid-table td.cell.none { color: var(--ink-2); opacity: 0.55; }
 .grid-table td.cell .tag { padding: 0 4px; font-family: var(--mono); }
+.grid-table td.cell.auto .tag { font-style: italic; opacity: 0.8; }
 .grid-table td.total { font-family: var(--mono); font-weight: 600; }
 .grid-table tr.inactive .name-col { color: var(--ink-2); font-style: italic; }
 @media (max-width: 480px) {

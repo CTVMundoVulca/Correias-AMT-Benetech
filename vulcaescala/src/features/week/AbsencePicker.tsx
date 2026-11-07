@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
-import { absenceOf, getDay, sortByName } from '../../domain/schedule';
+import { absenceOf, feriadoDoDia, getDay, sortByName } from '../../domain/schedule';
 import { matchesSearch } from '../../domain/names';
 import { tipoAusencia } from '../../domain/types';
 import { AusenciasDialog } from '../workers/AusenciasDialog';
@@ -25,6 +25,7 @@ export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
   const [gerenciar, setGerenciar] = useState(false);
   const [query, setQuery] = useState('');
   const day = getDay(state, dayRef.weekKey, dayRef.dayIndex);
+  const feriado = feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex);
   const list = sortByName(state.workers.filter((w) => w.ativo && matchesSearch(w.nome, query)));
 
   return (
@@ -87,6 +88,7 @@ export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
                     {here ? '✓' : cur ? tipoAusencia(state, cur).nome : 'Alocado'}
                   </span>
                 )}
+                {!here && !cur && !inActivity && feriado && <span className="pick-status muted">Folga (feriado)</span>}
               </button>
             </li>
           );

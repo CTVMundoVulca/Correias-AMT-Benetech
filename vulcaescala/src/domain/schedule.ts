@@ -1,5 +1,9 @@
 import { AbsenceType, AppState, Day, Worker, emptyDay } from './types';
-import { addDays, locateDay } from './isoWeek';
+import { addDays, locateDay, toIsoDate, weekDates } from './isoWeek';
+import { feriadoEm } from './feriados';
+
+/** Tipo de ausência usado automaticamente nos feriados. */
+export const FOLGA_FERIADO = 'folga';
 
 export function getDay(state: AppState, weekKey: string, dayIndex: number): Day {
   return state.weeks[weekKey]?.days[dayIndex] ?? emptyDay();
@@ -25,8 +29,30 @@ export function absenceOf(day: Day, workerId: string): AbsenceType | undefined {
  * (c) não está em nenhuma atividade do dia e (d) não tem ausência no dia.
  * Dia sem atividade não gera pendência.
  */
-export function pendingWorkers(day: Day, workers: Worker[]): Worker[] {
-  if (day.activities.length === 0) return [];
+export function pendingWorkers(day: Day, workers: Worker[], feriado: string | null = null): Worker[] {
+  // feriado: quem não está escalado está de folga automaticamente (não é pendência)
+  if (day.activities.length === 0 || feriado) return [];
+  const alloc = allocatedIds(day);
+  const absent = new Set(day.absences.map((a) => a.workerId));
+  return sortByName(workers.filter((w) => w.ativo && !alloc.has(w.id) && !absent.has(w.id)));
+}
+
+/** Nome do feriado (nacional ou municipal) no dia da semana, ou null. */
+export function feriadoDoDia(state: AppState, weekKey: string, dayIndex: number): string | null {
+  return feriadoEm(state.feriados, toIsoDate(weekDates(weekKey)[dayIndex]));
+}
+
+export function feriadoNaData(state: AppState, date: Date): string | null {
+  return feriadoEm(state.feriados, toIsoDate(date));
+}
+
+/**
+ * Folga automática de feriado: ativos que não estão em nenhuma atividade e não têm
+ * outra ausência registrada. Não é gravada: alocar a pessoa ou registrar outra
+ * ausência (ex.: atestado) muda o status na hora.
+ */
+export function folgasDeFeriado(day: Day, workers: Worker[], feriado: string | null): Worker[] {
+  if (!feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
   return sortByName(workers.filter((w) => w.ativo && !alloc.has(w.id) && !absent.has(w.id)));
@@ -45,7 +71,7 @@ export function weekPending(state: AppState, weekKey: string): { days: DayPendin
     const day = getDay(state, weekKey, i);
     if (!day.activities.length) continue;
     hasActivities = true;
-    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers).length });
+    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers, feriadoDoDia(state, weekKey, i)).length });
   }
   return { days, total: days.reduce((s, d) => s + d.count, 0), hasActivities };
 }
@@ -90,6 +116,8 @@ export interface WorkerDayRecord {
   date: Date;
   activities: string[];
   absence?: AbsenceType;
+  /** folga automática de feriado (não registrada) */
+  feriado?: string;
 }
 
 /** Percorre os dias de um período (inclusive) que existem no estado. */
@@ -107,6 +135,10 @@ export function workerHistory(state: AppState, workerId: string, from: Date, to:
     const activities = day.activities.filter((a) => a.workerIds.includes(workerId)).map((a) => a.nome);
     const absence = absenceOf(day, workerId);
     if (activities.length || absence) out.push({ date, activities, absence });
+    else {
+      const fer = feriadoNaData(state, date);
+      if (fer && state.workers.some((w) => w.id === workerId && w.ativo)) out.push({ date, activities, absence: FOLGA_FERIADO, feriado: fer });
+    }
   }
   return out;
 }

@@ -58,6 +58,15 @@ service cloud.firestore {
         && request.resource.data.lista.size() <= 50;
     }
 
+    // Feriados municipais (Vitória), editáveis pela liderança no app
+    match /escala_config/feriados {
+      allow read: if isMember();
+      allow write: if isMember()
+        && request.resource.data.keys().hasOnly(['map', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.map is map
+        && request.resource.data.map.size() <= 200;
+    }
+
     // Tipos de ausência (editáveis pela liderança no app)
     match /escala_config/ausencias {
       allow read: if isMember();

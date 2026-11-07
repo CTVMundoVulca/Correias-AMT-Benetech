@@ -195,6 +195,15 @@ describe('sincronização entre aparelhos', () => {
     expect(snap.data()!.lista).toEqual(['Vulcanizador de correia', 'Líder', 'Encarregado', 'Mecânico', 'Auxiliar', 'Montador']);
   });
 
+  it('feriado municipal cadastrado num aparelho vale no outro', async () => {
+    a.dispatch({ type: 'feriado/set', data: '2026-11-05', nome: 'Feriado municipal de teste' });
+    await until(() => a.getInfo().pending === 0);
+    await until(() => b.getState().feriados['2026-11-05'] === 'Feriado municipal de teste');
+    b.dispatch({ type: 'feriado/set', data: '2026-11-05', nome: null });
+    await until(() => b.getInfo().pending === 0);
+    await until(() => !('2026-11-05' in a.getState().feriados));
+  });
+
   it('tipos de ausência: criar num aparelho, usar no outro, renomear e o histórico acompanha', async () => {
     a.dispatch({ type: 'ausencia/add', id: 'trein', nome: 'treinamento', sigla: 'T', cor: 'verde' });
     await until(() => a.getInfo().pending === 0);
