@@ -10,7 +10,7 @@ import {
   weekDates,
 } from '../../domain/isoWeek';
 import { activityHistory, countBy, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../../domain/schedule';
-import { ABSENCE_LABELS } from '../../domain/types';
+import { tipoAusencia } from '../../domain/types';
 
 type Mode = 'colaborador' | 'atividade' | 'resumo';
 
@@ -70,7 +70,7 @@ function ByWorker({ from, to }: { from: Date; to: Date }) {
   const rows = useMemo(() => (id ? workerHistory(state, id, from, to) : []), [state, id, from, to]);
   const worked = rows.filter((r) => r.activities.length).length;
   const byActivity = countBy(rows, (r) => r.activities);
-  const byAbsence = countBy(rows, (r) => (r.absence ? [ABSENCE_LABELS[r.absence]] : []));
+  const byAbsence = countBy(rows, (r) => (r.absence ? [tipoAusencia(state, r.absence).nome] : []));
 
   return (
     <div className="card pad">
@@ -111,7 +111,7 @@ function ByWorker({ from, to }: { from: Date; to: Date }) {
                   {weekdayOf(r.date)} {formatDate(r.date)}
                 </span>
                 <span>
-                  {r.absence ? <span className={`tag abs-${r.absence}`}>{ABSENCE_LABELS[r.absence]}</span> : r.activities.join(', ')}
+                  {r.absence ? <span className={`tag cor-${tipoAusencia(state, r.absence).cor}`}>{tipoAusencia(state, r.absence).nome}</span> : r.activities.join(', ')}
                 </span>
               </li>
             ))}

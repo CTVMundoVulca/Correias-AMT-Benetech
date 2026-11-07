@@ -58,6 +58,16 @@ service cloud.firestore {
         && request.resource.data.lista.size() <= 50;
     }
 
+    // Tipos de ausência (editáveis pela liderança no app)
+    match /escala_config/ausencias {
+      allow read: if isMember();
+      allow write: if isMember()
+        && request.resource.data.keys().hasOnly(['lista', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.lista is list
+        && request.resource.data.lista.size() > 0
+        && request.resource.data.lista.size() <= 30;
+    }
+
     match /escala_efetivo/{workerId} {
       // leitura também pelo Registro de Emenda (nomes e matrículas do efetivo)
       allow read: if signedIn();

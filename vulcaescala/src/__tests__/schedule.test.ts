@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reducer, type Action } from '../state/reducer';
-import { AppState, FUNCOES_PADRAO, emptyState } from '../domain/types';
+import { AUSENCIAS_PADRAO, AppState, FUNCOES_PADRAO, emptyState, tipoAusencia } from '../domain/types';
+import { ausenciaUsage } from '../state/reducer';
 import { allocationStatus, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
 import { activityRows, weekKpis, workerGrid } from '../domain/summary';
 import { migrate, InvalidDataError } from '../storage/migrations';
@@ -236,9 +237,66 @@ describe('lista de funções', () => {
   it('dados da versão 1 ganham a lista padrão na migração', () => {
     const v1 = { version: 1, workers: [{ id: 'a', nome: 'ANA', funcao: 'Soldador', ativo: true }], weeks: {} };
     const s = migrate(v1);
-    expect(s.version).toBe(2);
+    expect(s.version).toBe(3);
     expect(s.funcoes).toEqual(FUNCOES_PADRAO);
     expect(s.workers[0].funcao).toBe('Soldador');
+  });
+});
+
+describe('tipos de ausência editáveis', () => {
+  const s0 = build([...base, { type: 'absence/set', ...ref, workerId: 'a', tipo: 'atestado' }]);
+
+  it('começa com os 5 tipos de sempre (mesmos ids: dados antigos continuam válidos)', () => {
+    expect(s0.ausencias.map((a) => [a.id, a.nome, a.sigla])).toEqual([
+      ['folga', 'Folga', 'F'],
+      ['atestado', 'Atestado', 'A'],
+      ['exame', 'Exame', 'E'],
+      ['ferias', 'Férias', 'FÉ'],
+      ['falta', 'Falta', 'FT'],
+    ]);
+  });
+
+  it('adiciona sem repetir nome nem sigla', () => {
+    let s = reducer(s0, { type: 'ausencia/add', id: 't1', nome: '  treinamento ', sigla: 't', cor: 'verde' });
+    expect(s.ausencias[5]).toEqual({ id: 't1', nome: 'Treinamento', sigla: 'T', cor: 'verde', ativo: true });
+    expect(reducer(s, { type: 'ausencia/add', id: 't2', nome: 'FERIAS', sigla: 'X', cor: 'azul' })).toBe(s); // nome repetido
+    expect(reducer(s, { type: 'ausencia/add', id: 't3', nome: 'Licença', sigla: 'a', cor: 'azul' })).toBe(s); // sigla repetida
+    s = reducer(s, { type: 'ausencia/add', id: 't4', nome: 'Licença', sigla: 'LC', cor: 'laranja' });
+    expect(s.ausencias).toHaveLength(7);
+  });
+
+  it('editar vale para o histórico (registro guarda o id)', () => {
+    const s = reducer(s0, { type: 'ausencia/update', id: 'atestado', nome: 'Atestado médico', sigla: 'AM', cor: 'laranja' });
+    const tipo = getDay(s, W, 0).absences[0].tipo;
+    expect(tipoAusencia(s, tipo)).toMatchObject({ nome: 'Atestado médico', sigla: 'AM', cor: 'laranja' });
+  });
+
+  it('tipo usado não pode ser removido, só ocultado; o nome continua no histórico', () => {
+    expect(ausenciaUsage(s0, 'atestado')).toBe(1);
+    expect(reducer(s0, { type: 'ausencia/remove', id: 'atestado' })).toBe(s0);
+    const oculto = reducer(s0, { type: 'ausencia/update', id: 'atestado', ativo: false });
+    expect(oculto.ausencias.find((a) => a.id === 'atestado')!.ativo).toBe(false);
+    expect(tipoAusencia(oculto, 'atestado').nome).toBe('Atestado');
+    const semExame = reducer(s0, { type: 'ausencia/remove', id: 'exame' });
+    expect(semExame.ausencias.map((a) => a.id)).not.toContain('exame');
+  });
+
+  it('nunca fica sem tipo visível', () => {
+    let s = s0;
+    for (const id of ['folga', 'atestado', 'exame', 'ferias']) s = reducer(s, { type: 'ausencia/update', id, ativo: false });
+    expect(reducer(s, { type: 'ausencia/update', id: 'falta', ativo: false })).toBe(s);
+    expect(reducer(s, { type: 'ausencia/remove', id: 'falta' })).toBe(s);
+  });
+
+  it('id desconhecido aparece como "Tipo removido"', () => {
+    expect(tipoAusencia(s0, 'xyz')).toMatchObject({ nome: 'Tipo removido', sigla: '?' });
+  });
+
+  it('dados da versão 2 ganham os tipos padrão na migração', () => {
+    const v2 = { version: 2, workers: [{ id: 'a', nome: 'ANA', funcao: 'Soldador', ativo: true }], funcoes: ['Soldador'], weeks: {} };
+    const s = migrate(v2);
+    expect(s.version).toBe(3);
+    expect(s.ausencias).toEqual(AUSENCIAS_PADRAO);
   });
 });
 

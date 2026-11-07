@@ -70,6 +70,13 @@ A lista de funções é editável em **Efetivo → Funções** (qualquer pessoa 
 renomear (atualiza todos os colaboradores que têm a função) e remover (só se ninguém usa).
 Na nuvem fica em `escala_config/funcoes`.
 
+### Tipos de ausência
+
+Editáveis em **Efetivo → Ausências** (ou "Editar tipos de ausência…" na janela de registrar
+ausência): nome, sigla (letra da tabela do resumo) e cor. Os registros guardam o id do tipo, então
+editar vale também para o histórico. Tipo já usado não pode ser removido — use **Ocultar** (sai das
+opções, o histórico continua com o nome). Na nuvem: `escala_config/ausencias`.
+
 ### Segurança
 
 - Só e-mails **liberados** (ou administradores) leem ou gravam — as regras do Firestore valem no

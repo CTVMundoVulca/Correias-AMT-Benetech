@@ -3,7 +3,7 @@ import { useStore } from '../../state/store';
 import { newId } from '../../domain/ids';
 import { WEEKDAYS, formatDate } from '../../domain/isoWeek';
 import { allocatedIds, dayHasData, getDay, pendingWorkers } from '../../domain/schedule';
-import { ABSENCE_LABELS, ABSENCE_TYPES, Worker } from '../../domain/types';
+import { Worker, tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { ActivityCard } from './ActivityCard';
 import { AbsencePicker } from './AbsencePicker';
@@ -135,15 +135,15 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
               <p className="muted small">Nenhuma ausência registrada.</p>
             ) : (
               <div className="chips">
-                {ABSENCE_TYPES.flatMap((tipo) =>
+                {[...new Set([...state.ausencias.map((t) => t.id), ...day.absences.map((a) => a.tipo)])].flatMap((tipo) =>
                   day.absences
                     .filter((a) => a.tipo === tipo)
                     .map((a) => {
                       const w = byId.get(a.workerId);
                       return (
-                        <span key={a.workerId} className={`chip abs-${tipo}`}>
+                        <span key={a.workerId} className={`chip cor-${tipoAusencia(state, tipo).cor}`}>
                           <span className="chip-label">
-                            {w?.nome ?? '?'} · {ABSENCE_LABELS[tipo]}
+                            {w?.nome ?? '?'} · {tipoAusencia(state, tipo).nome}
                           </span>
                           <button
                             className="chip-x"

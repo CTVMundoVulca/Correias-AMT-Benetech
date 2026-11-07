@@ -1,7 +1,7 @@
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
 import { getDay } from '../../domain/schedule';
-import { ABSENCE_LABELS, ABSENCE_TYPES, Worker } from '../../domain/types';
+import { Worker } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { Modal } from '../../ui/Modal';
 
@@ -42,17 +42,17 @@ export function PendingWorkerDialog({ dayRef, dayLabel, worker, onClose }: Props
       </div>
       <h3>Ou registrar ausência</h3>
       <div className="abs-buttons">
-        {ABSENCE_TYPES.map((t) => (
+        {state.ausencias.filter((t) => t.ativo).map((t) => (
           <button
-            key={t}
-            className={`abs-btn abs-${t}`}
+            key={t.id}
+            className={`abs-btn cor-${t.cor}`}
             onClick={() => {
-              dispatch({ type: 'absence/set', ...dayRef, workerId: worker.id, tipo: t });
+              dispatch({ type: 'absence/set', ...dayRef, workerId: worker.id, tipo: t.id });
               toast('Ausência registrada');
               onClose();
             }}
           >
-            {ABSENCE_LABELS[t]}
+            {t.nome}
           </button>
         ))}
       </div>

@@ -9,6 +9,7 @@ import * as fsMod from 'firebase/firestore';
 import { CloudSync, COL_DIAS } from '../../src/cloud/sync';
 import type { FirebaseApi } from '../../src/cloud/firebase';
 import { getDay, pendingWorkers } from '../../src/domain/schedule';
+import { AUSENCIAS_PADRAO, FUNCOES_PADRAO } from '../../src/domain/types';
 
 const PROJECT = 'demo-vulcaescala';
 const [FS_HOST, FS_PORT] = (process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8085').split(':');
@@ -90,6 +91,9 @@ describe('sincronização entre aparelhos', () => {
     a = newSync(adminApi, ADMIN);
     await until(() => a.getInfo().loaded);
     expect(a.getInfo().cloudEmpty).toBe(true);
+    // primeira carga: a nuvem deixa de estar "vazia" na hora (não pode ser preenchida duas vezes)
+    await a.replaceAll({ version: 3, workers: [], funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((x) => ({ ...x })), weeks: {} });
+    expect(a.getInfo().cloudEmpty).toBe(false);
     await a.setMembros([LIDER.toUpperCase(), ' ']);
     await until(() => (a.getInfo().membros ?? []).includes(LIDER));
     expect(a.getInfo().membros).toEqual([LIDER]);
@@ -191,6 +195,25 @@ describe('sincronização entre aparelhos', () => {
     expect(snap.data()!.lista).toEqual(['Vulcanizador de correia', 'Líder', 'Encarregado', 'Mecânico', 'Auxiliar', 'Montador']);
   });
 
+  it('tipos de ausência: criar num aparelho, usar no outro, renomear e o histórico acompanha', async () => {
+    a.dispatch({ type: 'ausencia/add', id: 'trein', nome: 'treinamento', sigla: 'T', cor: 'verde' });
+    await until(() => a.getInfo().pending === 0);
+    await until(() => b.getState().ausencias.some((t) => t.id === 'trein'));
+    b.dispatch({ type: 'absence/set', weekKey: W, dayIndex: 3, workerId: 'w2', tipo: 'trein' });
+    await until(() => b.getInfo().pending === 0);
+    a.dispatch({ type: 'ausencia/update', id: 'trein', nome: 'Treinamento NR-10' });
+    await until(() => a.getInfo().pending === 0);
+    await until(() => b.getState().ausencias.find((t) => t.id === 'trein')?.nome === 'Treinamento NR-10');
+    expect(getDay(b.getState(), W, 3).absences).toEqual([{ workerId: 'w2', tipo: 'trein' }]);
+    // em uso: remover é recusado também na nuvem
+    a.dispatch({ type: 'ausencia/remove', id: 'trein' });
+    await until(() => a.getInfo().pending === 0);
+    const snap = await fsMod.getDoc(fsMod.doc(adminApi.fs, 'escala_config/ausencias'));
+    expect((snap.data()!.lista as { id: string }[]).map((t) => t.id)).toContain('trein');
+    b.dispatch({ type: 'absence/set', weekKey: W, dayIndex: 3, workerId: 'w2', tipo: null });
+    await until(() => b.getInfo().pending === 0);
+  });
+
   it('alteração recusada pela nuvem não trava a fila; fica guardada até tentar de novo ou descartar', async () => {
     // nome com mais de 80 letras: a regra do Firestore recusa (permissão negada)
     b.dispatch({ type: 'worker/add', id: 'longo', nome: 'X'.repeat(90), funcao: 'Líder' });
@@ -224,6 +247,26 @@ describe('sincronização entre aparelhos', () => {
     await until(() => a.getInfo().pending === 0);
     const snap = await fsMod.getDoc(fsMod.doc(adminApi.fs, COL_DIAS, `${W}_1`));
     expect(snap.exists()).toBe(false);
+  });
+
+  it('alteração feita DURANTE a primeira carga/importação não se perde', async () => {
+    const carga = a.replaceAll({
+      version: 3,
+      workers: [{ id: 'k0', nome: 'KAUÃ', funcao: 'Vulcanizador', ativo: true }],
+      funcoes: ['Vulcanizador'],
+      ausencias: [{ id: 'folga', nome: 'Folga', sigla: 'F', cor: 'cinza', ativo: true }],
+      weeks: {},
+    });
+    // enquanto a carga grava, alguém cria um tipo de ausência e uma função
+    a.dispatch({ type: 'ausencia/add', id: 'durante', nome: 'Durante a carga', sigla: 'DC', cor: 'azul' });
+    a.dispatch({ type: 'funcao/add', nome: 'Montador' });
+    await carga;
+    await until(() => a.getInfo().pending === 0);
+    const aus = await fsMod.getDoc(fsMod.doc(adminApi.fs, 'escala_config/ausencias'));
+    expect((aus.data()!.lista as { id: string }[]).map((t) => t.id)).toEqual(['folga', 'durante']);
+    const fun = await fsMod.getDoc(fsMod.doc(adminApi.fs, 'escala_config/funcoes'));
+    expect(fun.data()!.lista).toEqual(['Vulcanizador', 'Montador']);
+    await until(() => b.getState().ausencias.some((t) => t.id === 'durante'));
   });
 
   it('importar backup substitui tudo (admin)', async () => {

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useStore } from '../../state/store';
 import { WEEKDAYS_SHORT, formatDate, weekDates } from '../../domain/isoWeek';
 import { activityRows, weekKpis, workerGrid } from '../../domain/summary';
-import { ABSENCE_ABBR, ABSENCE_LABELS, ABSENCE_TYPES } from '../../domain/types';
+import { tipoAusencia } from '../../domain/types';
 import { WeekNav } from '../week/WeekNav';
 
 interface Props {
@@ -16,6 +16,12 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
   const kpis = useMemo(() => weekKpis(state, weekKey), [state, weekKey]);
   const grid = useMemo(() => workerGrid(state, weekKey), [state, weekKey]);
   const acts = useMemo(() => activityRows(state, weekKey), [state, weekKey]);
+  // legenda: tipos visíveis + os ocultos/removidos que aparecem nesta semana
+  const legenda = useMemo(() => {
+    const usados = new Set(grid.flatMap((r) => r.cells.flatMap((c) => (c.kind === 'abs' ? [c.tipo] : []))));
+    const ids = [...state.ausencias.filter((a) => a.ativo || usados.has(a.id)).map((a) => a.id), ...[...usados].filter((id) => !state.ausencias.some((a) => a.id === id))];
+    return ids.map((id) => tipoAusencia(state, id));
+  }, [state, grid]);
 
   return (
     <section>
@@ -59,8 +65,8 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
                         ✓
                       </td>
                     ) : c.kind === 'abs' ? (
-                      <td key={i} className="cell" aria-label={ABSENCE_LABELS[c.tipo]}>
-                        <span className={`tag abs-${c.tipo}`}>{ABSENCE_ABBR[c.tipo]}</span>
+                      <td key={i} className="cell" aria-label={tipoAusencia(state, c.tipo).nome}>
+                        <span className={`tag cor-${tipoAusencia(state, c.tipo).cor}`}>{tipoAusencia(state, c.tipo).sigla}</span>
                       </td>
                     ) : (
                       <td key={i} className="cell none" aria-label="sem registro">
@@ -76,9 +82,9 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
         </div>
         <div className="legend">
           <span>✓ alocado</span>
-          {ABSENCE_TYPES.map((t) => (
-            <span key={t}>
-              <span className={`tag abs-${t}`}>{ABSENCE_ABBR[t]}</span> {ABSENCE_LABELS[t]}
+          {legenda.map((t) => (
+            <span key={t.id}>
+              <span className={`tag cor-${t.cor}`}>{t.sigla}</span> {t.nome}
             </span>
           ))}
           <span>— sem registro</span>

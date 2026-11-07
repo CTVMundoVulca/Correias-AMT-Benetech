@@ -39,6 +39,8 @@
   --blue-ink: #1e5694;
   --violet-bg: #ece5f6;
   --violet-ink: #5a3b94;
+  --orange-bg: #fdebdc;
+  --orange-ink: #a3500f;
   --gray-bg: #e8eaee;
   --gray-ink: #474f5a;
   color-scheme: light;
@@ -80,6 +82,8 @@
   --blue-ink: #92bdee;
   --violet-bg: #2b2340;
   --violet-ink: #c3aef0;
+  --orange-bg: #3a2614;
+  --orange-ink: #f2a46b;
   --gray-bg: #2a3644;
   --gray-ink: #c9d1da;
     color-scheme: dark;
@@ -121,6 +125,8 @@
   --blue-ink: #92bdee;
   --violet-bg: #2b2340;
   --violet-ink: #c3aef0;
+  --orange-bg: #3a2614;
+  --orange-ink: #f2a46b;
   --gray-bg: #2a3644;
   --gray-ink: #c9d1da;
   color-scheme: dark;

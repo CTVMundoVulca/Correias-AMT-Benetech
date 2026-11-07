@@ -1,4 +1,4 @@
-import { AppState, CURRENT_VERSION, FUNCOES_PADRAO, Worker } from './types';
+import { AUSENCIAS_PADRAO, AppState, CURRENT_VERSION, FUNCOES_PADRAO, Worker } from './types';
 import { cleanName, nameKey } from './names';
 
 /** Efetivo inicial, usado só na primeira abertura (quando não há dados salvos). */
@@ -18,7 +18,7 @@ export function seedState(makeId: (nome: string) => string): AppState {
     funcao: 'Vulcanizador',
     ativo: true,
   }));
-  return { version: CURRENT_VERSION, workers, funcoes: [...FUNCOES_PADRAO], weeks: {} };
+  return { version: CURRENT_VERSION, workers, funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), weeks: {} };
 }
 
 export const seedIdFromName = (nome: string) => 'inicial-' + nameKey(nome).toLowerCase().replace(/ /g, '-');

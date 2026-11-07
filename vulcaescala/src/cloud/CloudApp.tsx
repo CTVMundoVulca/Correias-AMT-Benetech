@@ -76,19 +76,22 @@ export function CloudApp() {
     return () => sync.detach();
   }, [phase, api, user, sync]);
 
-  // primeira vez: nuvem vazia → envia os dados antigos deste aparelho ou o efetivo inicial
-  const seeding = useRef(false);
+  // primeira vez: nuvem vazia → envia os dados antigos deste aparelho ou o efetivo inicial.
+  // Roda UMA vez por sessão: repetir apagaria o que foi lançado logo depois.
+  const seeding = useRef<'idle' | 'running' | 'done'>('idle');
   useEffect(() => {
-    if (!info.loaded || !info.cloudEmpty || seeding.current || info.status === 'denied') return;
-    seeding.current = true;
+    if (!info.loaded || !info.cloudEmpty || seeding.current !== 'idle' || info.status === 'denied') return;
+    seeding.current = 'running';
     (async () => {
       const legacy = await readLegacy();
       await sync.replaceAll(legacy ?? seedState(seedIdFromName));
       markLegacyDone();
+      seeding.current = 'done';
       toast(legacy ? 'Dados deste aparelho enviados para a nuvem' : 'Efetivo inicial criado na nuvem');
-    })()
-      .catch((e) => toast(`Falha ao preparar a nuvem: ${e instanceof Error ? e.message : e}`, 'danger'))
-      .finally(() => (seeding.current = false));
+    })().catch((e) => {
+      seeding.current = 'done'; // falhou: não insiste em loop; tenta de novo ao reabrir o app
+      toast(`Falha ao preparar a nuvem: ${e instanceof Error ? e.message : e}`, 'danger');
+    });
   }, [info.loaded, info.cloudEmpty, info.status, sync, toast]);
 
   const logout = useCallback(async () => {

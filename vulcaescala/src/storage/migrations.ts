@@ -1,6 +1,10 @@
 import {
-  ABSENCE_TYPES,
+  AUSENCIAS_PADRAO,
+  CORES_AUSENCIA,
   AppState,
+  TipoAusencia,
+  cleanNomeAusencia,
+  cleanSigla,
   CURRENT_VERSION,
   Day,
   FUNCOES_PADRAO,
@@ -21,6 +25,8 @@ import { cleanName, nameKey } from '../domain/names';
 const MIGRATIONS: Record<number, (s: any) => any> = {
   // v2: lista de funções editável (antes era fixa no código)
   1: (s) => ({ ...s, version: 2, funcoes: [...FUNCOES_PADRAO] }),
+  // v3: tipos de ausência editáveis (antes eram fixos no código; mesmos ids)
+  2: (s) => ({ ...s, version: 3, ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })) }),
 };
 
 export class InvalidDataError extends Error {}
@@ -70,13 +76,29 @@ function sanitize(s: any): AppState {
       ...(typeof w.matricula === 'string' && cleanMatricula(w.matricula) ? { matricula: cleanMatricula(w.matricula) } : {}),
     });
   }
+  // tipos de ausência: válidos, sem id repetido; vazia → lista padrão
+  const ausencias: TipoAusencia[] = [];
+  for (const a of Array.isArray(s.ausencias) ? s.ausencias : []) {
+    if (!isObj(a) || typeof a.id !== 'string' || !a.id || ausencias.some((x) => x.id === a.id)) continue;
+    const nome = cleanNomeAusencia(String(a.nome ?? ''));
+    if (!nome) continue;
+    ausencias.push({
+      id: a.id,
+      nome,
+      sigla: cleanSigla(String(a.sigla ?? '')) || nome.charAt(0).toUpperCase(),
+      cor: (CORES_AUSENCIA as readonly string[]).includes(a.cor as string) ? (a.cor as TipoAusencia['cor']) : 'cinza',
+      ativo: a.ativo !== false,
+    });
+  }
+  if (!ausencias.length) AUSENCIAS_PADRAO.forEach((a) => ausencias.push({ ...a }));
+
   const weeks: AppState['weeks'] = {};
   for (const [key, wk] of Object.entries(s.weeks as Record<string, any>)) {
     if (!isValidWeekKey(key) || !isObj(wk) || !Array.isArray(wk.days)) continue;
     const days: Day[] = Array.from({ length: 7 }, (_, i) => sanitizeDay((wk.days as unknown[])[i], ids));
     weeks[key] = { key, days };
   }
-  return { version: CURRENT_VERSION, workers, funcoes, weeks };
+  return { version: CURRENT_VERSION, workers, funcoes, ausencias, weeks };
 }
 
 function sanitizeDay(d: any, ids: Set<string>): Day {
@@ -90,7 +112,9 @@ function sanitizeDay(d: any, ids: Set<string>): Day {
     }));
   const seen = new Set<string>();
   const absences = (Array.isArray(d.absences) ? d.absences : []).filter((a: any) => {
-    const ok = isObj(a) && ids.has(a.workerId as string) && (ABSENCE_TYPES as readonly string[]).includes(a.tipo as string) && !seen.has(a.workerId as string);
+    // qualquer tipo (a lista é editável); id desconhecido aparece como "Tipo removido"
+    const ok =
+      isObj(a) && ids.has(a.workerId as string) && typeof a.tipo === 'string' && a.tipo.length > 0 && a.tipo.length <= 40 && !seen.has(a.workerId as string);
     if (ok) seen.add(a.workerId as string);
     return ok;
   });

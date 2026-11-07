@@ -2,7 +2,7 @@
    Mesmo esquema dos apps CTV Campo: app shell em cache; navegação network-first
    (pega atualização quando há rede) com fallback para o cache (offline).
    CACHE_VERSION é gravado automaticamente no build (scripts/stamp-sw.mjs). */
-const CACHE_VERSION = 'emenda-amt-d09e2b8b53ae';
+const CACHE_VERSION = 'emenda-amt-fcc6e862e17a';
 
 const APP_SHELL = [
   './',

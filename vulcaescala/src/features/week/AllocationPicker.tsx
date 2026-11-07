@@ -3,7 +3,7 @@ import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
 import { allocationStatus, getDay, pendingWorkers, sortByName, statusLabel } from '../../domain/schedule';
 import { matchesSearch } from '../../domain/names';
-import { ABSENCE_LABELS } from '../../domain/types';
+import { tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { Modal } from '../../ui/Modal';
 
@@ -59,12 +59,12 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
             st.kind === 'elsewhere'
               ? `Também em: ${st.activities.join(', ')}`
               : st.kind === 'absent'
-                ? ABSENCE_LABELS[st.tipo]
+                ? tipoAusencia(state, st.tipo).nome
                 : undefined;
           return (
             <li key={w.id}>
               <button
-                className={`pick st-${st.kind}` + (st.kind === 'absent' ? ` abs-${st.tipo}` : '')}
+                className={`pick st-${st.kind}` + (st.kind === 'absent' ? ` cor-${tipoAusencia(state, st.tipo).cor}` : '')}
                 disabled={st.kind === 'absent'}
                 aria-pressed={st.kind === 'here'}
                 title={title}

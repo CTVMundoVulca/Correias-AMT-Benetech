@@ -4,6 +4,7 @@ import { isDuplicateName } from '../../state/reducer';
 import { newId } from '../../domain/ids';
 import { Funcao, MATRICULA_MAX, Worker } from '../../domain/types';
 import { FuncoesDialog } from './FuncoesDialog';
+import { AusenciasDialog } from './AusenciasDialog';
 import { cleanName, matchesSearch, similarNames } from '../../domain/names';
 import { sortByName, workerUsage } from '../../domain/schedule';
 import { useToast } from '../../ui/Toast';
@@ -18,6 +19,7 @@ export function WorkersView() {
   const [nome, setNome] = useState('');
   const [funcao, setFuncao] = useState<Funcao>(state.funcoes[0] ?? '');
   const [funcoesOpen, setFuncoesOpen] = useState(false);
+  const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const [matricula, setMatricula] = useState('');
   // função escolhida pode ter sido renomeada/removida em outro aparelho
   const funcaoValida = state.funcoes.includes(funcao) ? funcao : (state.funcoes[0] ?? '');
@@ -98,9 +100,14 @@ export function WorkersView() {
       <div className="card pad stack">
         <div className="row between">
           <h1>Efetivo</h1>
-          <button className="btn small" onClick={() => setFuncoesOpen(true)}>
-            Funções ({state.funcoes.length})
-          </button>
+          <div className="row">
+            <button className="btn small" onClick={() => setFuncoesOpen(true)}>
+              Funções ({state.funcoes.length})
+            </button>
+            <button className="btn small" onClick={() => setAusenciasOpen(true)}>
+              Ausências ({state.ausencias.filter((a) => a.ativo).length})
+            </button>
+          </div>
         </div>
         <div className="row between">
           <span className="muted small tabnum">
@@ -197,6 +204,7 @@ export function WorkersView() {
         {list.length === 0 && <p className="muted small">Nenhum colaborador encontrado.</p>}
       </div>
       {funcoesOpen && <FuncoesDialog onClose={() => setFuncoesOpen(false)} />}
+      {ausenciasOpen && <AusenciasDialog onClose={() => setAusenciasOpen(false)} />}
     </section>
   );
 }

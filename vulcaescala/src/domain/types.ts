@@ -23,25 +23,42 @@ export function cleanMatricula(s: string | undefined): string {
   return (s ?? '').replace(/\s+/g, ' ').trim().slice(0, MATRICULA_MAX);
 }
 
-export const ABSENCE_TYPES = ['folga', 'atestado', 'exame', 'ferias', 'falta'] as const;
-export type AbsenceType = (typeof ABSENCE_TYPES)[number];
+/** Cores disponíveis para os tipos de ausência (definidas em styles/app.css). */
+export const CORES_AUSENCIA = ['cinza', 'vermelho', 'azul', 'roxo', 'verde', 'laranja', 'amarelo'] as const;
+export type CorAusencia = (typeof CORES_AUSENCIA)[number];
 
-export const ABSENCE_LABELS: Record<AbsenceType, string> = {
-  folga: 'Folga',
-  atestado: 'Atestado',
-  exame: 'Exame',
-  ferias: 'Férias',
-  falta: 'Falta',
-};
+/** Tipo de ausência (editável em Efetivo → Ausências). */
+export interface TipoAusencia {
+  /** identificador estável: os registros guardam o id, então renomear vale para o histórico */
+  id: string;
+  nome: string;
+  /** sigla da tabela do resumo (1 a 3 letras) */
+  sigla: string;
+  cor: CorAusencia;
+  /** oculto = não aparece nas opções, mas o histórico continua com o nome */
+  ativo: boolean;
+}
 
-/** Abreviação usada na tabela do resumo. */
-export const ABSENCE_ABBR: Record<AbsenceType, string> = {
-  folga: 'F',
-  atestado: 'A',
-  exame: 'E',
-  ferias: 'FÉ',
-  falta: 'FT',
-};
+/** Tipos iniciais. Os ids são os mesmos das versões anteriores (dados antigos continuam válidos). */
+export const AUSENCIAS_PADRAO: TipoAusencia[] = [
+  { id: 'folga', nome: 'Folga', sigla: 'F', cor: 'cinza', ativo: true },
+  { id: 'atestado', nome: 'Atestado', sigla: 'A', cor: 'vermelho', ativo: true },
+  { id: 'exame', nome: 'Exame', sigla: 'E', cor: 'azul', ativo: true },
+  { id: 'ferias', nome: 'Férias', sigla: 'FÉ', cor: 'roxo', ativo: true },
+  { id: 'falta', nome: 'Falta', sigla: 'FT', cor: 'vermelho', ativo: true },
+];
+
+export type AbsenceType = string;
+export const AUSENCIA_NOME_MAX = 30;
+export const SIGLA_MAX = 3;
+
+export function cleanNomeAusencia(s: string): string {
+  const t = s.replace(/\s+/g, ' ').trim().slice(0, AUSENCIA_NOME_MAX);
+  return t ? t.charAt(0).toLocaleUpperCase('pt-BR') + t.slice(1) : '';
+}
+export function cleanSigla(s: string): string {
+  return s.replace(/\s+/g, '').toLocaleUpperCase('pt-BR').slice(0, SIGLA_MAX);
+}
 
 export interface Activity {
   id: string;
@@ -67,19 +84,21 @@ export interface Week {
   days: Day[];
 }
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 export interface AppState {
   version: number;
   workers: Worker[];
   /** funções disponíveis no cadastro (ordem de exibição) */
   funcoes: string[];
+  /** tipos de ausência (ordem de exibição) */
+  ausencias: TipoAusencia[];
   /** semanas indexadas pela chave ISO; só existem semanas que já receberam dados */
   weeks: Record<string, Week>;
 }
 
 export function emptyState(): AppState {
-  return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], weeks: {} };
+  return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), weeks: {} };
 }
 
 export function emptyDay(): Day {
@@ -88,4 +107,9 @@ export function emptyDay(): Day {
 
 export function emptyWeek(key: string): Week {
   return { key, days: Array.from({ length: 7 }, emptyDay) };
+}
+
+/** Tipo de ausência pelo id; um id desconhecido (tipo removido) ainda aparece de forma legível. */
+export function tipoAusencia(state: { ausencias: TipoAusencia[] }, id: string): TipoAusencia {
+  return state.ausencias.find((a) => a.id === id) ?? { id, nome: 'Tipo removido', sigla: '?', cor: 'cinza', ativo: false };
 }

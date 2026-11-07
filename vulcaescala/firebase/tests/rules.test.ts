@@ -136,6 +136,14 @@ describe('validação de formato', () => {
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', nome: 'X'.repeat(81) }));
   });
 
+  it('tipos de ausência: membro lê e grava; não liberado e anônimo não acessam', async () => {
+    const lista = [{ id: 'folga', nome: 'Folga', sigla: 'F', cor: 'cinza', ativo: true }];
+    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista }));
+    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/ausencias')));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista: [] }));
+    await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/ausencias')));
+  });
+
   it('lista de funções: membro lê e grava; formato validado; não liberado não acessa', async () => {
     await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: ['Vulcanizador', 'Montador'] }));
     await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/funcoes')));
