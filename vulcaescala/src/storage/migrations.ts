@@ -6,6 +6,7 @@ import {
   FUNCOES_PADRAO,
   Worker,
   cleanFuncao,
+  cleanMatricula,
   emptyDay,
   emptyState,
 } from '../domain/types';
@@ -66,6 +67,7 @@ function sanitize(s: any): AppState {
       // função que não está na lista (dado antigo/de outro aparelho) entra na lista
       funcao: addFuncao(w.funcao) || funcoes[0],
       ativo: w.ativo !== false,
+      ...(typeof w.matricula === 'string' && cleanMatricula(w.matricula) ? { matricula: cleanMatricula(w.matricula) } : {}),
     });
   }
   const weeks: AppState['weeks'] = {};

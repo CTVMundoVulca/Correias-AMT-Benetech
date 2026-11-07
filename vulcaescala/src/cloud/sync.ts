@@ -2,7 +2,7 @@ import type * as FsMod from 'firebase/firestore';
 import { AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, Worker, emptyDay, emptyWeek } from '../domain/types';
 import { cleanName } from '../domain/names';
 import { migrate } from '../storage/migrations';
-import { Action, reducer } from '../state/reducer';
+import { Action, reducer, withMatricula } from '../state/reducer';
 import type { FirebaseApi } from './firebase';
 
 /**
@@ -99,7 +99,8 @@ function readDay(data: unknown): Day {
 
 function readWorker(id: string, data: unknown): Worker {
   const w = (data ?? {}) as Partial<Worker>;
-  return { id, nome: String(w.nome ?? ''), funcao: (w.funcao ?? 'Vulcanizador') as Worker['funcao'], ativo: w.ativo !== false };
+  const base: Worker = { id, nome: String(w.nome ?? ''), funcao: (w.funcao ?? 'Vulcanizador') as Worker['funcao'], ativo: w.ativo !== false };
+  return typeof w.matricula === 'string' && w.matricula ? { ...base, matricula: w.matricula } : base;
 }
 
 /** Aplica uma ação de dia a um único dia, usando o mesmo reducer da tela. */
@@ -501,11 +502,11 @@ export class CloudSync {
           let w: Worker | null = snap.exists() ? readWorker(id, snap.data()) : null;
           if (action.type === 'worker/add') {
             if (w) return w; // já criado (ação repetida)
-            w = { id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true };
+            w = withMatricula({ id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true }, action.matricula);
           } else if (!w) {
             return null; // removido por outra pessoa
           } else if (action.type === 'worker/update') {
-            w = { ...w, nome: cleanName(action.nome), funcao: action.funcao };
+            w = withMatricula({ ...w, nome: cleanName(action.nome), funcao: action.funcao }, action.matricula ?? w.matricula);
           } else {
             w = { ...w, ativo: action.ativo };
           }

@@ -1,4 +1,4 @@
-import { AbsenceType, AppState, Day, Funcao, cleanFuncao, emptyWeek } from '../domain/types';
+import { AbsenceType, AppState, Day, Funcao, Worker, cleanFuncao, cleanMatricula, emptyWeek } from '../domain/types';
 import { cleanName, nameKey } from '../domain/names';
 
 export interface DayRef {
@@ -8,8 +8,8 @@ export interface DayRef {
 
 export type Action =
   | { type: 'state/replace'; state: AppState }
-  | { type: 'worker/add'; id: string; nome: string; funcao: Funcao }
-  | { type: 'worker/update'; id: string; nome: string; funcao: Funcao }
+  | { type: 'worker/add'; id: string; nome: string; funcao: Funcao; matricula?: string }
+  | { type: 'worker/update'; id: string; nome: string; funcao: Funcao; matricula?: string }
   | { type: 'worker/setActive'; id: string; ativo: boolean }
   | { type: 'worker/remove'; id: string }
   | { type: 'funcao/add'; nome: string }
@@ -22,6 +22,14 @@ export type Action =
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
 
 /** Já existe colaborador com o mesmo nome (sem diferenciar maiúsculas nem acentos)? */
+/** Grava a matrícula só quando preenchida (campo opcional). */
+export function withMatricula(w: Worker, matricula: string | undefined): Worker {
+  const { matricula: _old, ...rest } = w;
+  void _old;
+  const m = cleanMatricula(matricula);
+  return m ? { ...rest, matricula: m } : rest;
+}
+
 /** Função já existe na lista (sem diferenciar maiúsculas nem acentos)? */
 export function hasFuncao(state: AppState, nome: string, ignore?: string): boolean {
   const k = nameKey(nome);
@@ -52,14 +60,16 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'worker/add': {
       const nome = cleanName(action.nome);
       if (!nome || isDuplicateName(state, nome) || state.workers.some((w) => w.id === action.id)) return state;
-      return { ...state, workers: [...state.workers, { id: action.id, nome, funcao: action.funcao, ativo: true }] };
+      return { ...state, workers: [...state.workers, withMatricula({ id: action.id, nome, funcao: action.funcao, ativo: true }, action.matricula)] };
     }
     case 'worker/update': {
       const nome = cleanName(action.nome);
       if (!nome || isDuplicateName(state, nome, action.id)) return state;
       return {
         ...state,
-        workers: state.workers.map((w) => (w.id === action.id ? { ...w, nome, funcao: action.funcao } : w)),
+        workers: state.workers.map((w) =>
+          w.id === action.id ? withMatricula({ ...w, nome, funcao: action.funcao }, action.matricula ?? w.matricula) : w,
+        ),
       };
     }
     case 'worker/setActive':

@@ -52,7 +52,8 @@ export function CloudApp() {
         setApi(fb);
         unsub = fb.authMod.onAuthStateChanged(fb.auth, (u) => {
           setUser(u);
-          setPhase(u ? 'ready' : 'signed-out');
+          // sessão anônima (aberta pelo Registro de Emenda) não dá acesso à escala
+          setPhase(u && !u.isAnonymous ? 'ready' : 'signed-out');
           if (u?.email)
             try {
               getLocalStorage()?.setItem(LAST_EMAIL, u.email);

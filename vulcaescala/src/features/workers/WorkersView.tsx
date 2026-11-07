@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useStore } from '../../state/store';
 import { isDuplicateName } from '../../state/reducer';
 import { newId } from '../../domain/ids';
-import { Funcao, Worker } from '../../domain/types';
+import { Funcao, MATRICULA_MAX, Worker } from '../../domain/types';
 import { FuncoesDialog } from './FuncoesDialog';
 import { cleanName, matchesSearch, similarNames } from '../../domain/names';
 import { sortByName, workerUsage } from '../../domain/schedule';
@@ -18,6 +18,7 @@ export function WorkersView() {
   const [nome, setNome] = useState('');
   const [funcao, setFuncao] = useState<Funcao>(state.funcoes[0] ?? '');
   const [funcoesOpen, setFuncoesOpen] = useState(false);
+  const [matricula, setMatricula] = useState('');
   // função escolhida pode ter sido renomeada/removida em outro aparelho
   const funcaoValida = state.funcoes.includes(funcao) ? funcao : (state.funcoes[0] ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +64,9 @@ export function WorkersView() {
       }))
     )
       return;
-    dispatch({ type: 'worker/add', id: newId(), nome: n, funcao: funcaoValida });
+    dispatch({ type: 'worker/add', id: newId(), nome: n, funcao: funcaoValida, matricula });
     setNome('');
+    setMatricula('');
     toast('Colaborador adicionado');
   };
 
@@ -117,6 +119,14 @@ export function WorkersView() {
             aria-label="Nome do colaborador"
             aria-invalid={!!error}
           />
+          <input
+            className="input"
+            placeholder="Matrícula (opcional)"
+            value={matricula}
+            maxLength={MATRICULA_MAX}
+            onChange={(e) => setMatricula(e.target.value)}
+            aria-label="Matrícula (opcional)"
+          />
           <select className="input" value={funcaoValida} onChange={(e) => setFuncao(e.target.value)} aria-label="Função">
             {state.funcoes.map((f) => (
               <option key={f}>{f}</option>
@@ -159,6 +169,7 @@ export function WorkersView() {
                   <div className="worker-name">{w.nome}</div>
                   <div className="worker-meta">
                     <span>{w.funcao}</span>
+                    {w.matricula && <span className="tabnum">Mat. {w.matricula}</span>}
                     <span className={'status-dot' + (w.ativo ? '' : ' off')}>{w.ativo ? 'Ativo' : 'Inativo'}</span>
                   </div>
                 </div>
@@ -195,6 +206,7 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
   const toast = useToast();
   const [nome, setNome] = useState(worker.nome);
   const [funcao, setFuncao] = useState<Funcao>(worker.funcao);
+  const [matricula, setMatricula] = useState(worker.matricula ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const save = (e: FormEvent) => {
@@ -205,7 +217,7 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
       setError(`${n} já está cadastrado.`);
       return;
     }
-    dispatch({ type: 'worker/update', id: worker.id, nome: n, funcao });
+    dispatch({ type: 'worker/update', id: worker.id, nome: n, funcao, matricula });
     toast('Colaborador atualizado');
     onDone();
   };
@@ -222,6 +234,14 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
         autoFocus
         aria-label="Nome"
         aria-invalid={!!error}
+      />
+      <input
+        className="input"
+        placeholder="Matrícula (opcional)"
+        value={matricula}
+        maxLength={MATRICULA_MAX}
+        onChange={(e) => setMatricula(e.target.value)}
+        aria-label="Matrícula"
       />
       <select className="input" value={funcao} onChange={(e) => setFuncao(e.target.value)} aria-label="Função">
         {(state.funcoes.includes(funcao) ? state.funcoes : [funcao, ...state.funcoes]).map((f) => (

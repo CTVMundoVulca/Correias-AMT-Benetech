@@ -1,12 +1,41 @@
-# VulcaEscala — contrato AMT
+# Apps Benetech — Contrato AMT
 
-Escala semanal das equipes de vulcanização (contrato **AMT**). Substitui a planilha de 52 abas.
-Segue as mesmas configurações do App de Registro de Horários (contrato Suzano), **mas com
-projeto Firebase próprio**: dados e contas do AMT não se misturam com os do Suzano.
+Portal com os apps de campo do contrato **AMT** (separado do contrato Suzano), no mesmo padrão
+do App de Registro de Horários: mesmo visual, login único e projeto Firebase próprio do AMT.
 
-- **Endereço (após o merge na `main`)**: `https://ctvmundovulca.github.io/Correias-AMT-Benetech/escala/`
-- Arquivo único em `../escala/index.html` (gerado), com service worker e atualização automática.
-- Login por e-mail e senha (Firebase Auth); dados no Firestore; funciona offline.
+| Endereço | App | Acesso |
+|---|---|---|
+| `/` | Portal (cartões dos apps) | livre |
+| `/escala/` | Escala de Vulcanização | liderança (login) |
+| `/emenda/` | Registro de Emenda | qualquer pessoa com o link (sessão anônima automática) |
+| `/medidas/` | Medidas de Correias | livre (app anterior, sem alteração) |
+
+Código-fonte de `escala/` e `emenda/` nesta pasta (`vulcaescala/`); `npm run build:pages` gera os dois.
+
+- **Endereço**: `https://ctvmundovulca.github.io/Correias-AMT-Benetech/`
+- Cada app é um arquivo único com service worker, manifest e atualização automática.
+
+## Registro de Emenda
+
+Mesmo formulário do app do contrato Suzano, **sem a seção “Liberação do cliente/fiscal”**:
+identificação, efetivo (do cadastro da escala, com matrícula), materiais da emenda e da manta,
+equipamentos de medição, dados da emenda, check list da vulcanização, prensa, problemas,
+liberações do técnico e do supervisor (assinatura no dedo), fotos e relatório para imprimir/PDF.
+
+- Cálculos automáticos iguais aos do Suzano (viés, passes, estágios, demãos, prensa) — `src/emenda/model.ts`.
+- **Organizado por mês**: a lista mostra só o mês escolhido (e só ele é baixado da nuvem);
+  busca por TAG/nº/OM no mês e busca da TAG em todos os meses.
+- Gravação automática por campo; sem internet o Firestore guarda no aparelho e envia depois.
+- Fotos comprimidas no aparelho (máx. 1280 px, JPEG) e gravadas uma por documento.
+- Excluir relatório: só administradores.
+
+### Acesso sem login
+
+Não há tela de login: ao abrir, o Firebase cria uma **sessão anônima** automática (ative em
+Authentication → Sign-in method → **Anônimo**). As regras aceitam gravações só de sessões do app.
+O que a sessão anônima pode: ler/gravar emendas, fotos e listas de materiais; **ler** nomes e
+matrículas do efetivo. O que não pode: ver a escala (ausências, atestados), alterar o efetivo,
+excluir relatórios.
 
 ## Ligar a nuvem (uma vez)
 
@@ -16,11 +45,12 @@ Enquanto `src/cloud/config.ts` tiver `COLE_AQUI`, o app roda em **modo local** (
    Não use o `rdo-benetech` (é do contrato Suzano).
 2. **Authentication → Sign-in method → E-mail/senha → Ativar.**
 3. **Authentication → Settings → Domínios autorizados → adicionar** `ctvmundovulca.github.io`.
-4. **Firestore Database → Criar banco** (modo de produção; região sugerida `southamerica-east1`, São Paulo).
-5. **Firestore → Regras**: cole o conteúdo de `firebase/firestore.rules` e **Publicar**.
-6. **Configurações do projeto → Seus apps → Web (`</>`)**: registre o app e copie os 6 valores do
+4. **Authentication → Sign-in method → Anônimo → Ativar** (Registro de Emenda sem login).
+5. **Firestore Database → Criar banco** (modo de produção; região sugerida `southamerica-east1`, São Paulo).
+6. **Firestore → Regras**: cole o conteúdo de `firebase/firestore.rules` e **Publicar**.
+7. **Configurações do projeto → Seus apps → Web (`</>`)**: registre o app e copie os 6 valores do
    `firebaseConfig` para `src/cloud/config.ts`.
-7. `npm run build:pages` e faça commit da pasta `../escala`.
+8. `npm run build:pages` e faça commit das pastas `../escala` e `../emenda`.
 
 Primeiro acesso: um administrador abre o app, toca em **Criar conta** e já entra. A nuvem vazia
 recebe o efetivo inicial (ou os dados que estavam neste aparelho no modo local). Depois, em
@@ -58,7 +88,7 @@ npm install
 npm run dev             # desenvolvimento (modo local)
 npm test                # testes unitários (Vitest)
 npm run test:firebase   # regras + sincronização no emulador do Firebase (precisa de Java e firebase-tools)
-npm run build:pages     # gera ../escala (arquivo único + service worker com versão automática)
+npm run build:pages     # gera ../escala e ../emenda (arquivo único + service worker com versão automática)
 ```
 
 Teste manual com o emulador: `firebase emulators:start --config firebase/firebase.json --project demo-vulcaescala`

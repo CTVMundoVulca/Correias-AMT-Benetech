@@ -254,6 +254,8 @@ describe('usuário não liberado', () => {
     const api = await device(INTRUSO);
     const s = newSync(api, INTRUSO);
     await until(() => s.getInfo().status === 'denied');
-    expect(s.getState().workers).toEqual([]);
+    // a escala (dias, ausências) não carrega; o app mostra "Acesso não liberado"
+    expect(s.getInfo().loaded).toBe(false);
+    expect(Object.keys(s.getState().weeks)).toEqual([]);
   });
 });

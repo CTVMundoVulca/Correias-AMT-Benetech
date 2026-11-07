@@ -161,6 +161,11 @@ export function CloudStoreProvider({ sync, email, isAdmin, logout, extraNotices 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }
 
+/** Igual a useStore, mas devolve null fora do StoreProvider (app de emenda). */
+export function useStoreOptional(): Store | null {
+  return useContext(Ctx);
+}
+
 export function useStore(): Store {
   const s = useContext(Ctx);
   if (!s) throw new Error('useStore fora do StoreProvider');

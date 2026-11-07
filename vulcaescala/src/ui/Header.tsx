@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useStore } from '../state/store';
+import { useStoreOptional } from '../state/store';
 import { useToast } from './Toast';
 import type { SyncInfo } from '../cloud/sync';
 
@@ -43,8 +43,18 @@ export function syncLabel(info: SyncInfo | null): { cls: string; short: string; 
   }
 }
 
-export function Header({ children }: { children?: React.ReactNode }) {
-  const { cloud } = useStore();
+interface HeaderProps {
+  children?: React.ReactNode;
+  /** linha de cima do título, ex.: "Escala · AMT" */
+  kicker?: string;
+  /** título em destaque, ex.: "Vulcanização" */
+  title?: string;
+  /** situação da sincronização (quando o app não usa o store da escala) */
+  status?: { cls: string; short: string; long: string };
+}
+
+export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcanização', status }: HeaderProps) {
+  const cloud = useStoreOptional()?.cloud ?? null;
   const toast = useToast();
   const [dark, setDark] = useState(false);
   useEffect(() => setDark(effectiveDark()), []);
@@ -60,7 +70,7 @@ export function Header({ children }: { children?: React.ReactNode }) {
     setDark(next);
   };
 
-  const sync = syncLabel(cloud?.info ?? null);
+  const sync = status ?? syncLabel(cloud?.info ?? null);
 
   return (
     <header className="app-header">
@@ -69,10 +79,14 @@ export function Header({ children }: { children?: React.ReactNode }) {
           <div className="logo-area">
             <img src="logo-benetech.png" alt="Benetech" className="logo-img" />
             <div className="logo-name">
-              Escala · AMT<b>Vulcanização</b>
+              {kicker}
+              <b>{title}</b>
             </div>
           </div>
           <div className="header-actions">
+            <a className="hdr-btn" href="../" title="Voltar ao menu de apps AMT" aria-label="Menu de apps AMT">
+              🏠
+            </a>
             <button className="sync-pill" onClick={() => toast(sync.long)} aria-label={sync.long} title={sync.long}>
               <span className={`sync-dot ${sync.cls}`} aria-hidden />
               <span className="sync-text">{sync.short}</span>

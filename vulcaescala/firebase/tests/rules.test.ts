@@ -66,12 +66,13 @@ beforeEach(async () => {
 describe('acesso', () => {
   it('sem login: nada', async () => {
     await assertFails(getDoc(doc(as(null), 'escala_efetivo/w1')));
+    await assertFails(getDoc(doc(as(null), 'escala_dias/2026-W45_0')));
     await assertFails(setDoc(doc(as(null), 'escala_dias/2026-W45_0'), day));
   });
 
   it('logado mas não liberado (qualquer um pode criar conta): nada', async () => {
     const db = as('curioso@gmail.com');
-    await assertFails(getDoc(doc(db, 'escala_efetivo/w1')));
+    await assertFails(getDoc(doc(db, 'escala_dias/2026-W45_0')));
     await assertFails(getDoc(doc(db, 'escala_config/membros')));
     await assertFails(setDoc(doc(db, 'escala_dias/2026-W45_0'), day));
   });
@@ -110,8 +111,8 @@ describe('acesso', () => {
 
   it('admin tem acesso mesmo sem a lista existir', async () => {
     await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'escala_config/membros')));
-    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_efetivo/w1')));
-    await assertFails(getDoc(doc(as(LIDER), 'escala_efetivo/w1')));
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_dias/2026-W45_0')));
+    await assertFails(getDoc(doc(as(LIDER), 'escala_dias/2026-W45_0')));
   });
 
   it('outras coleções bloqueadas', async () => {

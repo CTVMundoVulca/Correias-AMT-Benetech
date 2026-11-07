@@ -14,6 +14,13 @@ export interface Worker {
   nome: string;
   funcao: Funcao;
   ativo: boolean;
+  /** matrícula (opcional) — aparece no Registro de Emenda. Não guardar CPF. */
+  matricula?: string;
+}
+
+export const MATRICULA_MAX = 30;
+export function cleanMatricula(s: string | undefined): string {
+  return (s ?? '').replace(/\s+/g, ' ').trim().slice(0, MATRICULA_MAX);
 }
 
 export const ABSENCE_TYPES = ['folga', 'atestado', 'exame', 'ferias', 'falta'] as const;

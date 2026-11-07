@@ -31,8 +31,11 @@ export function loadFirebase(): Promise<FirebaseApi> {
         fs = fsMod.getFirestore(app);
         fsMod.connectFirestoreEmulator(fs, emu, 8085);
       } else {
-        // cache offline do próprio Firestore (IndexedDB), como nos demais apps
-        fs = fsMod.initializeFirestore(app, { localCache: fsMod.persistentLocalCache() });
+        // cache offline do próprio Firestore (IndexedDB), como nos demais apps;
+        // várias abas: escala e emenda podem ficar abertas ao mesmo tempo
+        fs = fsMod.initializeFirestore(app, {
+          localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() }),
+        });
       }
       return { auth, fs, authMod, fsMod };
     })();
