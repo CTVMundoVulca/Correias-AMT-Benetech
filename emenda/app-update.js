@@ -10,9 +10,11 @@
   var hadController = !!navigator.serviceWorker.controller;
   var swReg = null;
 
+  // só segura a atualização se houver texto digitado ou janela aberta
+  // (campo vazio com o cursor não tem nada a perder)
   function editando() {
     var a = document.activeElement;
-    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT')) return true;
+    if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.value) return true;
     if (document.querySelector('[role="dialog"]')) return true;
     return false;
   }

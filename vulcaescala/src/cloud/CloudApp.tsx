@@ -14,6 +14,13 @@ import { AuthScreen, Splash } from './AuthScreens';
 type Phase = 'sdk' | 'sdk-fail' | 'signed-out' | 'ready';
 const LAST_EMAIL = 'vulcaescala:ultimo-email';
 
+/** Há texto sendo digitado ou uma janela aberta? (não recarregar nessa hora) */
+function editando(): boolean {
+  const a = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && a.value) return true;
+  return !!document.querySelector('[role="dialog"]');
+}
+
 function lastEmail(): string {
   try {
     return getLocalStorage()?.getItem(LAST_EMAIL) ?? '';
@@ -39,7 +46,6 @@ export function CloudApp() {
   const [api, setApi] = useState<FirebaseApi | null>(null);
   const [phase, setPhase] = useState<Phase>('sdk');
   const [user, setUser] = useState<User | null>(null);
-  const [attempt, setAttempt] = useState(0);
 
   // carrega o SDK e acompanha o login
   useEffect(() => {
@@ -67,7 +73,25 @@ export function CloudApp() {
       cancel = true;
       unsub?.();
     };
-  }, [attempt]);
+  }, []);
+
+  // Firebase não carregou (sem internet ao abrir). O navegador guarda a falha do
+  // carregamento de módulos enquanto a página estiver aberta, então tentar de novo
+  // exige recarregar. Recarrega sozinho quando a conexão volta (e a cada 30 s), mas
+  // nunca com um campo em edição ou janela aberta. A fila de alterações está salva
+  // no aparelho e é enviada logo depois.
+  useEffect(() => {
+    if (phase !== 'sdk-fail') return;
+    const tentar = () => {
+      if (navigator.onLine !== false && !editando()) window.location.reload();
+    };
+    window.addEventListener('online', tentar);
+    const t = setInterval(tentar, 30_000);
+    return () => {
+      window.removeEventListener('online', tentar);
+      clearInterval(t);
+    };
+  }, [phase]);
 
   // conecta a sincronização quando o usuário está pronto
   useEffect(() => {
@@ -128,7 +152,7 @@ export function CloudApp() {
     ) : (
       <Splash
         text="Sem conexão com a nuvem. Na primeira vez neste aparelho é preciso internet."
-        action={{ label: 'Tentar de novo', onClick: () => setAttempt((n) => n + 1) }}
+        action={{ label: 'Tentar de novo', onClick: () => window.location.reload() }}
       />
     );
 
@@ -153,8 +177,8 @@ export function CloudApp() {
           ? [
               {
                 kind: 'warn',
-                text: 'Sem conexão com a nuvem. O que você lançar fica guardado neste aparelho e será enviado quando a internet voltar.',
-                actions: [{ label: 'Tentar de novo', onClick: () => setAttempt((n) => n + 1) }],
+                text: 'Sem conexão com a nuvem. O que você lançar fica guardado neste aparelho e será enviado sozinho quando a internet voltar.',
+                actions: [{ label: 'Tentar de novo', onClick: () => window.location.reload() }],
               },
             ]
           : []
