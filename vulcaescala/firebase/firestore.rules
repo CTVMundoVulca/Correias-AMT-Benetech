@@ -15,8 +15,9 @@ service cloud.firestore {
     // Administradores: gerenciam quem tem acesso. Manter igual a ADMIN_EMAILS em src/cloud/config.ts
     function isAdmin() {
       return emailOk() && email() in [
+        'plantão.amt@benetechbrasil.com.br',
         'glauber.dutra@benetechbrasil.com.br',
-        'michael.lopes@benetechbrasil.com.br'
+        'warley.silva@benetechbrasil.com.br'
       ];
     }
 

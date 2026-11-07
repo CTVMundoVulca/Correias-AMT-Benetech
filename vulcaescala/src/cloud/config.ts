@@ -33,7 +33,11 @@ export function isConfigured(cfg: { apiKey: string; projectId: string } = fireba
 }
 
 /** Administradores: gerenciam quem tem acesso. Manter igual à lista em firebase/firestore.rules. */
-export const ADMIN_EMAILS = ['glauber.dutra@benetechbrasil.com.br', 'michael.lopes@benetechbrasil.com.br'];
+export const ADMIN_EMAILS = [
+  'plantão.amt@benetechbrasil.com.br',
+  'glauber.dutra@benetechbrasil.com.br',
+  'warley.silva@benetechbrasil.com.br',
+];
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase());

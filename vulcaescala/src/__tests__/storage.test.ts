@@ -5,6 +5,9 @@ import { CorruptDataError } from '../storage/StorageRepository';
 import { INITIAL_WORKERS, seedState } from '../domain/seed';
 import { emptyState } from '../domain/types';
 import { reducer } from '../state/reducer';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { ADMIN_EMAILS, isAdminEmail } from '../cloud/config';
 
 class FakeStorage implements Storage {
   map = new Map<string, string>();
@@ -101,5 +104,20 @@ describe('nome duplicado', () => {
     s = reducer(s, { type: 'worker/add', id: 'd', nome: 'Bruno', funcao: 'Líder' });
     s = reducer(s, { type: 'worker/update', id: 'd', nome: 'claudio', funcao: 'Líder' });
     expect(s.workers.find((w) => w.id === 'd')!.nome).toBe('BRUNO');
+  });
+});
+
+describe('administradores', () => {
+  it('lista do app é idêntica à das regras do Firestore', () => {
+    const rules = readFileSync(resolve(__dirname, '../../firebase/firestore.rules'), 'utf8');
+    const bloco = /function isAdmin\(\)[\s\S]*?\[([\s\S]*?)\]/.exec(rules)![1];
+    const daRegra = [...bloco.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect(daRegra).toEqual(ADMIN_EMAILS);
+    expect(ADMIN_EMAILS.every((e) => e === e.toLowerCase())).toBe(true);
+  });
+
+  it('reconhece sem diferenciar maiúsculas', () => {
+    expect(isAdminEmail('Warley.Silva@BenetechBrasil.com.br')).toBe(true);
+    expect(isAdminEmail('michael.lopes@benetechbrasil.com.br')).toBe(false);
   });
 });
