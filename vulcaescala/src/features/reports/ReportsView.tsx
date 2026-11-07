@@ -9,8 +9,8 @@ import {
   toIsoDate,
   weekDates,
 } from '../../domain/isoWeek';
-import { activityHistory, countBy, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../../domain/schedule';
-import { ABSENCE_LABELS } from '../../domain/types';
+import { activityHistory, countBy, feriadoNaData, folgasDeFeriado, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../../domain/schedule';
+import { tipoAusencia } from '../../domain/types';
 
 type Mode = 'colaborador' | 'atividade' | 'resumo';
 
@@ -70,7 +70,7 @@ function ByWorker({ from, to }: { from: Date; to: Date }) {
   const rows = useMemo(() => (id ? workerHistory(state, id, from, to) : []), [state, id, from, to]);
   const worked = rows.filter((r) => r.activities.length).length;
   const byActivity = countBy(rows, (r) => r.activities);
-  const byAbsence = countBy(rows, (r) => (r.absence ? [ABSENCE_LABELS[r.absence]] : []));
+  const byAbsence = countBy(rows, (r) => (r.absence ? [tipoAusencia(state, r.absence).nome] : []));
 
   return (
     <div className="card pad">
@@ -111,7 +111,14 @@ function ByWorker({ from, to }: { from: Date; to: Date }) {
                   {weekdayOf(r.date)} {formatDate(r.date)}
                 </span>
                 <span>
-                  {r.absence ? <span className={`tag abs-${r.absence}`}>{ABSENCE_LABELS[r.absence]}</span> : r.activities.join(', ')}
+                  {r.absence ? (
+                    <span className={`tag cor-${tipoAusencia(state, r.absence).cor}`}>
+                      {tipoAusencia(state, r.absence).nome}
+                      {r.feriado ? ` · ${r.feriado}` : ''}
+                    </span>
+                  ) : (
+                    r.activities.join(', ')
+                  )}
                 </span>
               </li>
             ))}
@@ -170,13 +177,15 @@ function Summary({ from, to }: { from: Date; to: Date }) {
     const m = new Map<string, { worked: number; absent: number; pending: number }>();
     for (const w of state.workers) m.set(w.id, { worked: 0, absent: 0, pending: 0 });
     let days = 0;
-    for (const { day } of iterateDays(state, from, to)) {
+    for (const { day, date } of iterateDays(state, from, to)) {
       if (!dayHasData(day)) continue;
       days++;
+      const fer = feriadoNaData(state, date);
       for (const a of day.absences) m.get(a.workerId)!.absent++;
+      for (const w of folgasDeFeriado(day, state.workers, fer)) m.get(w.id)!.absent++;
       const alloc = new Set(day.activities.flatMap((a) => a.workerIds));
       for (const id of alloc) m.get(id)!.worked++;
-      for (const w of pendingWorkers(day, state.workers)) m.get(w.id)!.pending++;
+      for (const w of pendingWorkers(day, state.workers, fer)) m.get(w.id)!.pending++;
     }
     return { days, rows: sortByName(state.workers).map((w) => ({ w, ...m.get(w.id)! })) };
   }, [state, from, to]);

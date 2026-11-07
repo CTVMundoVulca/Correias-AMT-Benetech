@@ -66,12 +66,13 @@ beforeEach(async () => {
 describe('acesso', () => {
   it('sem login: nada', async () => {
     await assertFails(getDoc(doc(as(null), 'escala_efetivo/w1')));
+    await assertFails(getDoc(doc(as(null), 'escala_dias/2026-W45_0')));
     await assertFails(setDoc(doc(as(null), 'escala_dias/2026-W45_0'), day));
   });
 
   it('logado mas não liberado (qualquer um pode criar conta): nada', async () => {
     const db = as('curioso@gmail.com');
-    await assertFails(getDoc(doc(db, 'escala_efetivo/w1')));
+    await assertFails(getDoc(doc(db, 'escala_dias/2026-W45_0')));
     await assertFails(getDoc(doc(db, 'escala_config/membros')));
     await assertFails(setDoc(doc(db, 'escala_dias/2026-W45_0'), day));
   });
@@ -110,8 +111,8 @@ describe('acesso', () => {
 
   it('admin tem acesso mesmo sem a lista existir', async () => {
     await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'escala_config/membros')));
-    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_efetivo/w1')));
-    await assertFails(getDoc(doc(as(LIDER), 'escala_efetivo/w1')));
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_dias/2026-W45_0')));
+    await assertFails(getDoc(doc(as(LIDER), 'escala_dias/2026-W45_0')));
   });
 
   it('outras coleções bloqueadas', async () => {
@@ -133,6 +134,21 @@ describe('validação de formato', () => {
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 'X'.repeat(41) }));
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 3 }));
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', nome: 'X'.repeat(81) }));
+  });
+
+  it('feriados municipais: membro lê e grava; não liberado não acessa', async () => {
+    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/feriados'), { map: { '2026-09-08': 'Aniversário de Vitória' } }));
+    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/feriados')));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_config/feriados'), { map: {}, outro: 1 }));
+    await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/feriados')));
+  });
+
+  it('tipos de ausência: membro lê e grava; não liberado e anônimo não acessam', async () => {
+    const lista = [{ id: 'folga', nome: 'Folga', sigla: 'F', cor: 'cinza', ativo: true }];
+    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista }));
+    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/ausencias')));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista: [] }));
+    await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/ausencias')));
   });
 
   it('lista de funções: membro lê e grava; formato validado; não liberado não acessa', async () => {

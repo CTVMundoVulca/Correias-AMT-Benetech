@@ -1,5 +1,5 @@
 import { AbsenceType, AppState, Worker } from './types';
-import { absenceOf, getDay, sortByName } from './schedule';
+import { absenceOf, feriadoDoDia, folgasDeFeriado, getDay, sortByName, FOLGA_FERIADO } from './schedule';
 
 export interface WeekKpis {
   activities: number;
@@ -8,7 +8,7 @@ export interface WeekKpis {
   activeWorkers: number;
 }
 
-export type GridCell = { kind: 'on' } | { kind: 'abs'; tipo: AbsenceType } | { kind: 'none' };
+export type GridCell = { kind: 'on' } | { kind: 'abs'; tipo: AbsenceType; feriado?: boolean } | { kind: 'none' };
 
 export interface GridRow {
   worker: Worker;
@@ -30,7 +30,7 @@ export function weekKpis(state: AppState, weekKey: string): WeekKpis {
     const d = getDay(state, weekKey, i);
     activities += d.activities.length;
     allocations += d.activities.reduce((s, a) => s + a.workerIds.length, 0);
-    absences += d.absences.length;
+    absences += d.absences.length + folgasDeFeriado(d, state.workers, feriadoDoDia(state, weekKey, i)).length;
   }
   return { activities, allocations, absences, activeWorkers: state.workers.filter((w) => w.ativo).length };
 }
@@ -41,12 +41,15 @@ export function weekKpis(state: AppState, weekKey: string): WeekKpis {
  */
 export function workerGrid(state: AppState, weekKey: string): GridRow[] {
   const days = Array.from({ length: 7 }, (_, i) => getDay(state, weekKey, i));
+  const feriados = days.map((_, i) => feriadoDoDia(state, weekKey, i));
   const rows: GridRow[] = [];
   for (const worker of sortByName(state.workers)) {
-    const cells: GridCell[] = days.map((d) => {
+    const cells: GridCell[] = days.map((d, i) => {
       if (d.activities.some((a) => a.workerIds.includes(worker.id))) return { kind: 'on' };
       const tipo = absenceOf(d, worker.id);
-      return tipo ? { kind: 'abs', tipo } : { kind: 'none' };
+      if (tipo) return { kind: 'abs', tipo };
+      // feriado: quem não está escalado está de folga automaticamente
+      return feriados[i] && worker.ativo ? { kind: 'abs', tipo: FOLGA_FERIADO, feriado: true } : { kind: 'none' };
     });
     if (!worker.ativo && cells.every((c) => c.kind === 'none')) continue;
     rows.push({ worker, cells, daysAllocated: cells.filter((c) => c.kind === 'on').length });

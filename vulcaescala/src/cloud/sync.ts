@@ -1,8 +1,8 @@
 import type * as FsMod from 'firebase/firestore';
-import { AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, Worker, emptyDay, emptyWeek } from '../domain/types';
+import { AUSENCIAS_PADRAO, AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, TipoAusencia, Worker, emptyDay, emptyWeek } from '../domain/types';
 import { cleanName } from '../domain/names';
 import { migrate } from '../storage/migrations';
-import { Action, reducer } from '../state/reducer';
+import { Action, reducer, withMatricula } from '../state/reducer';
 import type { FirebaseApi } from './firebase';
 
 /**
@@ -19,12 +19,16 @@ import type { FirebaseApi } from './firebase';
  *   escala_dias/{AAAA-Www_D}    um dia da escala (atividades + ausências)
  *   escala_config/membros       { emails: [...] } quem pode acessar
  *   escala_config/funcoes       { lista: [...] } funções do cadastro
+ *   escala_config/ausencias     { lista: [...] } tipos de ausência
+ *   escala_config/feriados      { map: { AAAA-MM-DD: nome } } feriados municipais
  */
 
 export const COL_EFETIVO = 'escala_efetivo';
 export const COL_DIAS = 'escala_dias';
 export const DOC_MEMBROS = 'escala_config/membros';
 export const DOC_FUNCOES = 'escala_config/funcoes';
+export const DOC_AUSENCIAS = 'escala_config/ausencias';
+export const DOC_FERIADOS = 'escala_config/feriados';
 /** Só administradores (pela regra do Firestore) conseguem ler este documento. */
 export const DOC_ADMIN = 'escala_config/admin';
 export const CACHE_KEY = 'vulcaescala:nuvem';
@@ -53,6 +57,9 @@ interface DocMaps {
   days: Record<string, Day>;
   /** null = documento ainda não existe na nuvem (usa a lista padrão) */
   funcoes?: string[] | null;
+  /** null = documento ainda não existe na nuvem (usa os tipos padrão) */
+  ausencias?: TipoAusencia[] | null;
+  feriados?: Record<string, string> | null;
 }
 
 export const dayDocId = (weekKey: string, dayIndex: number) => `${weekKey}_${dayIndex}`;
@@ -72,9 +79,16 @@ export function mapsToState(maps: DocMaps): AppState {
     wk.days[loc.dayIndex] = { activities: day.activities, absences: day.absences };
   }
   try {
-    return migrate({ version: CURRENT_VERSION, workers: Object.values(maps.workers), funcoes: maps.funcoes ?? FUNCOES_PADRAO, weeks });
+    return migrate({
+      version: CURRENT_VERSION,
+      workers: Object.values(maps.workers),
+      funcoes: maps.funcoes ?? FUNCOES_PADRAO,
+      ausencias: maps.ausencias ?? AUSENCIAS_PADRAO,
+      feriados: maps.feriados ?? {},
+      weeks,
+    });
   } catch {
-    return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], weeks: {} };
+    return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((a) => ({ ...a })), feriados: {}, weeks: {} };
   }
 }
 
@@ -86,7 +100,7 @@ function stateToMaps(state: AppState): DocMaps {
     wk.days.forEach((d, i) => {
       if (d.activities.length || d.absences.length) days[dayDocId(wk.key, i)] = d;
     });
-  return { workers, days, funcoes: state.funcoes };
+  return { workers, days, funcoes: state.funcoes, ausencias: state.ausencias, feriados: state.feriados };
 }
 
 function readDay(data: unknown): Day {
@@ -99,14 +113,15 @@ function readDay(data: unknown): Day {
 
 function readWorker(id: string, data: unknown): Worker {
   const w = (data ?? {}) as Partial<Worker>;
-  return { id, nome: String(w.nome ?? ''), funcao: (w.funcao ?? 'Vulcanizador') as Worker['funcao'], ativo: w.ativo !== false };
+  const base: Worker = { id, nome: String(w.nome ?? ''), funcao: (w.funcao ?? 'Vulcanizador') as Worker['funcao'], ativo: w.ativo !== false };
+  return typeof w.matricula === 'string' && w.matricula ? { ...base, matricula: w.matricula } : base;
 }
 
 /** Aplica uma ação de dia a um único dia, usando o mesmo reducer da tela. */
 function applyToDay(day: Day, action: Action & { weekKey: string; dayIndex: number }): Day {
   const days = Array.from({ length: 7 }, emptyDay);
   days[action.dayIndex] = day;
-  const mini: AppState = { version: CURRENT_VERSION, workers: [], funcoes: [], weeks: { [action.weekKey]: { key: action.weekKey, days } } };
+  const mini: AppState = { version: CURRENT_VERSION, workers: [], funcoes: [], ausencias: [], feriados: {}, weeks: { [action.weekKey]: { key: action.weekKey, days } } };
   return reducer(mini, action).weeks[action.weekKey].days[action.dayIndex];
 }
 
@@ -139,6 +154,10 @@ export class CloudSync {
   private api: FirebaseApi | null = null;
   private email = '';
   private flushing = false;
+  /** envio em andamento (para a substituição completa esperar terminar) */
+  private flushDone: Promise<void> = Promise.resolve();
+  /** substituição completa em andamento: a fila espera */
+  private replacing = false;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private onOnline = () => this.flush();
   /** chamado quando uma ação é recusada definitivamente pela nuvem */
@@ -239,6 +258,34 @@ export class CloudSync {
         },
       ),
     );
+    this.listen('ausencias', (onError) =>
+      fsMod.onSnapshot(
+        fsMod.doc(fs, DOC_AUSENCIAS),
+        (snap) => {
+          const lista = snap.data()?.lista;
+          this.confirmed = { ...this.confirmed, ausencias: Array.isArray(lista) ? (lista as TipoAusencia[]) : null };
+          this.refresh();
+        },
+        (e) => {
+          if (errCode(e) === 'permission-denied') this.setInfo({ rulesOutdated: true });
+          onError();
+        },
+      ),
+    );
+    this.listen('feriados', (onError) =>
+      fsMod.onSnapshot(
+        fsMod.doc(fs, DOC_FERIADOS),
+        (snap) => {
+          const map = snap.data()?.map;
+          this.confirmed = { ...this.confirmed, feriados: map && typeof map === 'object' ? (map as Record<string, string>) : null };
+          this.refresh();
+        },
+        (e) => {
+          if (errCode(e) === 'permission-denied') this.setInfo({ rulesOutdated: true });
+          onError();
+        },
+      ),
+    );
     this.listen('membros', (onError) =>
       fsMod.onSnapshot(
         fsMod.doc(fs, DOC_MEMBROS),
@@ -301,7 +348,7 @@ export class CloudSync {
 
   /** Ao sair da conta: apaga a cópia local (dados da equipe não ficam no aparelho). */
   clearLocal(): void {
-    this.confirmed = { workers: {}, days: {}, funcoes: null };
+    this.confirmed = { workers: {}, days: {}, funcoes: null, ausencias: null, feriados: null };
     this.pending = [];
     this.blocked = [];
     this.view = this.computeView();
@@ -329,6 +376,22 @@ export class CloudSync {
   async replaceAll(state: AppState): Promise<void> {
     const api = this.api;
     if (!api) throw new Error('sem conexão com a nuvem');
+    // a fila espera; o que já estava na fila antes desta substituição é descartado,
+    // o que for lançado durante ou depois é mantido e enviado em seguida
+    const anteriores = new Set(this.pending); // anotado ANTES de esperar
+    this.replacing = true;
+    await this.flushDone;
+    try {
+      await this.doReplaceAll(api, state);
+    } finally {
+      this.replacing = false;
+    }
+    this.pending = this.pending.filter((a) => !anteriores.has(a));
+    this.refresh();
+    void this.flush();
+  }
+
+  private async doReplaceAll(api: FirebaseApi, state: AppState): Promise<void> {
     const { fsMod, fs } = api;
     const next = stateToMaps(state);
     const ops: ((b: FsMod.WriteBatch) => void)[] = [];
@@ -352,8 +415,23 @@ export class CloudSync {
       next.funcoes = this.confirmed.funcoes;
       this.setInfo({ rulesOutdated: true });
     }
+    try {
+      await fsMod.setDoc(fsMod.doc(fs, DOC_FERIADOS), { map: next.feriados ?? {}, atualizadoEm: new Date().toISOString(), atualizadoPor: this.email });
+    } catch (e) {
+      if (errCode(e) !== 'permission-denied') throw e;
+      next.feriados = this.confirmed.feriados;
+      this.setInfo({ rulesOutdated: true });
+    }
+    try {
+      await fsMod.setDoc(fsMod.doc(fs, DOC_AUSENCIAS), this.funcoesPayload(next.ausencias ?? AUSENCIAS_PADRAO));
+    } catch (e) {
+      if (errCode(e) !== 'permission-denied') throw e;
+      next.ausencias = this.confirmed.ausencias;
+      this.setInfo({ rulesOutdated: true });
+    }
     this.confirmed = next;
-    this.pending = [];
+    // a nuvem deixou de estar vazia (evita preencher de novo antes do próximo retorno da nuvem)
+    this.info = { ...this.info, cloudEmpty: false };
     this.refresh();
   }
 
@@ -370,13 +448,15 @@ export class CloudSync {
 
   /** Envia a fila, uma ação por vez, na ordem. */
   async flush(): Promise<void> {
-    if (this.flushing || !this.api || !this.info.loaded) return;
+    if (this.flushing || this.replacing || !this.api || !this.info.loaded) return;
     if (!this.pending.length) return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       this.setInfo({ status: 'offline' });
       return;
     }
     this.flushing = true;
+    let fim: () => void = () => {};
+    this.flushDone = new Promise((r) => (fim = r));
     this.setInfo({ status: 'saving' });
     try {
       while (this.pending.length && this.api) {
@@ -415,6 +495,7 @@ export class CloudSync {
       this.setInfo({ status: 'ok', lastError: null });
     } finally {
       this.flushing = false;
+      fim();
     }
   }
 
@@ -447,7 +528,7 @@ export class CloudSync {
     };
   }
 
-  private funcoesPayload(lista: string[]) {
+  private funcoesPayload(lista: string[] | TipoAusencia[]) {
     return { lista, atualizadoEm: new Date().toISOString(), atualizadoPor: this.email };
   }
 
@@ -471,7 +552,7 @@ export class CloudSync {
           const wsnaps = await Promise.all(wrefs.map((r) => tx.get(r)));
           const lista = Array.isArray(snap.data()?.lista) ? (snap.data()!.lista as string[]) : [...FUNCOES_PADRAO];
           const workers = wsnaps.filter((s) => s.exists()).map((s) => readWorker(s.id, s.data()));
-          const before: AppState = { version: CURRENT_VERSION, workers, funcoes: lista, weeks: {} };
+          const before: AppState = { version: CURRENT_VERSION, workers, funcoes: lista, ausencias: [], feriados: {}, weeks: {} };
           const after = reducer(before, action);
           if (after === before) return null; // nada a fazer (repetida, em uso, duplicada…)
           tx.set(ref, this.funcoesPayload(after.funcoes));
@@ -491,6 +572,46 @@ export class CloudSync {
         }
         return;
       }
+      case 'feriado/set': {
+        const ref = fsMod.doc(fs, DOC_FERIADOS);
+        const result = await fsMod.runTransaction(fs, async (tx) => {
+          const snap = await tx.get(ref);
+          const map = (snap.data()?.map ?? {}) as Record<string, string>;
+          const before: AppState = { version: CURRENT_VERSION, workers: [], funcoes: [], ausencias: [], feriados: map, weeks: {} };
+          const after = reducer(before, action);
+          if (after === before) return null;
+          tx.set(ref, { map: after.feriados, atualizadoEm: new Date().toISOString(), atualizadoPor: this.email });
+          return after.feriados;
+        });
+        if (result) this.confirmed = { ...this.confirmed, feriados: result };
+        if (this.info.rulesOutdated) {
+          this.info = { ...this.info, rulesOutdated: false };
+          this.resubscribeNow('feriados');
+        }
+        return;
+      }
+      case 'ausencia/add':
+      case 'ausencia/update':
+      case 'ausencia/remove': {
+        const ref = fsMod.doc(fs, DOC_AUSENCIAS);
+        // para "remover", o uso é conferido nos dias conhecidos por este aparelho
+        const weeks = mapsToState(this.confirmed).weeks;
+        const result = await fsMod.runTransaction(fs, async (tx) => {
+          const snap = await tx.get(ref);
+          const lista = Array.isArray(snap.data()?.lista) ? (snap.data()!.lista as TipoAusencia[]) : AUSENCIAS_PADRAO.map((a) => ({ ...a }));
+          const before: AppState = { version: CURRENT_VERSION, workers: [], funcoes: [], ausencias: lista, feriados: {}, weeks };
+          const after = reducer(before, action);
+          if (after === before) return null;
+          tx.set(ref, this.funcoesPayload(after.ausencias));
+          return after.ausencias;
+        });
+        if (result) this.confirmed = { ...this.confirmed, ausencias: result };
+        if (this.info.rulesOutdated) {
+          this.info = { ...this.info, rulesOutdated: false };
+          this.resubscribeNow('ausencias');
+        }
+        return;
+      }
       case 'worker/add':
       case 'worker/update':
       case 'worker/setActive': {
@@ -501,11 +622,11 @@ export class CloudSync {
           let w: Worker | null = snap.exists() ? readWorker(id, snap.data()) : null;
           if (action.type === 'worker/add') {
             if (w) return w; // já criado (ação repetida)
-            w = { id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true };
+            w = withMatricula({ id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true }, action.matricula);
           } else if (!w) {
             return null; // removido por outra pessoa
           } else if (action.type === 'worker/update') {
-            w = { ...w, nome: cleanName(action.nome), funcao: action.funcao };
+            w = withMatricula({ ...w, nome: cleanName(action.nome), funcao: action.funcao }, action.matricula ?? w.matricula);
           } else {
             w = { ...w, ativo: action.ativo };
           }

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
-import { allocationStatus, getDay, pendingWorkers, sortByName, statusLabel } from '../../domain/schedule';
+import { allocationStatus, feriadoDoDia, getDay, pendingWorkers, sortByName, statusLabel } from '../../domain/schedule';
 import { matchesSearch } from '../../domain/names';
-import { ABSENCE_LABELS } from '../../domain/types';
+import { tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { Modal } from '../../ui/Modal';
 
@@ -23,7 +23,8 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
   const activity = day.activities.find((a) => a.id === activityId);
   if (!activity) return null; // removida enquanto a janela estava aberta
 
-  const pendingCount = pendingWorkers(day, state.workers).length;
+  const feriado = feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex);
+  const pendingCount = pendingWorkers(day, state.workers, feriado).length;
   const list = sortByName(state.workers.filter((w) => w.ativo && matchesSearch(w.nome, query)));
 
   return (
@@ -59,12 +60,12 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
             st.kind === 'elsewhere'
               ? `Também em: ${st.activities.join(', ')}`
               : st.kind === 'absent'
-                ? ABSENCE_LABELS[st.tipo]
+                ? tipoAusencia(state, st.tipo).nome
                 : undefined;
           return (
             <li key={w.id}>
               <button
-                className={`pick st-${st.kind}` + (st.kind === 'absent' ? ` abs-${st.tipo}` : '')}
+                className={`pick st-${st.kind}` + (st.kind === 'absent' ? ` cor-${tipoAusencia(state, st.tipo).cor}` : '')}
                 disabled={st.kind === 'absent'}
                 aria-pressed={st.kind === 'here'}
                 title={title}
@@ -74,7 +75,11 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
                 }}
               >
                 <span className="pick-name">{w.nome}</span>
-                {st.kind !== 'free' && <span className="pick-status">{statusLabel(st)}</span>}
+                {st.kind !== 'free' ? (
+                  <span className="pick-status">{statusLabel(st)}</span>
+                ) : (
+                  feriado && <span className="pick-status muted">Folga (feriado)</span>
+                )}
               </button>
             </li>
           );

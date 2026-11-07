@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
-import { absenceOf, getDay, sortByName } from '../../domain/schedule';
+import { absenceOf, feriadoDoDia, getDay, sortByName } from '../../domain/schedule';
 import { matchesSearch } from '../../domain/names';
-import { ABSENCE_LABELS, ABSENCE_TYPES, AbsenceType } from '../../domain/types';
+import { tipoAusencia } from '../../domain/types';
+import { AusenciasDialog } from '../workers/AusenciasDialog';
 import { useToast } from '../../ui/Toast';
 import { Modal } from '../../ui/Modal';
 
@@ -17,9 +18,14 @@ interface Props {
 export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
   const { state, dispatch } = useStore();
   const toast = useToast();
-  const [tipo, setTipo] = useState<AbsenceType>('folga');
+  const tipos = state.ausencias.filter((a) => a.ativo);
+  const [escolhido, setTipo] = useState<string>(tipos[0]?.id ?? '');
+  // se o tipo escolhido foi ocultado/removido (em outro aparelho), volta para o primeiro
+  const tipo = tipos.some((t) => t.id === escolhido) ? escolhido : (tipos[0]?.id ?? '');
+  const [gerenciar, setGerenciar] = useState(false);
   const [query, setQuery] = useState('');
   const day = getDay(state, dayRef.weekKey, dayRef.dayIndex);
+  const feriado = feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex);
   const list = sortByName(state.workers.filter((w) => w.ativo && matchesSearch(w.nome, query)));
 
   return (
@@ -39,12 +45,16 @@ export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
       }
     >
       <div className="segmented" role="radiogroup" aria-label="Tipo de ausência">
-        {ABSENCE_TYPES.map((t) => (
-          <button key={t} role="radio" aria-checked={tipo === t} className={'seg' + (tipo === t ? ' on' : '')} onClick={() => setTipo(t)}>
-            {ABSENCE_LABELS[t]}
+        {tipos.map((t) => (
+          <button key={t.id} role="radio" aria-checked={tipo === t.id} className={'seg' + (tipo === t.id ? ' on' : '')} onClick={() => setTipo(t.id)}>
+            {t.nome}
           </button>
         ))}
       </div>
+      <button className="link small" onClick={() => setGerenciar(true)}>
+        Editar tipos de ausência…
+      </button>
+      {gerenciar && <AusenciasDialog onClose={() => setGerenciar(false)} />}
       <input
         className="input"
         type="search"
@@ -55,7 +65,7 @@ export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
         aria-label="Buscar colaborador"
       />
       <p className="small muted">
-        Toque para marcar <b>{ABSENCE_LABELS[tipo]}</b>. Quem estiver alocado sai das atividades do dia.
+        Toque para marcar <b>{tipoAusencia(state, tipo).nome}</b>. Quem estiver alocado sai das atividades do dia.
       </p>
       <ul className="plain-list">
         {list.map((w) => {
@@ -74,10 +84,11 @@ export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
               >
                 <span className="pick-name">{w.nome}</span>
                 {(here || cur || inActivity) && (
-                  <span className={'pick-status' + (cur && !here ? ` tinted abs-${cur}` : '')}>
-                    {here ? '✓' : cur ? ABSENCE_LABELS[cur] : 'Alocado'}
+                  <span className={'pick-status' + (cur && !here ? ` tinted cor-${tipoAusencia(state, cur).cor}` : '')}>
+                    {here ? '✓' : cur ? tipoAusencia(state, cur).nome : 'Alocado'}
                   </span>
                 )}
+                {!here && !cur && !inActivity && feriado && <span className="pick-status muted">Folga (feriado)</span>}
               </button>
             </li>
           );

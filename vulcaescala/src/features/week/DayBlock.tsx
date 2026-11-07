@@ -2,8 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useStore } from '../../state/store';
 import { newId } from '../../domain/ids';
 import { WEEKDAYS, formatDate } from '../../domain/isoWeek';
-import { allocatedIds, dayHasData, getDay, pendingWorkers } from '../../domain/schedule';
-import { ABSENCE_LABELS, ABSENCE_TYPES, Worker } from '../../domain/types';
+import { allocatedIds, dayHasData, feriadoDoDia, folgasDeFeriado, getDay, pendingWorkers } from '../../domain/schedule';
+import { Worker, tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { ActivityCard } from './ActivityCard';
 import { AbsencePicker } from './AbsencePicker';
@@ -28,7 +28,11 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
 
   const ref = { weekKey, dayIndex };
   const byId = new Map(state.workers.map((w) => [w.id, w]));
-  const pending = pendingWorkers(day, state.workers);
+  const feriado = feriadoDoDia(state, weekKey, dayIndex);
+  const pending = pendingWorkers(day, state.workers, feriado);
+  const folgas = folgasDeFeriado(day, state.workers, feriado);
+  const ausentes = day.absences.length + folgas.length;
+  const [folgaWorker, setFolgaWorker] = useState<Worker | null>(null);
   const allocated = allocatedIds(day).size;
   const hasActivities = day.activities.length > 0;
   const dim = dayIndex >= 5 && !dayHasData(day);
@@ -71,11 +75,19 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
                 <span className="badge today">Hoje</span>
               </>
             )}
+            {feriado && (
+              <>
+                {' '}
+                <span className="badge feriado" title={feriado}>
+                  🎌 {feriado}
+                </span>
+              </>
+            )}
           </div>
           <div className="day-counts">
             <span className="num">{day.activities.length}</span> ativ. · <span className="num">{allocated}</span>{' '}
-            alocado{allocated === 1 ? '' : 's'} · <span className="num">{day.absences.length}</span> ausente
-            {day.absences.length === 1 ? '' : 's'}
+            alocado{allocated === 1 ? '' : 's'} · <span className="num">{ausentes}</span> ausente
+            {ausentes === 1 ? '' : 's'}
           </div>
         </div>
         {hasActivities &&
@@ -90,6 +102,12 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
 
       {open && (
         <div className="day-body" id={bodyId}>
+          {feriado && (
+            <div className="pend-strip feriado">
+              <strong>Feriado — {feriado}.</strong> Quem não estiver em nenhuma atividade fica de <b>folga automaticamente</b>
+              {folgas.length ? ` (${folgas.length})` : ''}. Toque no nome para alocar ou registrar outra ausência.
+            </div>
+          )}
           {hasActivities &&
             (pending.length ? (
               <div className="pend-strip warn">
@@ -131,19 +149,35 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
                 Registrar ausência
               </button>
             </div>
+            {folgas.length > 0 && (
+              <div className="chips">
+                {folgas.map((w) => (
+                  <button
+                    key={w.id}
+                    className={`chip chip-btn cor-${tipoAusencia(state, 'folga').cor}`}
+                    onClick={() => setFolgaWorker(w)}
+                    title="Folga automática do feriado — toque para alterar"
+                  >
+                    <span className="chip-label">
+                      {w.nome} · {tipoAusencia(state, 'folga').nome} (feriado)
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             {day.absences.length === 0 ? (
-              <p className="muted small">Nenhuma ausência registrada.</p>
+              folgas.length ? null : <p className="muted small">Nenhuma ausência registrada.</p>
             ) : (
               <div className="chips">
-                {ABSENCE_TYPES.flatMap((tipo) =>
+                {[...new Set([...state.ausencias.map((t) => t.id), ...day.absences.map((a) => a.tipo)])].flatMap((tipo) =>
                   day.absences
                     .filter((a) => a.tipo === tipo)
                     .map((a) => {
                       const w = byId.get(a.workerId);
                       return (
-                        <span key={a.workerId} className={`chip abs-${tipo}`}>
+                        <span key={a.workerId} className={`chip cor-${tipoAusencia(state, tipo).cor}`}>
                           <span className="chip-label">
-                            {w?.nome ?? '?'} · {ABSENCE_LABELS[tipo]}
+                            {w?.nome ?? '?'} · {tipoAusencia(state, tipo).nome}
                           </span>
                           <button
                             className="chip-x"
@@ -166,6 +200,14 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
       )}
 
       {absenceOpen && <AbsencePicker dayRef={ref} dayLabel={dayLabel} onClose={() => setAbsenceOpen(false)} />}
+      {folgaWorker && (
+        <PendingWorkerDialog
+          dayRef={ref}
+          dayLabel={`${dayLabel} · folga automática (feriado)`}
+          worker={folgaWorker}
+          onClose={() => setFolgaWorker(null)}
+        />
+      )}
       {pendingWorker && (
         <PendingWorkerDialog dayRef={ref} dayLabel={dayLabel} worker={pendingWorker} onClose={() => setPendingWorker(null)} />
       )}
