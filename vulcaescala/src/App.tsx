@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useStore } from './state/store';
-import { WeekView } from './components/WeekView';
-import { WorkersView } from './components/WorkersView';
-import { ReportsView } from './components/ReportsView';
-import { DataView } from './components/DataView';
+import { currentWeekKey } from './domain/isoWeek';
+import { WeekView } from './features/week/WeekView';
+import { SummaryView } from './features/summary/SummaryView';
+import { WorkersView } from './features/workers/WorkersView';
+import { ReportsView } from './features/reports/ReportsView';
+import { DataView } from './features/data/DataView';
 
 const TABS = [
   { id: 'escala', label: 'Escala' },
+  { id: 'resumo', label: 'Resumo' },
   { id: 'efetivo', label: 'Efetivo' },
   { id: 'consultas', label: 'Consultas' },
   { id: 'dados', label: 'Dados' },
@@ -14,45 +17,54 @@ const TABS = [
 type Tab = (typeof TABS)[number]['id'];
 
 export function App() {
-  const { loadStatus, loadError, saveError } = useStore();
+  const { ready, notices, saveError } = useStore();
   const [tab, setTab] = useState<Tab>('escala');
+  // semana compartilhada entre Escala e Resumo
+  const [weekKey, setWeekKey] = useState(currentWeekKey);
+
+  const go = (t: Tab) => {
+    setTab(t);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <>
       <header className="app-header">
-        <div className="brand">
-          Vulca<span>Escala</span>
+        <div className="app-header-inner">
+          <div className="brand">
+            Vulca<span>Escala</span>
+          </div>
+          <nav className="tabs" aria-label="Seções">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className={'tab' + (tab === t.id ? ' on' : '')}
+                aria-current={tab === t.id ? 'page' : undefined}
+                onClick={() => go(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
         </div>
-        <nav className="tabs" aria-label="Seções">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={'tab' + (tab === t.id ? ' on' : '')}
-              aria-current={tab === t.id ? 'page' : undefined}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
       </header>
-      {saveError && (
-        <div className="banner danger" role="alert">
-          Não foi possível salvar: {saveError}. Faça um backup em “Dados” antes de continuar.
-        </div>
-      )}
       <main className="container">
-        {loadStatus === 'loading' && <p className="muted">Carregando…</p>}
-        {loadStatus === 'error' && (
+        {notices.map((n, i) => (
+          <div key={i} className={`banner ${n.kind}`} role="alert">
+            {n.text}
+          </div>
+        ))}
+        {saveError && (
           <div className="banner danger" role="alert">
-            Os dados salvos não puderam ser lidos ({loadError}). Nada foi alterado nem será gravado até você
-            importar um backup abaixo.
+            Não foi possível salvar: {saveError}. Baixe um backup em “Dados”.
           </div>
         )}
-        {loadStatus === 'error' && <DataView />}
-        {loadStatus === 'ready' && (
+        {!ready ? (
+          <p className="muted">Carregando…</p>
+        ) : (
           <>
-            {tab === 'escala' && <WeekView onGoToWorkers={() => setTab('efetivo')} />}
+            {tab === 'escala' && <WeekView weekKey={weekKey} onWeekChange={setWeekKey} onGoToWorkers={() => go('efetivo')} />}
+            {tab === 'resumo' && <SummaryView weekKey={weekKey} onWeekChange={setWeekKey} />}
             {tab === 'efetivo' && <WorkersView />}
             {tab === 'consultas' && <ReportsView />}
             {tab === 'dados' && <DataView />}

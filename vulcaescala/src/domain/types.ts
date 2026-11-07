@@ -19,6 +19,15 @@ export const ABSENCE_LABELS: Record<AbsenceType, string> = {
   falta: 'Falta',
 };
 
+/** Abreviação usada na tabela do resumo. */
+export const ABSENCE_ABBR: Record<AbsenceType, string> = {
+  folga: 'F',
+  atestado: 'A',
+  exame: 'E',
+  ferias: 'FÉ',
+  falta: 'FT',
+};
+
 export interface Activity {
   id: string;
   /** sempre em MAIÚSCULAS */

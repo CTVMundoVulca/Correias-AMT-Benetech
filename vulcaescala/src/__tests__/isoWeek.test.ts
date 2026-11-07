@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWeeks, formatDate, isoWeekOf, parseWeekKey, weekDates, weekKey, weeksInYear, locateDay } from '../domain/isoWeek';
+import { addWeeks, currentWeekKey, formatDate, isoWeekOf, parseWeekKey, weekDates, weekKey, weeksInYear, locateDay } from '../domain/isoWeek';
 
 const d = (s: string) => new Date(s + 'T00:00:00Z');
 
@@ -33,6 +33,21 @@ describe('semana ISO 8601', () => {
     expect(addWeeks('2026-W53', 1)).toBe('2027-W01');
     expect(addWeeks('2027-W01', -1)).toBe('2026-W53');
     expect(addWeeks('2025-W52', 1)).toBe('2026-W01');
+  });
+
+  it('2026 tem 53 semanas: W53 vai de 28/12/2026 a 03/01/2027', () => {
+    const days = weekDates('2026-W53');
+    expect(formatDate(days[0])).toBe('28/12/2026');
+    expect(formatDate(days[6])).toBe('03/01/2027');
+    expect(addWeeks('2026-W52', 1)).toBe('2026-W53');
+  });
+
+  it('"Semana atual" usa a data local do aparelho (inclusive tarde da noite)', () => {
+    expect(currentWeekKey(new Date(2026, 10, 7, 14, 0))).toBe('2026-W45');
+    expect(currentWeekKey(new Date(2026, 0, 1, 23, 59))).toBe('2026-W01');
+    expect(currentWeekKey(new Date(2027, 0, 3, 23, 59))).toBe('2026-W53');
+    expect(currentWeekKey(new Date(2027, 0, 4, 0, 1))).toBe('2027-W01');
+    expect(currentWeekKey(new Date(2026, 0, 4, 12))).toBe('2026-W01'); // 4 de janeiro sempre na semana 1
   });
 
   it('rejeita chave inválida', () => {

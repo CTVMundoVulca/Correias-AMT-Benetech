@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { reducer, type Action } from '../state/reducer';
 import { AppState, emptyState } from '../domain/types';
-import { allocationStatus, getDay, pendingWorkers, previousDayWithData, workerHistory } from '../domain/schedule';
+import { allocationStatus, getDay, pendingWorkers, weekPending, workerHistory } from '../domain/schedule';
+import { activityRows, weekKpis, workerGrid } from '../domain/summary';
 import { migrate, InvalidDataError } from '../storage/migrations';
 
 const W = '2026-W45';
@@ -33,6 +34,44 @@ describe('escala', () => {
       { type: 'absence/set', ...ref, workerId: 'b', tipo: 'folga' },
     ]);
     expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']); // davi inativo não conta
+  });
+
+  it('dia sem atividade não gera pendência, mesmo com gente ativa', () => {
+    const s = build(base);
+    expect(pendingWorkers(getDay(s, W, 1), s.workers)).toEqual([]);
+    // ausência sozinha também não cria pendência
+    const s2 = reducer(s, { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'a', tipo: 'folga' });
+    expect(pendingWorkers(getDay(s2, W, 1), s2.workers)).toEqual([]);
+  });
+
+  it('pendência é recalculada a cada alteração', () => {
+    let s = build(base);
+    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['a', 'b', 'c']);
+    s = reducer(s, { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' });
+    s = reducer(s, { type: 'absence/set', ...ref, workerId: 'b', tipo: 'exame' });
+    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']);
+    s = reducer(s, { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'c' });
+    expect(pendingWorkers(getDay(s, W, 0), s.workers)).toEqual([]);
+    // remover a atividade devolve a pessoa para pendente
+    s = reducer(s, { type: 'activity/remove', ...ref, activityId: 'y' });
+    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']);
+  });
+
+  it('pendências da semana por dia', () => {
+    const s = build([
+      ...base,
+      { type: 'activity/add', weekKey: W, dayIndex: 3, id: 'z', nome: 'inspeção' },
+      { type: 'activity/toggleWorker', weekKey: W, dayIndex: 3, activityId: 'z', workerId: 'a' },
+    ]);
+    expect(weekPending(s, W)).toEqual({
+      days: [
+        { dayIndex: 0, count: 3 },
+        { dayIndex: 3, count: 2 },
+      ],
+      total: 5,
+      hasActivities: true,
+    });
+    expect(weekPending(s, '2026-W46')).toEqual({ days: [], total: 0, hasActivities: false });
   });
 
   it('toggle marca e desmarca', () => {
@@ -78,36 +117,25 @@ describe('escala', () => {
     expect(getDay(s, W, 0).absences).toEqual([{ workerId: 'a', tipo: 'falta' }]);
   });
 
-  it('repetir dia anterior copia atividades e, opcionalmente, ausências', () => {
-    const s0 = build([
-      ...base,
-      { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
-      { type: 'absence/set', ...ref, workerId: 'b', tipo: 'ferias' },
-    ]);
-    const prev = previousDayWithData(s0, W, 2)!;
-    expect(prev).toMatchObject({ weekKey: W, dayIndex: 0 });
-    const s = reducer(s0, { type: 'day/copy', weekKey: W, dayIndex: 2, from: prev, withAbsences: true });
-    const day = getDay(s, W, 2);
-    expect(day.activities.map((a) => [a.nome, a.workerIds])).toEqual([
-      ['EMENDA TR-05', ['a']],
-      ['REPARO', []],
-    ]);
-    expect(day.activities[0].id).not.toBe('x');
-    expect(day.absences).toEqual([{ workerId: 'b', tipo: 'ferias' }]);
-  });
-
-  it('procura dia anterior atravessando semanas', () => {
-    const s = build(base);
-    expect(previousDayWithData(s, '2026-W46', 0)).toMatchObject({ weekKey: W, dayIndex: 0 });
-  });
-
-  it('excluir colaborador limpa as escalas', () => {
+  it('excluir colaborador retira de todas as atividades e ausências de todas as semanas', () => {
+    const W2 = '2027-W01';
     const s = build([
       ...base,
       { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'c' },
+      { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'c' },
+      { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'a' },
+      { type: 'absence/set', weekKey: W, dayIndex: 4, workerId: 'c', tipo: 'falta' },
+      { type: 'activity/add', weekKey: W2, dayIndex: 2, id: 'k', nome: 'emenda' },
+      { type: 'activity/toggleWorker', weekKey: W2, dayIndex: 2, activityId: 'k', workerId: 'c' },
+      { type: 'absence/set', weekKey: W2, dayIndex: 5, workerId: 'c', tipo: 'ferias' },
       { type: 'worker/remove', id: 'c' },
     ]);
-    expect(getDay(s, W, 0).activities[0].workerIds).toEqual([]);
+    expect(s.workers.map((w) => w.id)).not.toContain('c');
+    const all = JSON.stringify(s.weeks);
+    expect(all).not.toContain('"c"');
+    // os demais continuam onde estavam
+    expect(getDay(s, W, 0).activities[1].workerIds).toEqual(['a']);
+    expect(getDay(s, W2, 2).activities[0].workerIds).toEqual([]);
   });
 
   it('histórico do colaborador', () => {
@@ -120,6 +148,40 @@ describe('escala', () => {
     expect(h.map((r) => [r.date.toISOString().slice(0, 10), r.activities, r.absence])).toEqual([
       ['2026-11-02', ['EMENDA TR-05'], undefined],
       ['2026-11-03', [], 'folga'],
+    ]);
+  });
+});
+
+describe('resumo da semana', () => {
+  const s = build([
+    ...base,
+    { type: 'activity/toggleWorker', ...ref, activityId: 'x', workerId: 'a' },
+    { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'a' },
+    { type: 'activity/toggleWorker', ...ref, activityId: 'y', workerId: 'c' },
+    { type: 'absence/set', ...ref, workerId: 'b', tipo: 'atestado' },
+    { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'd', tipo: 'ferias' },
+  ]);
+
+  it('indicadores', () => {
+    expect(weekKpis(s, W)).toEqual({ activities: 2, allocations: 3, absences: 2, activeWorkers: 3 });
+  });
+
+  it('tabela colaborador × dia (inativo só aparece se tiver registro)', () => {
+    const g = workerGrid(s, W);
+    expect(g.map((r) => r.worker.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(g[0].cells[0]).toEqual({ kind: 'on' });
+    expect(g[0].daysAllocated).toBe(1); // duas atividades no mesmo dia = 1 dia
+    expect(g[1].cells[0]).toEqual({ kind: 'abs', tipo: 'atestado' });
+    expect(g[3].cells[1]).toEqual({ kind: 'abs', tipo: 'ferias' });
+    expect(g[2].cells[6]).toEqual({ kind: 'none' });
+    const s2 = reducer(s, { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'd', tipo: null });
+    expect(workerGrid(s2, W).map((r) => r.worker.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('atividades da semana com nomes', () => {
+    expect(activityRows(s, W)).toEqual([
+      { dayIndex: 0, nome: 'EMENDA TR-05', workerNames: ['ANA'] },
+      { dayIndex: 0, nome: 'REPARO', workerNames: ['ANA', 'CARLA'] },
     ]);
   });
 });

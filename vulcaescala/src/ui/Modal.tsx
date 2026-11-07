@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 
 interface Props {
   title: ReactNode;
@@ -6,11 +6,14 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** `small`: caixa compacta centralizada (confirmações), mesmo no celular. */
+  size?: 'normal' | 'small';
 }
 
 /** Janela modal: tela cheia no celular, centralizada em telas maiores. Esc fecha. */
-export function Modal({ title, subtitle, onClose, children, footer }: Props) {
+export function Modal({ title, subtitle, onClose, children, footer, size = 'normal' }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 
@@ -32,11 +35,11 @@ export function Modal({ title, subtitle, onClose, children, footer }: Props) {
   }, []);
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={ref} tabIndex={-1}>
+    <div className={'overlay' + (size === 'small' ? ' overlay-small' : '')} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={'modal' + (size === 'small' ? ' modal-small' : '')} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
         <div className="modal-head">
           <div className="modal-titles">
-            <h2 id="modal-title">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {subtitle && <div className="muted small">{subtitle}</div>}
           </div>
           <button className="icon-btn" onClick={onClose} aria-label="Fechar">

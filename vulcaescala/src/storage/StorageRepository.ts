@@ -3,13 +3,22 @@ import type { AppState } from '../domain/types';
 /**
  * Fronteira de persistência. A interface é assíncrona de propósito: a
  * implementação atual usa localStorage, mas uma futura (ex.: Supabase) pode
- * trocar esta sem alterar nenhum componente.
+ * substituí-la sem alterar nenhum componente.
  */
 export interface StorageRepository {
-  /** Carrega o estado salvo já migrado para a versão atual (estado vazio se não houver). */
-  load(): Promise<AppState>;
+  /** `true` se os dados sobrevivem ao fechar o app. */
+  readonly persistent: boolean;
+  /** Estado salvo, já validado e migrado; `null` se nunca houve dados. */
+  load(): Promise<AppState | null>;
   /** Grava o estado inteiro. */
   save(state: AppState): Promise<void>;
   /** Apaga todos os dados. */
   clear(): Promise<void>;
+}
+
+/** Os dados salvos existem mas não puderam ser lidos. Uma cópia bruta foi preservada. */
+export class CorruptDataError extends Error {
+  constructor(message: string, readonly backupKey: string | null) {
+    super(message);
+  }
 }

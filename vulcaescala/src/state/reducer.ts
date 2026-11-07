@@ -1,11 +1,5 @@
 import { AbsenceType, AppState, Day, Funcao, emptyWeek } from '../domain/types';
-import { cleanName } from '../domain/names';
-import { getDay } from '../domain/schedule';
-
-export function newId(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
+import { cleanName, nameKey } from '../domain/names';
 
 export interface DayRef {
   weekKey: string;
@@ -22,9 +16,13 @@ export type Action =
   | ({ type: 'activity/rename'; activityId: string; nome: string } & DayRef)
   | ({ type: 'activity/remove'; activityId: string } & DayRef)
   | ({ type: 'activity/toggleWorker'; activityId: string; workerId: string } & DayRef)
-  | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef)
-  | ({ type: 'day/copy'; from: DayRef; withAbsences: boolean } & DayRef)
-  | ({ type: 'day/clear' } & DayRef);
+  | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
+
+/** Já existe colaborador com o mesmo nome (sem diferenciar maiúsculas nem acentos)? */
+export function isDuplicateName(state: AppState, nome: string, ignoreId?: string): boolean {
+  const k = nameKey(nome);
+  return state.workers.some((w) => w.id !== ignoreId && nameKey(w.nome) === k);
+}
 
 /** Aplica `fn` a uma cópia do dia, criando a semana se necessário. */
 function updateDay(state: AppState, ref: DayRef, fn: (d: Day) => Day): AppState {
@@ -40,12 +38,12 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'worker/add': {
       const nome = cleanName(action.nome);
-      if (!nome) return state;
+      if (!nome || isDuplicateName(state, nome)) return state;
       return { ...state, workers: [...state.workers, { id: action.id, nome, funcao: action.funcao, ativo: true }] };
     }
     case 'worker/update': {
       const nome = cleanName(action.nome);
-      if (!nome) return state;
+      if (!nome || isDuplicateName(state, nome, action.id)) return state;
       return {
         ...state,
         workers: state.workers.map((w) => (w.id === action.id ? { ...w, nome, funcao: action.funcao } : w)),
@@ -116,23 +114,5 @@ export function reducer(state: AppState, action: Action): AppState {
           absences: [...absences, { workerId: action.workerId, tipo: action.tipo }],
         };
       });
-
-    case 'day/copy': {
-      const src = getDay(state, action.from.weekKey, action.from.dayIndex);
-      return updateDay(state, action, (d) => {
-        const absences = [...d.absences];
-        if (action.withAbsences)
-          for (const a of src.absences) if (!absences.some((x) => x.workerId === a.workerId)) absences.push(a);
-        const absent = new Set(absences.map((a) => a.workerId));
-        const copied = src.activities.map((a) => ({
-          id: newId(),
-          nome: a.nome,
-          workerIds: a.workerIds.filter((id) => !absent.has(id)),
-        }));
-        return { activities: [...d.activities, ...copied], absences };
-      });
-    }
-    case 'day/clear':
-      return updateDay(state, action, () => ({ activities: [], absences: [] }));
   }
 }

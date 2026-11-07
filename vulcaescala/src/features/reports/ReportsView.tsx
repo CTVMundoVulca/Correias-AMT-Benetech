@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useStore } from '../state/store';
+import { useStore } from '../../state/store';
 import {
   WEEKDAYS_SHORT,
   addDays,
@@ -8,9 +8,9 @@ import {
   fromIsoDate,
   toIsoDate,
   weekDates,
-} from '../domain/isoWeek';
-import { activityHistory, countBy, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../domain/schedule';
-import { ABSENCE_LABELS } from '../domain/types';
+} from '../../domain/isoWeek';
+import { activityHistory, countBy, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../../domain/schedule';
+import { ABSENCE_LABELS } from '../../domain/types';
 
 type Mode = 'colaborador' | 'atividade' | 'resumo';
 
@@ -30,7 +30,7 @@ export function ReportsView() {
     <section>
       <div className="card pad">
         <h1>Consultas</h1>
-        <div className="segmented" role="tablist">
+        <div className="segmented section-gap" role="tablist">
           {(
             [
               ['colaborador', 'Por colaborador'],
@@ -43,7 +43,7 @@ export function ReportsView() {
             </button>
           ))}
         </div>
-        <div className="form-grid two">
+        <div className="two-cols section-gap">
           <label className="field">
             De
             <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -58,7 +58,7 @@ export function ReportsView() {
       {validRange && mode === 'colaborador' && <ByWorker from={fromD!} to={toD!} />}
       {validRange && mode === 'atividade' && <ByActivity from={fromD!} to={toD!} />}
       {validRange && mode === 'resumo' && <Summary from={fromD!} to={toD!} />}
-      {Object.keys(state.weeks).length === 0 && <p className="muted pad">Ainda não há escalas lançadas.</p>}
+      {Object.keys(state.weeks).length === 0 && <p className="muted">Ainda não há escalas lançadas.</p>}
     </section>
   );
 }
@@ -84,12 +84,12 @@ function ByWorker({ from, to }: { from: Date; to: Date }) {
       </select>
       {id && (
         <>
-          <div className="stats">
-            <div>
+          <div className="kpis section-gap">
+            <div className="kpi">
               <b>{worked}</b>
               <span>dias trabalhados</span>
             </div>
-            <div>
+            <div className="kpi">
               <b>{rows.length - worked}</b>
               <span>dias ausente</span>
             </div>
@@ -104,7 +104,7 @@ function ByWorker({ from, to }: { from: Date; to: Date }) {
               <b>Ausências:</b> {byAbsence.map(([n, c]) => `${n} (${c})`).join(' · ')}
             </p>
           )}
-          <ul className="history">
+          <ul className="plain-list history">
             {rows.map((r) => (
               <li key={r.date.getTime()}>
                 <span className="hist-date">
@@ -146,7 +146,7 @@ function ByActivity({ from, to }: { from: Date; to: Date }) {
           <b>Quem mais trabalhou:</b> {people.slice(0, 15).map(([n, c]) => `${n} (${c})`).join(' · ')}
         </p>
       )}
-      <ul className="history">
+      <ul className="plain-list history">
         {rows.map((r, i) => (
           <li key={i}>
             <span className="hist-date">

@@ -1,18 +1,23 @@
-import { createContext, useContext, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { AppState, emptyState } from '../domain/types';
-import type { StorageRepository } from '../storage/StorageRepository';
+import { seedState } from '../domain/seed';
+import { newId } from '../domain/ids';
+import { CorruptDataError, type StorageRepository } from '../storage/StorageRepository';
 import { Action, reducer } from './reducer';
 
-type LoadStatus = 'loading' | 'ready' | 'error';
+export interface Notice {
+  kind: 'warn' | 'danger';
+  text: string;
+}
 
 interface Store {
   state: AppState;
   dispatch: (a: Action) => void;
-  repository: StorageRepository;
-  loadStatus: LoadStatus;
-  loadError: string | null;
+  ready: boolean;
+  notices: Notice[];
   saveError: string | null;
-  /** Substitui todos os dados (importação de backup / limpeza) e libera a gravação. */
+  persistent: boolean;
+  /** Substitui todos os dados (importar backup / apagar tudo). */
   replaceAll: (s: AppState) => void;
 }
 
@@ -20,25 +25,37 @@ const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ repository, children }: { repository: StorageRepository; children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, emptyState);
-  const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [notices, setNotices] = useState<Notice[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // estado exatamente como veio do armazenamento: não precisa ser regravado
   const loaded = useRef<AppState | null>(null);
 
   useEffect(() => {
     let cancel = false;
+    const extra: Notice[] = [];
+    if (!repository.persistent)
+      extra.push({
+        kind: 'warn',
+        text: 'Este navegador não permite salvar dados. Tudo o que for feito será perdido ao fechar a página.',
+      });
     repository
       .load()
+      .catch((e: unknown) => {
+        const backup = e instanceof CorruptDataError && e.backupKey ? ` Uma cópia foi guardada como “${e.backupKey}”.` : '';
+        extra.push({
+          kind: 'danger',
+          text: `Os dados salvos não puderam ser lidos (${e instanceof Error ? e.message : String(e)}).${backup} O app abriu com o efetivo inicial; importe um backup em “Dados” se tiver.`,
+        });
+        return null;
+      })
       .then((s) => {
         if (cancel) return;
-        loaded.current = s;
-        dispatch({ type: 'state/replace', state: s });
-        setLoadStatus('ready');
-      })
-      .catch((e: unknown) => {
-        if (cancel) return;
-        setLoadError(e instanceof Error ? e.message : String(e));
-        setLoadStatus('error');
+        const initial = s ?? seedState(newId);
+        loaded.current = s; // estado novo (semente) será gravado na primeira passada
+        dispatch({ type: 'state/replace', state: initial });
+        setNotices(extra);
+        setReady(true);
       });
     return () => {
       cancel = true;
@@ -46,23 +63,17 @@ export function StoreProvider({ repository, children }: { repository: StorageRep
   }, [repository]);
 
   useEffect(() => {
-    // Só salva depois de carregar e quando algo mudou — evita sobrescrever
-    // dados existentes com o estado vazio inicial, inclusive se a leitura falhar.
-    if (loadStatus !== 'ready' || state === loaded.current) return;
+    if (!ready || state === loaded.current) return;
     repository
       .save(state)
       .then(() => setSaveError(null))
       .catch((e: unknown) => setSaveError(e instanceof Error ? e.message : String(e)));
-  }, [state, loadStatus, repository]);
+  }, [state, ready, repository]);
 
-  const replaceAll = (s: AppState) => {
-    dispatch({ type: 'state/replace', state: s });
-    setLoadError(null);
-    setLoadStatus('ready');
-  };
+  const replaceAll = useCallback((s: AppState) => dispatch({ type: 'state/replace', state: s }), []);
 
   return (
-    <Ctx.Provider value={{ state, dispatch, repository, loadStatus, loadError, saveError, replaceAll }}>
+    <Ctx.Provider value={{ state, dispatch, ready, notices, saveError, persistent: repository.persistent, replaceAll }}>
       {children}
     </Ctx.Provider>
   );

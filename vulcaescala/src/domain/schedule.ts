@@ -1,5 +1,5 @@
-import { ABSENCE_LABELS, AbsenceType, AppState, Day, Worker, emptyDay } from './types';
-import { addDays, locateDay, weekDates } from './isoWeek';
+import { AbsenceType, AppState, Day, Worker, emptyDay } from './types';
+import { addDays, locateDay } from './isoWeek';
 
 export function getDay(state: AppState, weekKey: string, dayIndex: number): Day {
   return state.weeks[weekKey]?.days[dayIndex] ?? emptyDay();
@@ -21,13 +21,33 @@ export function absenceOf(day: Day, workerId: string): AbsenceType | undefined {
 }
 
 /**
- * Pendentes = efetivo ATIVO que não está em nenhuma atividade nem tem ausência
- * registrada no dia. É a lista de "quem eu esqueci".
+ * PENDENTE num dia = (a) ativo, (b) o dia tem pelo menos uma atividade,
+ * (c) não está em nenhuma atividade do dia e (d) não tem ausência no dia.
+ * Dia sem atividade não gera pendência.
  */
 export function pendingWorkers(day: Day, workers: Worker[]): Worker[] {
+  if (day.activities.length === 0) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
   return sortByName(workers.filter((w) => w.ativo && !alloc.has(w.id) && !absent.has(w.id)));
+}
+
+export interface DayPending {
+  dayIndex: number;
+  count: number;
+}
+
+/** Pendências por dia da semana (só dias com atividade aparecem). */
+export function weekPending(state: AppState, weekKey: string): { days: DayPending[]; total: number; hasActivities: boolean } {
+  const days: DayPending[] = [];
+  let hasActivities = false;
+  for (let i = 0; i < 7; i++) {
+    const day = getDay(state, weekKey, i);
+    if (!day.activities.length) continue;
+    hasActivities = true;
+    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers).length });
+  }
+  return { days, total: days.reduce((s, d) => s + d.count, 0), hasActivities };
 }
 
 export function sortByName<T extends { nome: string }>(list: T[]): T[] {
@@ -56,28 +76,12 @@ export function statusLabel(st: AllocationStatus): string {
     case 'here':
       return '✓';
     case 'elsewhere':
-      return `em ${st.activities.join(', ')}`;
+      return 'Outra ativ.';
     case 'absent':
-      return ABSENCE_LABELS[st.tipo].toUpperCase();
+      return 'Ausente';
     case 'free':
       return '';
   }
-}
-
-/** Dia mais recente com dados antes de (weekKey, dayIndex), olhando até `maxBack` dias. */
-export function previousDayWithData(
-  state: AppState,
-  weekKey: string,
-  dayIndex: number,
-  maxBack = 21,
-): { weekKey: string; dayIndex: number; date: Date } | null {
-  const start = weekDates(weekKey)[dayIndex];
-  for (let i = 1; i <= maxBack; i++) {
-    const date = addDays(start, -i);
-    const loc = locateDay(date);
-    if (dayHasData(getDay(state, loc.weekKey, loc.dayIndex))) return { ...loc, date };
-  }
-  return null;
 }
 
 // ---------- Consultas ----------
