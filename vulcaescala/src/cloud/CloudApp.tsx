@@ -150,7 +150,7 @@ export function CloudApp() {
               {
                 kind: 'warn',
                 text: 'Sem conexão com a nuvem. O que você lançar fica guardado neste aparelho e será enviado quando a internet voltar.',
-                action: { label: 'Tentar de novo', onClick: () => setAttempt((n) => n + 1) },
+                actions: [{ label: 'Tentar de novo', onClick: () => setAttempt((n) => n + 1) }],
               },
             ]
           : []

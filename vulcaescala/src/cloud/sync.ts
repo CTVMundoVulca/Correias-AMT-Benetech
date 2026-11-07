@@ -42,6 +42,10 @@ export interface SyncInfo {
   cloudEmpty: boolean;
   /** administrador segundo as regras do Firestore */
   isAdmin: boolean;
+  /** alterações recusadas pela nuvem (guardadas; reenviadas na próxima abertura) */
+  blocked: number;
+  /** as regras publicadas no Firebase são de uma versão anterior do app */
+  rulesOutdated: boolean;
 }
 
 interface DocMaps {
@@ -119,11 +123,19 @@ function errMsg(e: unknown): string {
 export class CloudSync {
   private confirmed: DocMaps = { workers: {}, days: {} };
   private pending: Action[] = [];
+  /**
+   * Ações que a nuvem recusou (permissão negada mesmo com acesso de leitura — em geral,
+   * regras do Firebase desatualizadas). Saem da fila para não travar as demais, mas
+   * continuam guardadas e visíveis; voltam para a fila a cada nova conexão.
+   */
+  private blocked: Action[] = [];
   private view: AppState;
-  private info: SyncInfo = { status: 'connecting', pending: 0, loaded: false, lastError: null, membros: null, cloudEmpty: false, isAdmin: false };
+  private info: SyncInfo = { status: 'connecting', pending: 0, loaded: false, lastError: null, membros: null, cloudEmpty: false, isAdmin: false, blocked: 0, rulesOutdated: false };
   private loadedParts = { workers: false, days: false };
   private listeners = new Set<() => void>();
-  private unsubs: (() => void)[] = [];
+  private unsubs = new Map<string, () => void>();
+  private resubTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private reopeners = new Map<string, () => void>();
   private api: FirebaseApi | null = null;
   private email = '';
   private flushing = false;
@@ -141,10 +153,12 @@ export class CloudSync {
   constructor(
     private readonly storage: Storage | null,
     private readonly timeoutMs = 15_000,
+    private readonly resubscribeMs = 15_000,
   ) {
     this.readCache();
     this.view = this.computeView();
     this.info.pending = this.pending.length;
+    this.info.blocked = this.blocked.length;
   }
 
   // ---------- leitura para a interface ----------
@@ -166,14 +180,20 @@ export class CloudSync {
     this.email = email.toLowerCase();
     const { fsMod, fs } = api;
     this.loadedParts = { workers: false, days: false };
-    this.setInfo({ status: 'connecting', loaded: false, lastError: null, isAdmin: false });
+    // o que foi recusado antes volta para o início da fila (as regras podem ter sido corrigidas)
+    if (this.blocked.length) {
+      this.pending = [...this.blocked, ...this.pending];
+      this.blocked = [];
+      this.refresh();
+    }
+    this.setInfo({ status: 'connecting', loaded: false, lastError: null, isAdmin: false, rulesOutdated: false });
     // pergunta ao Firestore se este usuário é administrador (a regra decide)
     fsMod
       .getDoc(fsMod.doc(fs, DOC_ADMIN))
       .then(() => this.api === api && this.setInfo({ isAdmin: true }))
       .catch(() => this.api === api && this.setInfo({ isAdmin: false }));
 
-    this.unsubs.push(
+    this.listen('efetivo', (onError) =>
       fsMod.onSnapshot(
         fsMod.collection(fs, COL_EFETIVO),
         (snap) => {
@@ -182,8 +202,13 @@ export class CloudSync {
           this.confirmed = { ...this.confirmed, workers };
           this.afterRemote('workers', snap.metadata.fromCache);
         },
-        (e) => this.onListenError(e),
+        (e) => {
+          this.onListenError(e);
+          onError();
+        },
       ),
+    );
+    this.listen('dias', (onError) =>
       fsMod.onSnapshot(
         fsMod.collection(fs, COL_DIAS),
         (snap) => {
@@ -192,32 +217,82 @@ export class CloudSync {
           this.confirmed = { ...this.confirmed, days };
           this.afterRemote('days', snap.metadata.fromCache);
         },
-        (e) => this.onListenError(e),
+        (e) => {
+          this.onListenError(e);
+          onError();
+        },
       ),
+    );
+    this.listen('funcoes', (onError) =>
       fsMod.onSnapshot(
         fsMod.doc(fs, DOC_FUNCOES),
         (snap) => {
           const lista = snap.data()?.lista;
           this.confirmed = { ...this.confirmed, funcoes: Array.isArray(lista) ? lista.map(String) : null };
+          this.info = { ...this.info, rulesOutdated: false };
           this.refresh();
         },
-        () => undefined, // sem permissão: o erro já aparece pelas outras coleções
+        (e) => {
+          // efetivo/escala liberados mas a lista de funções não: regras antigas publicadas
+          if (errCode(e) === 'permission-denied') this.setInfo({ rulesOutdated: true });
+          onError();
+        },
       ),
+    );
+    this.listen('membros', (onError) =>
       fsMod.onSnapshot(
         fsMod.doc(fs, DOC_MEMBROS),
         (snap) => {
           const emails = (snap.data()?.emails as string[] | undefined) ?? [];
           this.setInfo({ membros: emails.map((e) => String(e).toLowerCase()) });
         },
-        () => this.setInfo({ membros: null }),
+        () => {
+          this.setInfo({ membros: null });
+          onError();
+        },
       ),
     );
     if (typeof window !== 'undefined') window.addEventListener('online', this.onOnline);
   }
 
+  /**
+   * Abre uma escuta em tempo real. O Firestore encerra a escuta quando ela dá erro
+   * (ex.: regra publicada no meio do uso, permissão momentaneamente negada); aqui ela
+   * é reaberta sozinha depois de alguns segundos, sem precisar fechar o app.
+   */
+  private listen(key: string, open: (onError: () => void) => () => void): void {
+    const api = this.api;
+    const start = () => {
+      this.unsubs.get(key)?.();
+      this.unsubs.set(
+        key,
+        open(() => {
+          this.unsubs.delete(key);
+          const t = setTimeout(() => {
+            this.resubTimers.delete(key);
+            if (this.api === api) start();
+          }, this.resubscribeMs);
+          this.resubTimers.set(key, t);
+        }),
+      );
+    };
+    this.reopeners.set(key, start);
+    start();
+  }
+
+  private resubscribeNow(key: string): void {
+    const t = this.resubTimers.get(key);
+    if (t) clearTimeout(t);
+    this.resubTimers.delete(key);
+    this.reopeners.get(key)?.();
+  }
+
   detach(): void {
     this.unsubs.forEach((u) => u());
-    this.unsubs = [];
+    this.unsubs.clear();
+    this.resubTimers.forEach((t) => clearTimeout(t));
+    this.resubTimers.clear();
+    this.reopeners.clear();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
     if (typeof window !== 'undefined') window.removeEventListener('online', this.onOnline);
@@ -228,8 +303,9 @@ export class CloudSync {
   clearLocal(): void {
     this.confirmed = { workers: {}, days: {}, funcoes: null };
     this.pending = [];
+    this.blocked = [];
     this.view = this.computeView();
-    this.info = { ...this.info, pending: 0 };
+    this.info = { ...this.info, pending: 0, blocked: 0 };
     try {
       this.storage?.removeItem(CACHE_KEY);
     } catch {
@@ -262,11 +338,19 @@ export class CloudSync {
       if (!next.days[id]) ops.push((b) => b.delete(fsMod.doc(fs, COL_DIAS, id)));
     for (const w of Object.values(next.workers)) ops.push((b) => b.set(fsMod.doc(fs, COL_EFETIVO, w.id), { ...w }));
     for (const [id, d] of Object.entries(next.days)) ops.push((b) => b.set(fsMod.doc(fs, COL_DIAS, id), this.dayPayload(id, d)));
-    ops.push((b) => b.set(fsMod.doc(fs, DOC_FUNCOES), this.funcoesPayload(next.funcoes ?? FUNCOES_PADRAO)));
     for (let i = 0; i < ops.length; i += 400) {
       const batch = fsMod.writeBatch(fs);
       ops.slice(i, i + 400).forEach((op) => op(batch));
       await batch.commit();
+    }
+    // lista de funções à parte: se as regras publicadas forem antigas, só ela é recusada
+    // e o efetivo/escala entram mesmo assim
+    try {
+      await fsMod.setDoc(fsMod.doc(fs, DOC_FUNCOES), this.funcoesPayload(next.funcoes ?? FUNCOES_PADRAO));
+    } catch (e) {
+      if (errCode(e) !== 'permission-denied') throw e;
+      next.funcoes = this.confirmed.funcoes;
+      this.setInfo({ rulesOutdated: true });
     }
     this.confirmed = next;
     this.pending = [];
@@ -302,8 +386,16 @@ export class CloudSync {
         } catch (e) {
           const code = errCode(e);
           if (code === 'permission-denied') {
-            this.setInfo({ status: 'denied', lastError: 'Sem permissão para gravar.' });
-            return;
+            if (!this.info.loaded) {
+              this.setInfo({ status: 'denied', lastError: 'Sem permissão.' });
+              return;
+            }
+            // lê a escala mas não pode gravar ESTA alteração: separa e segue com as outras
+            this.pending.shift();
+            this.blocked.push(action);
+            this.setInfo({ lastError: 'A nuvem recusou uma alteração.' });
+            this.refresh();
+            continue;
           }
           if (TRANSIENT.has(code) || !code) {
             this.setInfo({ status: 'offline', lastError: errMsg(e) });
@@ -391,6 +483,11 @@ export class CloudSync {
           const ws = { ...this.confirmed.workers };
           result.workers.forEach((w) => (ws[w.id] = w));
           this.confirmed = { ...this.confirmed, workers: ws, funcoes: result.funcoes };
+        }
+        // gravou a lista: as regras estão em dia; reabre a escuta da lista na hora
+        if (this.info.rulesOutdated) {
+          this.info = { ...this.info, rulesOutdated: false };
+          this.resubscribeNow('funcoes');
         }
         return;
       }
@@ -497,21 +594,37 @@ export class CloudSync {
     this.setInfo({ status: code === 'permission-denied' ? 'denied' : 'error', lastError: errMsg(e) });
   }
 
+  /** Tenta enviar de novo as alterações recusadas. */
+  retryBlocked = (): void => {
+    if (!this.blocked.length) return;
+    this.pending = [...this.blocked, ...this.pending];
+    this.blocked = [];
+    this.refresh();
+    void this.flush();
+  };
+
+  /** Desiste das alterações recusadas (somem da tela). */
+  discardBlocked = (): void => {
+    this.blocked = [];
+    this.refresh();
+  };
+
   private computeView(): AppState {
     let s = mapsToState(this.confirmed);
+    for (const a of this.blocked) s = reducer(s, a);
     for (const a of this.pending) s = reducer(s, a);
     return s;
   }
 
   private refresh() {
     this.view = this.computeView();
-    this.info = { ...this.info, pending: this.pending.length };
+    this.info = { ...this.info, pending: this.pending.length, blocked: this.blocked.length };
     this.writeCache();
     this.emit();
   }
 
   private setInfo(p: Partial<SyncInfo>) {
-    this.info = { ...this.info, ...p, pending: this.pending.length };
+    this.info = { ...this.info, ...p, pending: this.pending.length, blocked: this.blocked.length };
     this.emit();
   }
 
@@ -523,9 +636,10 @@ export class CloudSync {
     try {
       const raw = this.storage?.getItem(CACHE_KEY);
       if (!raw) return;
-      const c = JSON.parse(raw) as { confirmed?: DocMaps; pending?: Action[] };
+      const c = JSON.parse(raw) as { confirmed?: DocMaps; pending?: Action[]; blocked?: Action[] };
       if (c.confirmed?.workers && c.confirmed?.days) this.confirmed = c.confirmed;
       if (Array.isArray(c.pending)) this.pending = c.pending;
+      if (Array.isArray(c.blocked)) this.blocked = c.blocked;
     } catch {
       /* cache ilegível: ignora, a nuvem repõe */
     }
@@ -533,7 +647,7 @@ export class CloudSync {
 
   private writeCache() {
     try {
-      this.storage?.setItem(CACHE_KEY, JSON.stringify({ confirmed: this.confirmed, pending: this.pending }));
+      this.storage?.setItem(CACHE_KEY, JSON.stringify({ confirmed: this.confirmed, pending: this.pending, blocked: this.blocked }));
     } catch {
       /* sem espaço: segue só em memória */
     }

@@ -19,6 +19,8 @@ export function syncLabel(info: SyncInfo | null): { cls: string; short: string; 
       long: 'Modo local: os dados ficam só neste aparelho. Configure o Firebase do AMT para compartilhar entre aparelhos.',
     };
   const p = info.pending;
+  if (info.blocked > 0 && info.status === 'ok')
+    return { cls: 'error', short: 'Recusado', long: `A nuvem recusou ${info.blocked} alteração(ões). Veja o aviso na tela.` };
   switch (info.status) {
     case 'ok':
       return { cls: 'ok', short: 'Sincronizado', long: 'Sincronizado: todos os aparelhos veem os mesmos dados.' };

@@ -191,6 +191,25 @@ describe('sincronização entre aparelhos', () => {
     expect(snap.data()!.lista).toEqual(['Vulcanizador de correia', 'Líder', 'Encarregado', 'Mecânico', 'Auxiliar', 'Montador']);
   });
 
+  it('alteração recusada pela nuvem não trava a fila; fica guardada até tentar de novo ou descartar', async () => {
+    // nome com mais de 80 letras: a regra do Firestore recusa (permissão negada)
+    b.dispatch({ type: 'worker/add', id: 'longo', nome: 'X'.repeat(90), funcao: 'Líder' });
+    b.dispatch({ type: 'activity/add', weekKey: W, dayIndex: 4, id: 'depois', nome: 'depois da recusa' });
+    await until(() => b.getInfo().pending === 0 && b.getInfo().blocked === 1, 15_000, () => b.getInfo());
+    // a alteração seguinte foi enviada normalmente
+    await until(() => getDay(a.getState(), W, 4).activities.some((x) => x.id === 'depois'));
+    // a recusada continua visível só neste aparelho
+    expect(b.getState().workers.some((w) => w.id === 'longo')).toBe(true);
+    expect(a.getState().workers.some((w) => w.id === 'longo')).toBe(false);
+    b.retryBlocked();
+    await until(() => b.getInfo().pending === 0 && b.getInfo().blocked === 1, 15_000, () => b.getInfo());
+    b.discardBlocked();
+    expect(b.getInfo().blocked).toBe(0);
+    expect(b.getState().workers.some((w) => w.id === 'longo')).toBe(false);
+    a.dispatch({ type: 'activity/remove', weekKey: W, dayIndex: 4, activityId: 'depois' });
+    await until(() => a.getInfo().pending === 0);
+  });
+
   it('excluir colaborador limpa todas as escalas na nuvem', async () => {
     b.dispatch({ type: 'worker/remove', id: 'w1' });
     await until(() => b.getInfo().pending === 0);

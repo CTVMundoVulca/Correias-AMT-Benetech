@@ -19,7 +19,7 @@ import { Action, reducer } from './reducer';
 export interface Notice {
   kind: 'warn' | 'danger';
   text: string;
-  action?: { label: string; onClick: () => void };
+  actions?: { label: string; onClick: () => void }[];
 }
 
 /** Recursos que só existem com a nuvem (Firebase) ligada. */
@@ -126,6 +126,20 @@ export function CloudStoreProvider({ sync, email, isAdmin, logout, extraNotices 
   const notices: Notice[] = [...extraNotices];
   if (info.status === 'denied')
     notices.push({ kind: 'danger', text: 'Sem permissão na nuvem. Peça a um administrador para liberar o seu e-mail.' });
+  if (info.rulesOutdated)
+    notices.push({
+      kind: 'warn',
+      text: 'As regras do Firebase estão desatualizadas: a lista de funções não sincroniza. Um administrador precisa publicar as regras novas (console do Firebase → Firestore → Regras).',
+    });
+  if (info.blocked > 0)
+    notices.push({
+      kind: 'danger',
+      text: `A nuvem recusou ${info.blocked} alteração(ões). Ela(s) continua(m) guardada(s) neste aparelho, mas não aparece(m) nos outros. Isso costuma ser regra do Firebase desatualizada.`,
+      actions: [
+        { label: 'Tentar de novo', onClick: sync.retryBlocked },
+        { label: 'Descartar', onClick: sync.discardBlocked },
+      ],
+    });
 
   const store: Store = {
     state,
