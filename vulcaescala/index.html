@@ -1,0 +1,50 @@
+<!doctype html>
+<!--
+  VulcaEscala — Escala de Vulcanização (contrato AMT)
+  © 2024-2026 CTV Consultoria Técnica em Vulcanização — CNPJ 65.601.481/0001-36
+  Autor: Glauber Dutra
+  Software protegido pela Lei nº 9.609/98 (Software) e Lei nº 9.610/98 (Direitos Autorais).
+-->
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#001a33" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="VulcaEscala" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="icon" href="icon-192.png" />
+    <title>VulcaEscala — AMT</title>
+    <script>
+      // tema escolhido pelo usuário (sem piscar ao abrir); sem escolha → segue o sistema
+      try {
+        var t = localStorage.getItem('vulcaescala:tema');
+        if (t === 'escuro' || t === 'claro') document.documentElement.setAttribute('data-theme', t === 'escuro' ? 'dark' : 'light');
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="ctv-copyright">Desenvolvido por CTV Consultoria Técnica em Vulcanização · CNPJ 65.601.481/0001-36 · © 2024-2026 — Todos os direitos reservados<br><span style="font-size:8px">Software protegido pela Lei nº 9.609/98 e Lei nº 9.610/98 · Autor: Glauber Dutra</span></div>
+    <script>
+      (function () {
+        console.log('%c⚠ SOFTWARE PROPRIETÁRIO', 'font-size:18px;font-weight:900;color:#c00');
+        console.log('%c© 2024-2026 CTV Consultoria Técnica em Vulcanização — CNPJ 65.601.481/0001-36\nAutor: Glauber Dutra\nProtegido pela Lei nº 9.609/98 (Software) e Lei nº 9.610/98 (Direitos Autorais).\nReprodução, cópia ou modificação sem autorização é crime previsto no Art. 12 da Lei 9.609/98.', 'font-size:11px;color:#333');
+        var _f = document.getElementById('ctv-copyright');
+        setInterval(function () {
+          if (!_f || !document.body.contains(_f)) {
+            var d = document.createElement('div');
+            d.id = 'ctv-copyright';
+            d.textContent = 'Desenvolvido por CTV Consultoria Técnica em Vulcanização · CNPJ 65.601.481/0001-36 · © 2024-2026';
+            document.body.appendChild(d);
+            _f = d;
+          }
+        }, 5000);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+    <script src="app-update.js"></script>
+  </body>
+</html>

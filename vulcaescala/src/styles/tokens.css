@@ -1,0 +1,127 @@
+/* Cores no padrão dos apps CTV (navy #001a33 + azul #43a6ea), como o Registro de Horários.
+   Tema: segue o sistema; o botão no cabeçalho força claro/escuro (data-theme). */
+:root {
+  --font: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --radius: 12px;
+  --tap: 44px;
+
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface-2: #f5f7fa;
+  --ink: #1a1a2e;
+  --ink-2: #555e6b;
+  --line: #e2e5ea;
+  --line-strong: #c6ccd4;
+
+  --navy: #001a33;
+  --navy-soft: #133557;
+  --header-ink: #e8e8e8;
+  --toast-bg: #001a33;
+  --toast-ink: #ffffff;
+
+  --accent: #43a6ea;
+  --accent-ink: #001a33;
+  --accent-strong: #1f7fc4;
+  --accent-soft: #e2f1fc;
+
+  --pend-bg: #fdf3c4;
+  --pend-line: #f9a825;
+  --pend-ink: #6a4c00;
+
+  --ok-bg: #e3f1e3;
+  --ok-line: #8fc495;
+  --ok-ink: #2e7d32;
+
+  --red-bg: #fde3e2;
+  --red-ink: #c62828;
+  --blue-bg: #e1ebf7;
+  --blue-ink: #1e5694;
+  --violet-bg: #ece5f6;
+  --violet-ink: #5a3b94;
+  --gray-bg: #e8eaee;
+  --gray-ink: #474f5a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+
+  --bg: #0f1822;
+  --surface: #17222f;
+  --surface-2: #1e2b3a;
+  --ink: #eaecef;
+  --ink-2: #9aa5b1;
+  --line: #26323f;
+  --line-strong: #3a4858;
+
+  --navy: #0a1420;
+  --navy-soft: #1a2c40;
+  --header-ink: #c9d1da;
+  --toast-bg: #eaecef;
+  --toast-ink: #001a33;
+
+  --accent: #43a6ea;
+  --accent-ink: #001a33;
+  --accent-strong: #6cbcf0;
+  --accent-soft: #15324a;
+
+  --pend-bg: #3a3112;
+  --pend-line: #9a7d12;
+  --pend-ink: #f1d667;
+
+  --ok-bg: #1c2d1e;
+  --ok-line: #3f6b45;
+  --ok-ink: #95d39b;
+
+  --red-bg: #3c1e1a;
+  --red-ink: #f2968d;
+  --blue-bg: #1b2a3c;
+  --blue-ink: #92bdee;
+  --violet-bg: #2b2340;
+  --violet-ink: #c3aef0;
+  --gray-bg: #2a3644;
+  --gray-ink: #c9d1da;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+
+  --bg: #0f1822;
+  --surface: #17222f;
+  --surface-2: #1e2b3a;
+  --ink: #eaecef;
+  --ink-2: #9aa5b1;
+  --line: #26323f;
+  --line-strong: #3a4858;
+
+  --navy: #0a1420;
+  --navy-soft: #1a2c40;
+  --header-ink: #c9d1da;
+  --toast-bg: #eaecef;
+  --toast-ink: #001a33;
+
+  --accent: #43a6ea;
+  --accent-ink: #001a33;
+  --accent-strong: #6cbcf0;
+  --accent-soft: #15324a;
+
+  --pend-bg: #3a3112;
+  --pend-line: #9a7d12;
+  --pend-ink: #f1d667;
+
+  --ok-bg: #1c2d1e;
+  --ok-line: #3f6b45;
+  --ok-ink: #95d39b;
+
+  --red-bg: #3c1e1a;
+  --red-ink: #f2968d;
+  --blue-bg: #1b2a3c;
+  --blue-ink: #92bdee;
+  --violet-bg: #2b2340;
+  --violet-ink: #c3aef0;
+  --gray-bg: #2a3644;
+  --gray-ink: #c9d1da;
+  color-scheme: dark;
+}
