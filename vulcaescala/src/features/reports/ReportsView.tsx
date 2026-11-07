@@ -35,7 +35,7 @@ export function ReportsView() {
             [
               ['colaborador', 'Por colaborador'],
               ['atividade', 'Por atividade'],
-              ['resumo', 'Resumo'],
+              ['resumo', 'Totais'],
             ] as const
           ).map(([id, label]) => (
             <button key={id} role="tab" aria-selected={mode === id} className={'seg' + (mode === id ? ' on' : '')} onClick={() => setMode(id)}>
