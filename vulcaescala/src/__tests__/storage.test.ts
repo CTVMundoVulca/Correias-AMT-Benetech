@@ -59,7 +59,7 @@ describe('LocalStorageRepository', () => {
     const s = seedState(seqId);
     await repo.save(s);
     expect(await repo.load()).toEqual(s);
-    expect(JSON.parse(st.map.get(STORAGE_KEY)!).version).toBe(1);
+    expect(JSON.parse(st.map.get(STORAGE_KEY)!).version).toBe(2);
   });
 
   it('dados corrompidos: lança CorruptDataError e preserva uma cópia', async () => {

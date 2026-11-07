@@ -273,6 +273,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 10px 12px; min-height: 52px; cursor: pointer; font-weight: 500;
 }
 .act-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.funcao-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .member-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .abs-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
 .abs-btn { border: 1px solid transparent; background: var(--c-bg); color: var(--c-ink); border-radius: 6px; min-height: var(--tap); cursor: pointer; font-weight: 600; }

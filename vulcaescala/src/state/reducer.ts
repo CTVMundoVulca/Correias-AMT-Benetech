@@ -1,4 +1,4 @@
-import { AbsenceType, AppState, Day, Funcao, emptyWeek } from '../domain/types';
+import { AbsenceType, AppState, Day, Funcao, cleanFuncao, emptyWeek } from '../domain/types';
 import { cleanName, nameKey } from '../domain/names';
 
 export interface DayRef {
@@ -12,6 +12,9 @@ export type Action =
   | { type: 'worker/update'; id: string; nome: string; funcao: Funcao }
   | { type: 'worker/setActive'; id: string; ativo: boolean }
   | { type: 'worker/remove'; id: string }
+  | { type: 'funcao/add'; nome: string }
+  | { type: 'funcao/rename'; de: string; para: string }
+  | { type: 'funcao/remove'; nome: string }
   | ({ type: 'activity/add'; id: string; nome: string } & DayRef)
   | ({ type: 'activity/rename'; activityId: string; nome: string } & DayRef)
   | ({ type: 'activity/remove'; activityId: string } & DayRef)
@@ -19,6 +22,16 @@ export type Action =
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
 
 /** Já existe colaborador com o mesmo nome (sem diferenciar maiúsculas nem acentos)? */
+/** Função já existe na lista (sem diferenciar maiúsculas nem acentos)? */
+export function hasFuncao(state: AppState, nome: string, ignore?: string): boolean {
+  const k = nameKey(nome);
+  return state.funcoes.some((f) => f !== ignore && nameKey(f) === k);
+}
+
+export function workersWithFuncao(state: AppState, nome: string): number {
+  return state.workers.filter((w) => w.funcao === nome).length;
+}
+
 export function isDuplicateName(state: AppState, nome: string, ignoreId?: string): boolean {
   const k = nameKey(nome);
   return state.workers.some((w) => w.id !== ignoreId && nameKey(w.nome) === k);
@@ -65,6 +78,26 @@ export function reducer(state: AppState, action: Action): AppState {
       }
       return { ...state, workers: state.workers.filter((w) => w.id !== action.id), weeks };
     }
+
+    case 'funcao/add': {
+      const nome = cleanFuncao(action.nome);
+      if (!nome || hasFuncao(state, nome)) return state;
+      return { ...state, funcoes: [...state.funcoes, nome] };
+    }
+    case 'funcao/rename': {
+      const para = cleanFuncao(action.para);
+      if (!para || !state.funcoes.includes(action.de) || hasFuncao(state, para, action.de)) return state;
+      // renomear atualiza todos os colaboradores que têm a função
+      return {
+        ...state,
+        funcoes: state.funcoes.map((f) => (f === action.de ? para : f)),
+        workers: state.workers.map((w) => (w.funcao === action.de ? { ...w, funcao: para } : w)),
+      };
+    }
+    case 'funcao/remove':
+      // só remove se ninguém usa e se não for a última
+      if (workersWithFuncao(state, action.nome) > 0 || state.funcoes.length <= 1) return state;
+      return { ...state, funcoes: state.funcoes.filter((f) => f !== action.nome) };
 
     case 'activity/add': {
       const nome = cleanName(action.nome);

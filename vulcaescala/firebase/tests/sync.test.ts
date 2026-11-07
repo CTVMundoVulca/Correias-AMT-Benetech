@@ -174,6 +174,23 @@ describe('sincronização entre aparelhos', () => {
     c.detach();
   }, 30_000);
 
+  it('funções: adicionar e renomear num aparelho atualiza a lista e os colaboradores no outro', async () => {
+    a.dispatch({ type: 'funcao/add', nome: 'montador' });
+    a.dispatch({ type: 'funcao/rename', de: 'Vulcanizador', para: 'Vulcanizador de correia' });
+    await until(() => a.getInfo().pending === 0);
+    await until(() => b.getState().funcoes.includes('Montador') && b.getState().funcoes[0] === 'Vulcanizador de correia');
+    await until(() => b.getState().workers.filter((w) => w.funcao === 'Vulcanizador de correia').length === 2);
+    expect(b.getState().workers.find((w) => w.id === 'w3')!.funcao).toBe('Líder');
+    // remover função em uso é recusado também na nuvem (verificado dentro da transação)
+    b.dispatch({ type: 'funcao/remove', nome: 'Líder' });
+    b.dispatch({ type: 'funcao/remove', nome: 'Soldador' });
+    await until(() => b.getInfo().pending === 0);
+    await until(() => !a.getState().funcoes.includes('Soldador'));
+    expect(a.getState().funcoes).toContain('Líder');
+    const snap = await fsMod.getDoc(fsMod.doc(adminApi.fs, 'escala_config/funcoes'));
+    expect(snap.data()!.lista).toEqual(['Vulcanizador de correia', 'Líder', 'Encarregado', 'Mecânico', 'Auxiliar', 'Montador']);
+  });
+
   it('excluir colaborador limpa todas as escalas na nuvem', async () => {
     b.dispatch({ type: 'worker/remove', id: 'w1' });
     await until(() => b.getInfo().pending === 0);
@@ -192,12 +209,14 @@ describe('sincronização entre aparelhos', () => {
 
   it('importar backup substitui tudo (admin)', async () => {
     await a.replaceAll({
-      version: 1,
+      version: 2,
       workers: [{ id: 'k1', nome: 'KLEBSON', funcao: 'Vulcanizador', ativo: true }],
+      funcoes: ['Vulcanizador', 'Soldador'],
       weeks: {},
     });
     await until(() => b.getState().workers.length === 1 && Object.keys(b.getState().weeks).length === 0);
     expect(b.getState().workers[0].nome).toBe('KLEBSON');
+    await until(() => b.getState().funcoes.join() === 'Vulcanizador,Soldador');
   });
 
   it('sair da conta apaga a cópia local', () => {

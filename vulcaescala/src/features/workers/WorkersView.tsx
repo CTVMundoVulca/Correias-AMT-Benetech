@@ -2,7 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useStore } from '../../state/store';
 import { isDuplicateName } from '../../state/reducer';
 import { newId } from '../../domain/ids';
-import { FUNCOES, Funcao, Worker } from '../../domain/types';
+import { Funcao, Worker } from '../../domain/types';
+import { FuncoesDialog } from './FuncoesDialog';
 import { cleanName, matchesSearch, similarNames } from '../../domain/names';
 import { sortByName, workerUsage } from '../../domain/schedule';
 import { useToast } from '../../ui/Toast';
@@ -15,7 +16,10 @@ export function WorkersView() {
   const toast = useToast();
   const confirm = useConfirm();
   const [nome, setNome] = useState('');
-  const [funcao, setFuncao] = useState<Funcao>('Vulcanizador');
+  const [funcao, setFuncao] = useState<Funcao>(state.funcoes[0] ?? '');
+  const [funcoesOpen, setFuncoesOpen] = useState(false);
+  // função escolhida pode ter sido renomeada/removida em outro aparelho
+  const funcaoValida = state.funcoes.includes(funcao) ? funcao : (state.funcoes[0] ?? '');
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [situacao, setSituacao] = useState<Situacao>('todos');
@@ -59,7 +63,7 @@ export function WorkersView() {
       }))
     )
       return;
-    dispatch({ type: 'worker/add', id: newId(), nome: n, funcao });
+    dispatch({ type: 'worker/add', id: newId(), nome: n, funcao: funcaoValida });
     setNome('');
     toast('Colaborador adicionado');
   };
@@ -92,6 +96,11 @@ export function WorkersView() {
       <div className="card pad stack">
         <div className="row between">
           <h1>Efetivo</h1>
+          <button className="btn small" onClick={() => setFuncoesOpen(true)}>
+            Funções ({state.funcoes.length})
+          </button>
+        </div>
+        <div className="row between">
           <span className="muted small tabnum">
             {active} ativo(s) · {state.workers.length - active} inativo(s)
           </span>
@@ -108,8 +117,8 @@ export function WorkersView() {
             aria-label="Nome do colaborador"
             aria-invalid={!!error}
           />
-          <select className="input" value={funcao} onChange={(e) => setFuncao(e.target.value as Funcao)} aria-label="Função">
-            {FUNCOES.map((f) => (
+          <select className="input" value={funcaoValida} onChange={(e) => setFuncao(e.target.value)} aria-label="Função">
+            {state.funcoes.map((f) => (
               <option key={f}>{f}</option>
             ))}
           </select>
@@ -176,6 +185,7 @@ export function WorkersView() {
         </div>
         {list.length === 0 && <p className="muted small">Nenhum colaborador encontrado.</p>}
       </div>
+      {funcoesOpen && <FuncoesDialog onClose={() => setFuncoesOpen(false)} />}
     </section>
   );
 }
@@ -213,8 +223,8 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
         aria-label="Nome"
         aria-invalid={!!error}
       />
-      <select className="input" value={funcao} onChange={(e) => setFuncao(e.target.value as Funcao)} aria-label="Função">
-        {FUNCOES.map((f) => (
+      <select className="input" value={funcao} onChange={(e) => setFuncao(e.target.value)} aria-label="Função">
+        {(state.funcoes.includes(funcao) ? state.funcoes : [funcao, ...state.funcoes]).map((f) => (
           <option key={f}>{f}</option>
         ))}
       </select>

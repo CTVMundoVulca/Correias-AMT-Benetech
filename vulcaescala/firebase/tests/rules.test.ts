@@ -46,7 +46,16 @@ beforeAll(async () => {
 });
 afterAll(() => env?.cleanup());
 beforeEach(async () => {
-  await env.clearFirestore();
+  // o emulador às vezes recusa a limpeza logo após conexões encerradas por outro arquivo de teste
+  for (let i = 0; ; i++) {
+    try {
+      await env.clearFirestore();
+      break;
+    } catch (e) {
+      if (i >= 4) throw e;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'escala_config/membros'), { emails: [LIDER] });
@@ -116,10 +125,22 @@ describe('validação de formato', () => {
     await assertFails(setDoc(doc(as(LIDER), 'escala_dias/2026-W45_7'), day));
   });
 
-  it('colaborador: id coerente, função válida, nome limitado', async () => {
+  it('colaborador: id coerente, função preenchida (qualquer da lista), nome limitado', async () => {
     const db = as(LIDER);
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'outro' }));
-    await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 'Gerente' }));
+    await assertSucceeds(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 'Montador' }));
+    await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: '' }));
+    await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 'X'.repeat(41) }));
+    await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 3 }));
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', nome: 'X'.repeat(81) }));
+  });
+
+  it('lista de funções: membro lê e grava; formato validado; não liberado não acessa', async () => {
+    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: ['Vulcanizador', 'Montador'] }));
+    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/funcoes')));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: [] }));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: ['A'], outro: 1 }));
+    await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/funcoes')));
+    await assertFails(setDoc(doc(as('curioso@gmail.com'), 'escala_config/funcoes'), { lista: ['X'] }));
   });
 });
