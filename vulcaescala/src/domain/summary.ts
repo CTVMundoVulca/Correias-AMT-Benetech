@@ -1,5 +1,5 @@
 import { AbsenceType, AppState, Worker } from './types';
-import { absenceOf, feriadoDoDia, folgasDeFeriado, getDay, sortByName, FOLGA_FERIADO } from './schedule';
+import { absenceOf, folgaAutoDoDia, folgasDeFeriado, getDay, sortByName, FOLGA_FERIADO } from './schedule';
 
 export interface WeekKpis {
   activities: number;
@@ -30,7 +30,7 @@ export function weekKpis(state: AppState, weekKey: string): WeekKpis {
     const d = getDay(state, weekKey, i);
     activities += d.activities.length;
     allocations += d.activities.reduce((s, a) => s + a.workerIds.length, 0);
-    absences += d.absences.length + folgasDeFeriado(d, state.workers, feriadoDoDia(state, weekKey, i)).length;
+    absences += d.absences.length + folgasDeFeriado(d, state.workers, folgaAutoDoDia(state, weekKey, i)).length;
   }
   return { activities, allocations, absences, activeWorkers: state.workers.filter((w) => w.ativo).length };
 }
@@ -41,7 +41,7 @@ export function weekKpis(state: AppState, weekKey: string): WeekKpis {
  */
 export function workerGrid(state: AppState, weekKey: string): GridRow[] {
   const days = Array.from({ length: 7 }, (_, i) => getDay(state, weekKey, i));
-  const feriados = days.map((_, i) => feriadoDoDia(state, weekKey, i));
+  const feriados = days.map((_, i) => folgaAutoDoDia(state, weekKey, i));
   const rows: GridRow[] = [];
   for (const worker of sortByName(state.workers)) {
     const cells: GridCell[] = days.map((d, i) => {

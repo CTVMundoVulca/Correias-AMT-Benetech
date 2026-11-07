@@ -9,7 +9,7 @@ import {
   toIsoDate,
   weekDates,
 } from '../../domain/isoWeek';
-import { activityHistory, countBy, feriadoNaData, folgasDeFeriado, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../../domain/schedule';
+import { activityHistory, countBy, folgaAutoNaData, folgasDeFeriado, iterateDays, pendingWorkers, sortByName, workerHistory, dayHasData } from '../../domain/schedule';
 import { tipoAusencia } from '../../domain/types';
 
 type Mode = 'colaborador' | 'atividade' | 'resumo';
@@ -180,7 +180,7 @@ function Summary({ from, to }: { from: Date; to: Date }) {
     for (const { day, date } of iterateDays(state, from, to)) {
       if (!dayHasData(day)) continue;
       days++;
-      const fer = feriadoNaData(state, date);
+      const fer = folgaAutoNaData(state, date);
       for (const a of day.absences) m.get(a.workerId)!.absent++;
       for (const w of folgasDeFeriado(day, state.workers, fer)) m.get(w.id)!.absent++;
       const alloc = new Set(day.activities.flatMap((a) => a.workerIds));

@@ -68,8 +68,8 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
                       <td
                         key={i}
                         className={'cell' + (c.feriado ? ' auto' : '')}
-                        aria-label={tipoAusencia(state, c.tipo).nome + (c.feriado ? ' (feriado)' : '')}
-                        title={c.feriado ? 'Folga automática de feriado' : undefined}
+                        aria-label={tipoAusencia(state, c.tipo).nome + (c.feriado ? ' (automática)' : '')}
+                        title={c.feriado ? 'Folga automática (feriado ou fim de semana)' : undefined}
                       >
                         <span className={`tag cor-${tipoAusencia(state, c.tipo).cor}`}>{tipoAusencia(state, c.tipo).sigla}</span>
                       </td>
@@ -94,7 +94,7 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
           ))}
           <span>— sem registro</span>
           <span>
-            <i>itálico</i> = folga automática de feriado
+            <i>itálico</i> = folga automática (feriado ou fim de semana)
           </span>
         </div>
       </div>

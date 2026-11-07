@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useStore } from '../../state/store';
 import { newId } from '../../domain/ids';
 import { WEEKDAYS, formatDate } from '../../domain/isoWeek';
-import { allocatedIds, dayHasData, feriadoDoDia, folgasDeFeriado, getDay, pendingWorkers } from '../../domain/schedule';
+import { allocatedIds, dayHasData, feriadoDoDia, folgaAutoDoDia, folgasDeFeriado, getDay, pendingWorkers } from '../../domain/schedule';
 import { Worker, tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { ActivityCard } from './ActivityCard';
@@ -29,8 +29,10 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
   const ref = { weekKey, dayIndex };
   const byId = new Map(state.workers.map((w) => [w.id, w]));
   const feriado = feriadoDoDia(state, weekKey, dayIndex);
-  const pending = pendingWorkers(day, state.workers, feriado);
-  const folgas = folgasDeFeriado(day, state.workers, feriado);
+  // feriado ou fim de semana: quem não está escalado fica de folga automaticamente
+  const folgaAuto = folgaAutoDoDia(state, weekKey, dayIndex);
+  const pending = pendingWorkers(day, state.workers, folgaAuto);
+  const folgas = folgasDeFeriado(day, state.workers, folgaAuto);
   const ausentes = day.absences.length + folgas.length;
   const [folgaWorker, setFolgaWorker] = useState<Worker | null>(null);
   const allocated = allocatedIds(day).size;
@@ -102,9 +104,10 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
 
       {open && (
         <div className="day-body" id={bodyId}>
-          {feriado && (
+          {folgaAuto && (
             <div className="pend-strip feriado">
-              <strong>Feriado — {feriado}.</strong> Quem não estiver em nenhuma atividade fica de <b>folga automaticamente</b>
+              <strong>{feriado ? `Feriado — ${feriado}.` : 'Fim de semana.'}</strong> Quem não estiver em nenhuma atividade
+              fica de <b>folga automaticamente</b>
               {folgas.length ? ` (${folgas.length})` : ''}. Toque no nome para alocar ou registrar outra ausência.
             </div>
           )}
@@ -156,10 +159,10 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
                     key={w.id}
                     className={`chip chip-btn cor-${tipoAusencia(state, 'folga').cor}`}
                     onClick={() => setFolgaWorker(w)}
-                    title="Folga automática do feriado — toque para alterar"
+                    title="Folga automática — toque para alterar"
                   >
                     <span className="chip-label">
-                      {w.nome} · {tipoAusencia(state, 'folga').nome} (feriado)
+                      {w.nome} · {tipoAusencia(state, 'folga').nome} (automática)
                     </span>
                   </button>
                 ))}
@@ -203,7 +206,7 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
       {folgaWorker && (
         <PendingWorkerDialog
           dayRef={ref}
-          dayLabel={`${dayLabel} · folga automática (feriado)`}
+          dayLabel={`${dayLabel} · folga automática (${feriado ? 'feriado' : 'fim de semana'})`}
           worker={folgaWorker}
           onClose={() => setFolgaWorker(null)}
         />

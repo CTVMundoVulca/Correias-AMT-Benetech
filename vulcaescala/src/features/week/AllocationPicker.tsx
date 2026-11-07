@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
-import { allocationStatus, feriadoDoDia, getDay, pendingWorkers, sortByName, statusLabel } from '../../domain/schedule';
+import { allocationStatus, folgaAutoDoDia, getDay, pendingWorkers, sortByName, statusLabel } from '../../domain/schedule';
 import { matchesSearch } from '../../domain/names';
 import { tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
@@ -23,7 +23,7 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
   const activity = day.activities.find((a) => a.id === activityId);
   if (!activity) return null; // removida enquanto a janela estava aberta
 
-  const feriado = feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex);
+  const feriado = folgaAutoDoDia(state, dayRef.weekKey, dayRef.dayIndex);
   const pendingCount = pendingWorkers(day, state.workers, feriado).length;
   const list = sortByName(state.workers.filter((w) => w.ativo && matchesSearch(w.nome, query)));
 
@@ -78,7 +78,7 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
                 {st.kind !== 'free' ? (
                   <span className="pick-status">{statusLabel(st)}</span>
                 ) : (
-                  feriado && <span className="pick-status muted">Folga (feriado)</span>
+                  feriado && <span className="pick-status muted">Folga automática</span>
                 )}
               </button>
             </li>
