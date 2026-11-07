@@ -22,16 +22,25 @@ Enquanto `src/cloud/config.ts` tiver `COLE_AQUI`, o app roda em **modo local** (
    `firebaseConfig` para `src/cloud/config.ts`.
 7. `npm run build:pages` e faça commit da pasta `../escala`.
 
-Primeiro acesso: um administrador (lista `ADMIN_EMAILS` em `src/cloud/config.ts` **e** em
-`firebase/firestore.rules` — as duas precisam ser iguais) cria a conta, confirma o e-mail e entra.
-A nuvem vazia recebe o efetivo inicial (ou os dados que estavam neste aparelho no modo local).
-Depois, em **Dados → Acesso da liderança**, ele libera os e-mails da liderança.
+Primeiro acesso: um administrador abre o app, toca em **Criar conta** e já entra. A nuvem vazia
+recebe o efetivo inicial (ou os dados que estavam neste aparelho no modo local). Depois, em
+**Dados → Acesso da liderança**, ele libera os e-mails da liderança; cada pessoa toca em
+**Criar conta** com o e-mail liberado e já entra (sem confirmação de e-mail).
+
+### Administradores
+
+Ficam **só nas regras do Firestore** (função `isAdmin()` em `firebase/firestore.rules`).
+Para incluir ou retirar: Console Firebase → Firestore Database → **Regras** → edite a lista →
+**Publicar**. O app descobre sozinho quem é administrador; não precisa gerar versão nova.
+(Atualize também o arquivo `firebase/firestore.rules` no repositório para manter a cópia em dia.)
 
 ### Segurança
 
-- Só e-mails **liberados e confirmados** leem ou gravam (regras do Firestore, no servidor).
-  Qualquer pessoa pode criar conta, mas sem liberação não vê nada.
-- A confirmação de e-mail impede que alguém crie conta com o e-mail de um líder antes dele.
+- Só e-mails **liberados** (ou administradores) leem ou gravam — as regras do Firestore valem no
+  servidor. Qualquer pessoa pode criar conta, mas sem liberação não vê nada.
+- Sem confirmação de e-mail, quem criar a conta primeiro com um e-mail liberado fica com ela.
+  Por isso: libere e já crie a conta da pessoa (ou crie pelo console em Authentication →
+  Adicionar usuário e passe a senha a ela).
 - Os valores do `firebaseConfig` são públicos por natureza (ficam no app); quem protege são as regras.
 - Ao sair da conta, a cópia local da escala é apagada do aparelho.
 

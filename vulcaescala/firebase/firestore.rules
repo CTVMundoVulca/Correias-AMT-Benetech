@@ -2,17 +2,18 @@ rules_version = '2';
 
 // VulcaEscala — contrato AMT. Projeto Firebase SEPARADO do contrato Suzano.
 // Cole este conteúdo em: Console Firebase → Firestore Database → Regras → Publicar.
+//
+// PARA MUDAR OS ADMINISTRADORES: edite a lista em isAdmin() abaixo e clique em Publicar.
+// O app descobre sozinho quem é administrador (não precisa mudar o código do app).
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function emailOk() {
-      return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email_verified == true;
+      return request.auth != null && request.auth.token.email != null;
     }
     function email() { return request.auth.token.email.lower(); }
 
-    // Administradores: gerenciam quem tem acesso. Manter igual a ADMIN_EMAILS em src/cloud/config.ts
+    // ═══ ADMINISTRADORES ═══ (e-mails em minúsculas, entre aspas, separados por vírgula)
     function isAdmin() {
       return emailOk() && email() in [
         'plantao.amt@benetechbrasil.com.br',
@@ -28,6 +29,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/escala_config/membros)
         && email() in get(/databases/$(database)/documents/escala_config/membros).data.emails
       );
+    }
+
+    // O app lê este documento só para saber se o usuário é administrador.
+    match /escala_config/admin {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /escala_config/membros {

@@ -6,13 +6,12 @@ import { getLocalStorage } from '../storage/LocalStorageRepository';
 import { seedIdFromName, seedState } from '../domain/seed';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
-import { ADMIN_EMAILS, isAdminEmail } from './config';
 import { loadFirebase, type FirebaseApi } from './firebase';
 import { CloudSync } from './sync';
 import { markLegacyDone, readLegacy } from './legacy';
-import { AuthScreen, Splash, VerifyScreen } from './AuthScreens';
+import { AuthScreen, Splash } from './AuthScreens';
 
-type Phase = 'sdk' | 'sdk-fail' | 'signed-out' | 'unverified' | 'ready';
+type Phase = 'sdk' | 'sdk-fail' | 'signed-out' | 'ready';
 const LAST_EMAIL = 'vulcaescala:ultimo-email';
 
 function lastEmail(): string {
@@ -53,7 +52,7 @@ export function CloudApp() {
         setApi(fb);
         unsub = fb.authMod.onAuthStateChanged(fb.auth, (u) => {
           setUser(u);
-          setPhase(!u ? 'signed-out' : u.emailVerified ? 'ready' : 'unverified');
+          setPhase(u ? 'ready' : 'signed-out');
           if (u?.email)
             try {
               getLocalStorage()?.setItem(LAST_EMAIL, u.email);
@@ -117,15 +116,6 @@ export function CloudApp() {
 
   // ---------- telas ----------
   if (phase === 'signed-out' && api) return <AuthScreen api={api} />;
-  if (phase === 'unverified' && api && user)
-    return (
-      <VerifyScreen
-        api={api}
-        user={user}
-        onVerified={() => setPhase('ready')}
-        onLogout={() => void api.authMod.signOut(api.auth)}
-      />
-    );
 
   const hasData = sync.hasCache();
   if ((phase === 'sdk' || phase === 'sdk-fail') && !hasData)
@@ -142,7 +132,7 @@ export function CloudApp() {
     return (
       <Splash
         title="Acesso não liberado"
-        text={`O e-mail ${email} ainda não está liberado para a escala do contrato AMT. Peça a um administrador (${ADMIN_EMAILS.join(', ')}) para incluir o seu e-mail em “Dados → Acesso da liderança”.`}
+        text={`O e-mail ${email} ainda não está liberado para a escala do contrato AMT. Peça a um administrador para incluir o seu e-mail em “Dados → Acesso da liderança”.`}
         action={{ label: 'Tentar de novo', onClick: () => api && user?.email && sync.attach(api, user.email) }}
         secondary={{ label: 'Sair', onClick: () => void api.authMod.signOut(api.auth) }}
       />
@@ -152,7 +142,7 @@ export function CloudApp() {
     <CloudStoreProvider
       sync={sync}
       email={email}
-      isAdmin={isAdminEmail(email)}
+      isAdmin={info.isAdmin}
       logout={logout}
       extraNotices={
         phase === 'sdk-fail'

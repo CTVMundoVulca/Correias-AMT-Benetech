@@ -23,6 +23,8 @@ import type { FirebaseApi } from './firebase';
 export const COL_EFETIVO = 'escala_efetivo';
 export const COL_DIAS = 'escala_dias';
 export const DOC_MEMBROS = 'escala_config/membros';
+/** Só administradores (pela regra do Firestore) conseguem ler este documento. */
+export const DOC_ADMIN = 'escala_config/admin';
 export const CACHE_KEY = 'vulcaescala:nuvem';
 
 export type SyncStatus = 'connecting' | 'ok' | 'saving' | 'offline' | 'denied' | 'error';
@@ -36,6 +38,8 @@ export interface SyncInfo {
   membros: string[] | null;
   /** a nuvem não tem nenhum dado ainda */
   cloudEmpty: boolean;
+  /** administrador segundo as regras do Firestore */
+  isAdmin: boolean;
 }
 
 interface DocMaps {
@@ -112,7 +116,7 @@ export class CloudSync {
   private confirmed: DocMaps = { workers: {}, days: {} };
   private pending: Action[] = [];
   private view: AppState;
-  private info: SyncInfo = { status: 'connecting', pending: 0, loaded: false, lastError: null, membros: null, cloudEmpty: false };
+  private info: SyncInfo = { status: 'connecting', pending: 0, loaded: false, lastError: null, membros: null, cloudEmpty: false, isAdmin: false };
   private loadedParts = { workers: false, days: false };
   private listeners = new Set<() => void>();
   private unsubs: (() => void)[] = [];
@@ -158,7 +162,12 @@ export class CloudSync {
     this.email = email.toLowerCase();
     const { fsMod, fs } = api;
     this.loadedParts = { workers: false, days: false };
-    this.setInfo({ status: 'connecting', loaded: false, lastError: null });
+    this.setInfo({ status: 'connecting', loaded: false, lastError: null, isAdmin: false });
+    // pergunta ao Firestore se este usuário é administrador (a regra decide)
+    fsMod
+      .getDoc(fsMod.doc(fs, DOC_ADMIN))
+      .then(() => this.api === api && this.setInfo({ isAdmin: true }))
+      .catch(() => this.api === api && this.setInfo({ isAdmin: false }));
 
     this.unsubs.push(
       fsMod.onSnapshot(

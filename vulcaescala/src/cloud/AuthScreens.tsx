@@ -1,5 +1,4 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import type { User } from 'firebase/auth';
 import type { FirebaseApi } from './firebase';
 import { authErrorMsg } from './authErrors';
 
@@ -59,10 +58,7 @@ export function AuthScreen({ api }: { api: FirebaseApi }) {
   };
   const register = () => {
     if (!email.trim() || pass.length < 6) return setMsg({ kind: 'erro', text: 'Informe e-mail e uma senha com pelo menos 6 caracteres.' });
-    void run(async () => {
-      const cred = await authMod.createUserWithEmailAndPassword(auth, email.trim(), pass);
-      await authMod.sendEmailVerification(cred.user);
-    });
+    void run(() => authMod.createUserWithEmailAndPassword(auth, email.trim(), pass));
   };
   const reset = () => {
     if (!email.trim()) return setMsg({ kind: 'erro', text: 'Digite seu e-mail no campo acima para receber o link.' });
@@ -106,73 +102,6 @@ export function AuthScreen({ api }: { api: FirebaseApi }) {
       </button>
       <button className="link small" onClick={reset} disabled={busy}>
         Esqueci minha senha
-      </button>
-    </Shell>
-  );
-}
-
-/** E-mail precisa ser confirmado: impede alguém de criar conta com o e-mail de um líder. */
-export function VerifyScreen({
-  api,
-  user,
-  onVerified,
-  onLogout,
-}: {
-  api: FirebaseApi;
-  user: User;
-  onVerified: () => void;
-  onLogout: () => void;
-}) {
-  const [msg, setMsg] = useState<{ kind: 'erro' | 'ok'; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const check = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      await user.reload();
-      if (user.emailVerified) {
-        await user.getIdToken(true); // atualiza a credencial para as regras do Firestore
-        onVerified();
-      } else setMsg({ kind: 'erro', text: 'Ainda não consta como confirmado. Abra o link do e-mail e tente de novo.' });
-    } catch (e) {
-      setMsg({ kind: 'erro', text: authErrorMsg(e) });
-    } finally {
-      setBusy(false);
-    }
-  };
-  const resend = async () => {
-    setBusy(true);
-    try {
-      await api.authMod.sendEmailVerification(user);
-      setMsg({ kind: 'ok', text: 'E-mail reenviado. Confira também a caixa de spam.' });
-    } catch (e) {
-      setMsg({ kind: 'erro', text: authErrorMsg(e) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Shell>
-      <Title />
-      <p className="small">
-        Enviamos um link de confirmação para <b>{user.email}</b>. Abra o e-mail, toque no link e depois em “Já
-        confirmei”.
-      </p>
-      {msg && (
-        <p className={'small ' + (msg.kind === 'erro' ? 'text-danger' : 'text-ok')} role="alert">
-          {msg.text}
-        </p>
-      )}
-      <button className="btn primary" onClick={check} disabled={busy}>
-        Já confirmei
-      </button>
-      <button className="btn" onClick={resend} disabled={busy}>
-        Reenviar e-mail
-      </button>
-      <button className="link small" onClick={onLogout}>
-        Sair
       </button>
     </Shell>
   );

@@ -32,16 +32,8 @@ export function isConfigured(cfg: { apiKey: string; projectId: string } = fireba
   return !!(k && p && !/^COLE_AQUI/.test(k) && !/^COLE_AQUI/.test(p));
 }
 
-/** Administradores: gerenciam quem tem acesso. Manter igual à lista em firebase/firestore.rules. */
-export const ADMIN_EMAILS = [
-  'plantao.amt@benetechbrasil.com.br',
-  'glauber.dutra@benetechbrasil.com.br',
-  'warley.silva@benetechbrasil.com.br',
-];
-
-export function isAdminEmail(email: string | null | undefined): boolean {
-  return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
-}
+/* Administradores: definidos SÓ nas regras do Firestore (função isAdmin em
+   firebase/firestore.rules). Para mudar, edite a regra no console e publique. */
 
 /** Mesma versão do SDK usada nos demais apps CTV. */
 export const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.12.5/';

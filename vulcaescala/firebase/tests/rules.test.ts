@@ -67,8 +67,18 @@ describe('acesso', () => {
     await assertFails(setDoc(doc(db, 'escala_dias/2026-W45_0'), day));
   });
 
-  it('e-mail liberado mas NÃO confirmado: nada (evita alguém cadastrar o e-mail de um líder)', async () => {
-    await assertFails(getDoc(doc(as(LIDER, false), 'escala_efetivo/w1')));
+  it('não exige confirmação de e-mail: liberado entra direto', async () => {
+    await assertSucceeds(getDoc(doc(as(LIDER, false), 'escala_efetivo/w1')));
+    await assertSucceeds(getDoc(doc(as(ADMIN, false), 'escala_config/admin')));
+  });
+
+  it('detecção de administrador: só admin lê escala_config/admin; ninguém grava', async () => {
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_config/admin')));
+    await assertSucceeds(getDoc(doc(as('Warley.Silva@benetechbrasil.com.br'), 'escala_config/admin')));
+    await assertSucceeds(getDoc(doc(as('plantao.amt@benetechbrasil.com.br'), 'escala_config/admin')));
+    await assertFails(getDoc(doc(as(LIDER), 'escala_config/admin')));
+    await assertFails(getDoc(doc(as('michael.lopes@benetechbrasil.com.br'), 'escala_config/admin')));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_config/admin'), { x: 1 }));
   });
 
   it('membro lê e grava escala e efetivo', async () => {

@@ -5,7 +5,6 @@ import { emptyState, type AppState } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { useConfirm } from '../../ui/ConfirmDialog';
 import { syncLabel } from '../../ui/Header';
-import { ADMIN_EMAILS } from '../../cloud/config';
 import { markLegacyDone, readLegacy } from '../../cloud/legacy';
 
 export function DataView() {
@@ -176,7 +175,7 @@ function MembersCard() {
     e.preventDefault();
     const em = novo.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return toast('E-mail inválido', 'warn');
-    if (membros.includes(em) || ADMIN_EMAILS.includes(em)) return toast('E-mail já liberado', 'warn');
+    if (membros.includes(em)) return toast('E-mail já liberado', 'warn');
     if (await save([...membros, em], 'Acesso liberado')) setNovo('');
   };
 
@@ -198,8 +197,9 @@ function MembersCard() {
     <div className="card pad stack">
       <h2>Acesso da liderança</h2>
       <p className="small muted">
-        Só os e-mails abaixo (e os administradores) veem e lançam a escala. A pessoa cria a conta na tela de entrada com
-        o mesmo e-mail e confirma pelo link recebido.
+        Só os e-mails abaixo (e os administradores) veem e lançam a escala. Depois de liberar, a pessoa toca em “Criar
+        conta” na tela de entrada com o mesmo e-mail — faça isso logo, para ninguém criar a conta antes dela.
+        Administradores são definidos nas regras do Firestore (console do Firebase).
       </p>
       <form className="row nowrap" onSubmit={add}>
         <input
@@ -215,12 +215,6 @@ function MembersCard() {
         </button>
       </form>
       <ul className="plain-list member-list">
-        {ADMIN_EMAILS.map((em) => (
-          <li key={em}>
-            <span className="small">{em}</span>
-            <span className="badge neutral">administrador</span>
-          </li>
-        ))}
         {membros.map((em) => (
           <li key={em}>
             <span className="small">{em}</span>

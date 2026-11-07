@@ -48,14 +48,8 @@ async function device(email: string, fsPort = Number(FS_PORT)): Promise<Firebase
   } catch {
     cred = await authMod.signInWithEmailAndPassword(auth, email, 'senha123');
   }
-  // confirma o e-mail pela API administrativa do emulador
-  await fetch(`http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:update`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
-    body: JSON.stringify({ localId: cred.user.uid, emailVerified: true }),
-  });
-  await cred.user.reload();
-  await cred.user.getIdToken(true);
+  // sem confirmação de e-mail: a conta criada já entra
+  expect(cred.user.emailVerified).toBe(false);
   return { auth, fs, authMod, fsMod };
 }
 
@@ -103,6 +97,10 @@ describe('sincronização entre aparelhos', () => {
     b = newSync(liderApi, LIDER);
     await until(() => b.getInfo().loaded);
     expect(b.getInfo().status).toBe('ok');
+    // administrador é descoberto pela regra do Firestore
+    await until(() => a.getInfo().isAdmin);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(b.getInfo().isAdmin).toBe(false);
   });
 
   it('o que um lança aparece no outro', async () => {
