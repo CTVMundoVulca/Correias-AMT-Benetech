@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../../state/store';
-import { WEEKDAYS_SHORT, formatDate, weekDates } from '../../domain/isoWeek';
+import { WEEKDAYS_SHORT, formatDate, parseWeekKey, weekDates } from '../../domain/isoWeek';
 import { activityRows, weekKpis, workerGrid } from '../../domain/summary';
 import { tipoAusencia } from '../../domain/types';
 import { WeekNav } from '../week/WeekNav';
@@ -25,7 +25,29 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
 
   return (
     <section>
-      <WeekNav weekKey={weekKey} onChange={onWeekChange} />
+      <div className="print-only print-head">
+        <img src="logo-benetech.png" alt="Benetech" />
+        <div>
+          <div className="print-kicker">Contrato AMT</div>
+          <h1>
+            Escala de Vulcanização — Semana {parseWeekKey(weekKey).week}/{parseWeekKey(weekKey).year}
+          </h1>
+          <div className="small">
+            {formatDate(dates[0])} a {formatDate(dates[6])} · gerado em {new Date().toLocaleString('pt-BR')}
+          </div>
+        </div>
+      </div>
+
+      <div className="no-print">
+        <WeekNav weekKey={weekKey} onChange={onWeekChange} />
+      </div>
+
+      <div className="card pad row between no-print">
+        <span className="small muted">Resumo da semana para imprimir ou enviar em PDF.</span>
+        <button className="btn primary" onClick={() => imprimir(weekKey)}>
+          🖨 Imprimir / Salvar PDF
+        </button>
+      </div>
 
       <div className="kpis">
         <Kpi value={kpis.activities} label="atividades" />
@@ -122,6 +144,19 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
       </div>
     </section>
   );
+}
+
+/** Abre a impressão do navegador ("Salvar como PDF"); o nome do arquivo sai com a semana. */
+function imprimir(weekKey: string) {
+  const { week, year } = parseWeekKey(weekKey);
+  const antes = document.title;
+  document.title = `Escala AMT - Semana ${String(week).padStart(2, '0')}-${year}`;
+  const restaurar = () => {
+    document.title = antes;
+    window.removeEventListener('afterprint', restaurar);
+  };
+  window.addEventListener('afterprint', restaurar);
+  window.print();
 }
 
 function Kpi({ value, label }: { value: number; label: string }) {

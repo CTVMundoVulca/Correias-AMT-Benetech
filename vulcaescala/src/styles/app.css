@@ -383,3 +383,31 @@ a.hdr-btn { text-decoration: none; }
 .text-pend { color: var(--pend-ink); font-weight: 600; }
 .text-ok { color: var(--ok-ink); }
 .text-danger { color: var(--red-ink); }
+
+/* ---------- impressão (Resumo da semana em PDF) ---------- */
+.print-only { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 9mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff !important; min-width: 0; color: #111; }
+  .app-header, .toast-region, .no-print, main > .banner { display: none !important; }
+  .print-only { display: block !important; }
+  .print-head { display: flex !important; align-items: center; gap: 14px; border-bottom: 3px solid #43a6ea; padding-bottom: 8px; margin-bottom: 10px; }
+  .print-head img { height: 32px; }
+  .print-head h1 { font-size: 1.15rem; color: #001a33; }
+  .print-kicker { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #1f7fc4; }
+  .container { max-width: none; padding: 0; }
+  .card { box-shadow: none; border: 1px solid #d5dae1; break-inside: avoid; margin-bottom: 8px; }
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+  .kpi { padding: 6px 10px; }
+  .kpi b { font-size: 1.2rem; }
+  .table-wrap { overflow: visible; }
+  .summary-card { padding: 8px; }
+  .grid-table { font-size: 10px; }
+  .grid-table th, .grid-table td { padding: 2px 4px; }
+  .grid-table .name-col { max-width: none; white-space: nowrap; }
+  .grid-table tr { break-inside: avoid; }
+  .act-table li { break-inside: avoid; padding: 3px 0; font-size: 11px; }
+  #ctv-copyright { padding: 6px 0 0; }
+  #ctv-copyright .ctv-logo { width: 100px; }
+}
