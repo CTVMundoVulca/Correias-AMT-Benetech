@@ -2,7 +2,7 @@
    Mesmo esquema dos apps CTV Campo: app shell em cache; navegação network-first
    (pega atualização quando há rede) com fallback para o cache (offline).
    CACHE_VERSION é gravado automaticamente no build (scripts/stamp-sw.mjs). */
-const CACHE_VERSION = 'vulcaescala-amt-3119909784cb';
+const CACHE_VERSION = 'vulcaescala-amt-a8e8e41f3515';
 
 const APP_SHELL = [
   './',
@@ -10,6 +10,7 @@ const APP_SHELL = [
   './app-update.js',
   './manifest.json',
   './logo-benetech.png',
+  './logo-ctv.webp',
   './icon-192.png',
   './icon-512.png',
   './icon-512-maskable.png',

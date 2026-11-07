@@ -10,6 +10,7 @@ const APP_SHELL = [
   './app-update.js',
   './manifest.json',
   './logo-benetech.png',
+  './logo-ctv.webp',
   './icon-192.png',
   './icon-512.png',
   './icon-512-maskable.png',

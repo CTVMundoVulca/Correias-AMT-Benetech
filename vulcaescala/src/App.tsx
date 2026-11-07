@@ -48,14 +48,14 @@ export function App() {
         {notices.map((n, i) => (
           <div key={i} className={`banner ${n.kind}`} role="alert">
             {n.text}
-            {n.action && (
-              <>
+            {n.actions?.map((a) => (
+              <span key={a.label}>
                 {' '}
-                <button className="link" onClick={n.action.onClick}>
-                  {n.action.label}
+                <button className="link" onClick={a.onClick}>
+                  {a.label}
                 </button>
-              </>
-            )}
+              </span>
+            ))}
           </div>
         ))}
         {saveError && (
