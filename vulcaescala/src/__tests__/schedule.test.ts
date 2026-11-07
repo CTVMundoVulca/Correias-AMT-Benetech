@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reducer, type Action } from '../state/reducer';
-import { AppState, emptyState } from '../domain/types';
-import { allocationStatus, getDay, pendingWorkers, weekPending, workerHistory } from '../domain/schedule';
+import { AppState, FUNCOES_PADRAO, emptyState } from '../domain/types';
+import { allocationStatus, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
 import { activityRows, weekKpis, workerGrid } from '../domain/summary';
 import { migrate, InvalidDataError } from '../storage/migrations';
 
@@ -72,6 +72,18 @@ describe('escala', () => {
       hasActivities: true,
     });
     expect(weekPending(s, '2026-W46')).toEqual({ days: [], total: 0, hasActivities: false });
+  });
+
+  it('situação da semana para o calendário', () => {
+    const s = build(base); // segunda com atividades e 3 pendentes
+    expect(weekStatus(s, W)).toBe('pendente');
+    expect(weekStatus(s, '2026-W46')).toBe('vazia');
+    const ok = build([...base, { type: 'activity/remove', ...ref, activityId: 'y' }, { type: 'absence/set', ...ref, workerId: 'a', tipo: 'folga' },
+      { type: 'absence/set', ...ref, workerId: 'b', tipo: 'folga' }, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'c' }]);
+    expect(weekStatus(ok, W)).toBe('ok');
+    // só ausências (ex.: férias lançadas antes) não é "escala completa"
+    const soAusencia = reducer(s, { type: 'absence/set', weekKey: '2026-W47', dayIndex: 0, workerId: 'a', tipo: 'ferias' });
+    expect(weekStatus(soAusencia, '2026-W47')).toBe('vazia');
   });
 
   it('alocar/desalocar é idempotente', () => {
@@ -190,6 +202,46 @@ describe('resumo da semana', () => {
   });
 });
 
+describe('lista de funções', () => {
+  const s0 = build(base); // ana Vulcanizador, bruno Líder, carla Auxiliar, davi Mecânico
+
+  it('começa com a lista padrão', () => {
+    expect(s0.funcoes).toEqual(FUNCOES_PADRAO);
+  });
+
+  it('adiciona padronizada e sem duplicar (maiúsculas/acentos)', () => {
+    let s = reducer(s0, { type: 'funcao/add', nome: '  montador   de   correia ' });
+    expect(s.funcoes[s.funcoes.length - 1]).toBe('Montador de correia');
+    s = reducer(s, { type: 'funcao/add', nome: 'MECANICO' });
+    expect(s.funcoes.filter((f) => f.startsWith('Mec'))).toEqual(['Mecânico']);
+  });
+
+  it('renomear atualiza os colaboradores que têm a função', () => {
+    const s = reducer(s0, { type: 'funcao/rename', de: 'Vulcanizador', para: 'vulcanizador de correia' });
+    expect(s.funcoes[0]).toBe('Vulcanizador de correia');
+    expect(s.workers.find((w) => w.id === 'a')!.funcao).toBe('Vulcanizador de correia');
+    expect(s.workers.find((w) => w.id === 'b')!.funcao).toBe('Líder');
+    // não renomeia para um nome que já existe
+    expect(reducer(s0, { type: 'funcao/rename', de: 'Vulcanizador', para: 'lider' })).toBe(s0);
+  });
+
+  it('só remove função sem colaboradores, e nunca a última', () => {
+    expect(reducer(s0, { type: 'funcao/remove', nome: 'Vulcanizador' })).toBe(s0); // em uso
+    const s = reducer(s0, { type: 'funcao/remove', nome: 'Soldador' });
+    expect(s.funcoes).not.toContain('Soldador');
+    const uma = { ...emptyState(), funcoes: ['Única'] };
+    expect(reducer(uma, { type: 'funcao/remove', nome: 'Única' })).toBe(uma);
+  });
+
+  it('dados da versão 1 ganham a lista padrão na migração', () => {
+    const v1 = { version: 1, workers: [{ id: 'a', nome: 'ANA', funcao: 'Soldador', ativo: true }], weeks: {} };
+    const s = migrate(v1);
+    expect(s.version).toBe(2);
+    expect(s.funcoes).toEqual(FUNCOES_PADRAO);
+    expect(s.workers[0].funcao).toBe('Soldador');
+  });
+});
+
 describe('migração / validação', () => {
   it('vazio → estado inicial', () => {
     expect(migrate(null)).toEqual(emptyState());
@@ -218,7 +270,9 @@ describe('migração / validação', () => {
       },
     });
     expect(Object.keys(s.weeks)).toEqual([W]);
-    expect(s.workers[0]).toEqual({ id: 'a', nome: 'ANA', funcao: 'Vulcanizador', ativo: true });
+    // função desconhecida não se perde: é mantida e entra na lista
+    expect(s.workers[0]).toEqual({ id: 'a', nome: 'ANA', funcao: 'Inexistente', ativo: true });
+    expect(s.funcoes).toEqual([...FUNCOES_PADRAO, 'Inexistente']);
     expect(s.weeks[W].days).toHaveLength(7);
     expect(s.weeks[W].days[0].activities[0].workerIds).toEqual(['a']);
     expect(s.weeks[W].days[0].absences).toEqual([{ workerId: 'a', tipo: 'folga' }]);

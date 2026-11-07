@@ -1,5 +1,13 @@
-export const FUNCOES = ['Vulcanizador', 'Líder', 'Encarregado', 'Mecânico', 'Soldador', 'Auxiliar'] as const;
-export type Funcao = (typeof FUNCOES)[number];
+/** Lista inicial de funções. A lista real fica no estado (editável em Efetivo → Funções). */
+export const FUNCOES_PADRAO = ['Vulcanizador', 'Líder', 'Encarregado', 'Mecânico', 'Soldador', 'Auxiliar'];
+export type Funcao = string;
+export const FUNCAO_MAX = 40;
+
+/** Padroniza o nome de uma função: sem espaços sobrando; primeira letra maiúscula. */
+export function cleanFuncao(s: string): string {
+  const t = s.replace(/\s+/g, ' ').trim().slice(0, FUNCAO_MAX);
+  return t ? t.charAt(0).toLocaleUpperCase('pt-BR') + t.slice(1) : '';
+}
 
 export interface Worker {
   id: string;
@@ -52,17 +60,19 @@ export interface Week {
   days: Day[];
 }
 
-export const CURRENT_VERSION = 1;
+export const CURRENT_VERSION = 2;
 
 export interface AppState {
   version: number;
   workers: Worker[];
+  /** funções disponíveis no cadastro (ordem de exibição) */
+  funcoes: string[];
   /** semanas indexadas pela chave ISO; só existem semanas que já receberam dados */
   weeks: Record<string, Week>;
 }
 
 export function emptyState(): AppState {
-  return { version: CURRENT_VERSION, workers: [], weeks: {} };
+  return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], weeks: {} };
 }
 
 export function emptyDay(): Day {

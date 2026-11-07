@@ -145,3 +145,15 @@ export function workerUsage(state: AppState, workerId: string): number {
   return n;
 }
 
+
+export type WeekStatus = 'vazia' | 'ok' | 'pendente';
+
+/**
+ * Situação da semana para o calendário: sem escala (nenhuma atividade — mesmo que
+ * já tenha férias/folgas lançadas), completa ou com pendências.
+ */
+export function weekStatus(state: AppState, weekKey: string): WeekStatus {
+  const p = weekPending(state, weekKey);
+  if (!p.hasActivities) return 'vazia';
+  return p.total > 0 ? 'pendente' : 'ok';
+}

@@ -1,5 +1,5 @@
 import type * as FsMod from 'firebase/firestore';
-import { AppState, CURRENT_VERSION, Day, Worker, emptyDay, emptyWeek } from '../domain/types';
+import { AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, Worker, emptyDay, emptyWeek } from '../domain/types';
 import { cleanName } from '../domain/names';
 import { migrate } from '../storage/migrations';
 import { Action, reducer } from '../state/reducer';
@@ -18,11 +18,13 @@ import type { FirebaseApi } from './firebase';
  *   escala_efetivo/{workerId}   um colaborador
  *   escala_dias/{AAAA-Www_D}    um dia da escala (atividades + ausências)
  *   escala_config/membros       { emails: [...] } quem pode acessar
+ *   escala_config/funcoes       { lista: [...] } funções do cadastro
  */
 
 export const COL_EFETIVO = 'escala_efetivo';
 export const COL_DIAS = 'escala_dias';
 export const DOC_MEMBROS = 'escala_config/membros';
+export const DOC_FUNCOES = 'escala_config/funcoes';
 /** Só administradores (pela regra do Firestore) conseguem ler este documento. */
 export const DOC_ADMIN = 'escala_config/admin';
 export const CACHE_KEY = 'vulcaescala:nuvem';
@@ -45,6 +47,8 @@ export interface SyncInfo {
 interface DocMaps {
   workers: Record<string, Worker>;
   days: Record<string, Day>;
+  /** null = documento ainda não existe na nuvem (usa a lista padrão) */
+  funcoes?: string[] | null;
 }
 
 export const dayDocId = (weekKey: string, dayIndex: number) => `${weekKey}_${dayIndex}`;
@@ -64,9 +68,9 @@ export function mapsToState(maps: DocMaps): AppState {
     wk.days[loc.dayIndex] = { activities: day.activities, absences: day.absences };
   }
   try {
-    return migrate({ version: CURRENT_VERSION, workers: Object.values(maps.workers), weeks });
+    return migrate({ version: CURRENT_VERSION, workers: Object.values(maps.workers), funcoes: maps.funcoes ?? FUNCOES_PADRAO, weeks });
   } catch {
-    return { version: CURRENT_VERSION, workers: [], weeks: {} };
+    return { version: CURRENT_VERSION, workers: [], funcoes: [...FUNCOES_PADRAO], weeks: {} };
   }
 }
 
@@ -78,7 +82,7 @@ function stateToMaps(state: AppState): DocMaps {
     wk.days.forEach((d, i) => {
       if (d.activities.length || d.absences.length) days[dayDocId(wk.key, i)] = d;
     });
-  return { workers, days };
+  return { workers, days, funcoes: state.funcoes };
 }
 
 function readDay(data: unknown): Day {
@@ -98,7 +102,7 @@ function readWorker(id: string, data: unknown): Worker {
 function applyToDay(day: Day, action: Action & { weekKey: string; dayIndex: number }): Day {
   const days = Array.from({ length: 7 }, emptyDay);
   days[action.dayIndex] = day;
-  const mini: AppState = { version: CURRENT_VERSION, workers: [], weeks: { [action.weekKey]: { key: action.weekKey, days } } };
+  const mini: AppState = { version: CURRENT_VERSION, workers: [], funcoes: [], weeks: { [action.weekKey]: { key: action.weekKey, days } } };
   return reducer(mini, action).weeks[action.weekKey].days[action.dayIndex];
 }
 
@@ -191,6 +195,15 @@ export class CloudSync {
         (e) => this.onListenError(e),
       ),
       fsMod.onSnapshot(
+        fsMod.doc(fs, DOC_FUNCOES),
+        (snap) => {
+          const lista = snap.data()?.lista;
+          this.confirmed = { ...this.confirmed, funcoes: Array.isArray(lista) ? lista.map(String) : null };
+          this.refresh();
+        },
+        () => undefined, // sem permissão: o erro já aparece pelas outras coleções
+      ),
+      fsMod.onSnapshot(
         fsMod.doc(fs, DOC_MEMBROS),
         (snap) => {
           const emails = (snap.data()?.emails as string[] | undefined) ?? [];
@@ -213,7 +226,7 @@ export class CloudSync {
 
   /** Ao sair da conta: apaga a cópia local (dados da equipe não ficam no aparelho). */
   clearLocal(): void {
-    this.confirmed = { workers: {}, days: {} };
+    this.confirmed = { workers: {}, days: {}, funcoes: null };
     this.pending = [];
     this.view = this.computeView();
     this.info = { ...this.info, pending: 0 };
@@ -249,6 +262,7 @@ export class CloudSync {
       if (!next.days[id]) ops.push((b) => b.delete(fsMod.doc(fs, COL_DIAS, id)));
     for (const w of Object.values(next.workers)) ops.push((b) => b.set(fsMod.doc(fs, COL_EFETIVO, w.id), { ...w }));
     for (const [id, d] of Object.entries(next.days)) ops.push((b) => b.set(fsMod.doc(fs, COL_DIAS, id), this.dayPayload(id, d)));
+    ops.push((b) => b.set(fsMod.doc(fs, DOC_FUNCOES), this.funcoesPayload(next.funcoes ?? FUNCOES_PADRAO)));
     for (let i = 0; i < ops.length; i += 400) {
       const batch = fsMod.writeBatch(fs);
       ops.slice(i, i + 400).forEach((op) => op(batch));
@@ -341,9 +355,45 @@ export class CloudSync {
     };
   }
 
+  private funcoesPayload(lista: string[]) {
+    return { lista, atualizadoEm: new Date().toISOString(), atualizadoPor: this.email };
+  }
+
   private async applyRemote(action: Action): Promise<void> {
     const { fsMod, fs } = this.api!;
     switch (action.type) {
+      case 'funcao/add':
+      case 'funcao/rename':
+      case 'funcao/remove': {
+        const ref = fsMod.doc(fs, DOC_FUNCOES);
+        // renomear também troca a função nos colaboradores que a usam
+        const affected =
+          action.type === 'funcao/rename'
+            ? Object.values(this.confirmed.workers).filter((w) => w.funcao === action.de).map((w) => w.id)
+            : action.type === 'funcao/remove'
+              ? Object.keys(this.confirmed.workers)
+              : [];
+        const result = await fsMod.runTransaction(fs, async (tx) => {
+          const snap = await tx.get(ref);
+          const wrefs = affected.map((id) => fsMod.doc(fs, COL_EFETIVO, id));
+          const wsnaps = await Promise.all(wrefs.map((r) => tx.get(r)));
+          const lista = Array.isArray(snap.data()?.lista) ? (snap.data()!.lista as string[]) : [...FUNCOES_PADRAO];
+          const workers = wsnaps.filter((s) => s.exists()).map((s) => readWorker(s.id, s.data()));
+          const before: AppState = { version: CURRENT_VERSION, workers, funcoes: lista, weeks: {} };
+          const after = reducer(before, action);
+          if (after === before) return null; // nada a fazer (repetida, em uso, duplicada…)
+          tx.set(ref, this.funcoesPayload(after.funcoes));
+          if (action.type === 'funcao/rename')
+            after.workers.forEach((w) => tx.set(fsMod.doc(fs, COL_EFETIVO, w.id), { ...w }));
+          return after;
+        });
+        if (result) {
+          const ws = { ...this.confirmed.workers };
+          result.workers.forEach((w) => (ws[w.id] = w));
+          this.confirmed = { ...this.confirmed, workers: ws, funcoes: result.funcoes };
+        }
+        return;
+      }
       case 'worker/add':
       case 'worker/update':
       case 'worker/setActive': {

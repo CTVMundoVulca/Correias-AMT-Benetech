@@ -34,6 +34,12 @@ Para incluir ou retirar: Console Firebase → Firestore Database → **Regras** 
 **Publicar**. O app descobre sozinho quem é administrador; não precisa gerar versão nova.
 (Atualize também o arquivo `firebase/firestore.rules` no repositório para manter a cópia em dia.)
 
+### Funções do cadastro
+
+A lista de funções é editável em **Efetivo → Funções** (qualquer pessoa da liderança): adicionar,
+renomear (atualiza todos os colaboradores que têm a função) e remover (só se ninguém usa).
+Na nuvem fica em `escala_config/funcoes`.
+
 ### Segurança
 
 - Só e-mails **liberados** (ou administradores) leem ou gravam — as regras do Firestore valem no

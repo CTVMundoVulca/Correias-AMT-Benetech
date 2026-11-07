@@ -3,20 +3,24 @@ import {
   AppState,
   CURRENT_VERSION,
   Day,
-  FUNCOES,
+  FUNCOES_PADRAO,
   Worker,
+  cleanFuncao,
   emptyDay,
   emptyState,
 } from '../domain/types';
 import { isValidWeekKey } from '../domain/isoWeek';
-import { cleanName } from '../domain/names';
+import { cleanName, nameKey } from '../domain/names';
 
 /**
  * Migrações: cada função leva o estado da versão N para N+1.
  * Para criar a versão 2, adicione `1: (s) => ({ ...s, version: 2, ... })`
  * e suba CURRENT_VERSION em domain/types.ts.
  */
-const MIGRATIONS: Record<number, (s: any) => any> = {};
+const MIGRATIONS: Record<number, (s: any) => any> = {
+  // v2: lista de funções editável (antes era fixa no código)
+  1: (s) => ({ ...s, version: 2, funcoes: [...FUNCOES_PADRAO] }),
+};
 
 export class InvalidDataError extends Error {}
 
@@ -41,6 +45,16 @@ export function migrate(raw: unknown): AppState {
 
 function sanitize(s: any): AppState {
   if (!Array.isArray(s.workers) || !isObj(s.weeks)) throw new InvalidDataError('Estrutura de dados inválida.');
+  // funções: sem repetição (ignora maiúsculas/acentos); vazia → lista padrão
+  const funcoes: string[] = [];
+  const addFuncao = (f: unknown) => {
+    const c = typeof f === 'string' ? cleanFuncao(f) : '';
+    if (c && !funcoes.some((x) => nameKey(x) === nameKey(c))) funcoes.push(c);
+    return funcoes.find((x) => nameKey(x) === nameKey(c)) ?? '';
+  };
+  (Array.isArray(s.funcoes) ? s.funcoes : []).forEach(addFuncao);
+  if (!funcoes.length) FUNCOES_PADRAO.forEach(addFuncao);
+
   const workers: Worker[] = [];
   const ids = new Set<string>();
   for (const w of s.workers) {
@@ -49,7 +63,8 @@ function sanitize(s: any): AppState {
     workers.push({
       id: w.id,
       nome: cleanName(w.nome),
-      funcao: (FUNCOES as readonly string[]).includes(w.funcao as string) ? (w.funcao as Worker['funcao']) : 'Vulcanizador',
+      // função que não está na lista (dado antigo/de outro aparelho) entra na lista
+      funcao: addFuncao(w.funcao) || funcoes[0],
       ativo: w.ativo !== false,
     });
   }
@@ -59,7 +74,7 @@ function sanitize(s: any): AppState {
     const days: Day[] = Array.from({ length: 7 }, (_, i) => sanitizeDay((wk.days as unknown[])[i], ids));
     weeks[key] = { key, days };
   }
-  return { version: CURRENT_VERSION, workers, weeks };
+  return { version: CURRENT_VERSION, workers, funcoes, weeks };
 }
 
 function sanitizeDay(d: any, ids: Set<string>): Day {

@@ -45,6 +45,16 @@ service cloud.firestore {
         && request.resource.data.emails.size() <= 100;
     }
 
+    // Lista de funções do cadastro (editável pela liderança no app)
+    match /escala_config/funcoes {
+      allow read: if isMember();
+      allow write: if isMember()
+        && request.resource.data.keys().hasOnly(['lista', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.lista is list
+        && request.resource.data.lista.size() > 0
+        && request.resource.data.lista.size() <= 50;
+    }
+
     match /escala_efetivo/{workerId} {
       allow read: if isMember();
       allow delete: if isMember();
@@ -54,7 +64,9 @@ service cloud.firestore {
         && request.resource.data.nome.size() > 0
         && request.resource.data.nome.size() <= 80
         && request.resource.data.ativo is bool
-        && request.resource.data.funcao in ['Vulcanizador', 'Líder', 'Encarregado', 'Mecânico', 'Soldador', 'Auxiliar'];
+        && request.resource.data.funcao is string
+        && request.resource.data.funcao.size() > 0
+        && request.resource.data.funcao.size() <= 40;
     }
 
     // Um documento por dia: "AAAA-Www_D" (D = 0 segunda … 6 domingo)

@@ -106,3 +106,37 @@ export function addDays(d: Date, n: number): Date {
 
 export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 export const WEEKDAYS_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+export const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+export const MONTHS_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+export interface MonthWeek {
+  weekKey: string;
+  /** número da semana ISO */
+  week: number;
+  /** 7 datas (UTC), segunda a domingo */
+  days: Date[];
+}
+
+/**
+ * Semanas que aparecem no calendário de um mês (`month` 0 = janeiro):
+ * da semana que contém o dia 1 até a que contém o último dia.
+ */
+export function monthWeeks(year: number, month: number): MonthWeek[] {
+  const first = new Date(Date.UTC(year, month, 1));
+  const last = new Date(Date.UTC(year, month + 1, 0));
+  let monday = addDays(first, -((first.getUTCDay() + 6) % 7));
+  const out: MonthWeek[] = [];
+  while (monday.getTime() <= last.getTime()) {
+    const iw = isoWeekOf(monday);
+    out.push({ weekKey: weekKey(iw), week: iw.week, days: Array.from({ length: 7 }, (_, i) => addDays(monday, i)) });
+    monday = addDays(monday, 7);
+  }
+  return out;
+}
+
+/** Mês e ano em que a semana aparece por padrão no calendário (o da quinta-feira, como no ISO). */
+export function monthOfWeek(key: string): { year: number; month: number } {
+  const thu = weekDates(key)[3];
+  return { year: thu.getUTCFullYear(), month: thu.getUTCMonth() };
+}
