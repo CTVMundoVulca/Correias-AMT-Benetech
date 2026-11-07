@@ -4,12 +4,12 @@
    Esses valores são públicos por natureza; quem protege os dados são as regras
    do Firestore (firebase/firestore.rules). Sem config → modo local (só neste aparelho). */
 const realConfig = {
-  apiKey: 'COLE_AQUI_API_KEY',
-  authDomain: 'COLE_AQUI.firebaseapp.com',
-  projectId: 'COLE_AQUI_PROJECT_ID',
-  storageBucket: 'COLE_AQUI.firebasestorage.app',
-  messagingSenderId: 'COLE_AQUI',
-  appId: 'COLE_AQUI',
+  apiKey: 'AIzaSyAkW2iyZgB_pSruPBQ03QySq8CwAhis8Jc',
+  authDomain: 'vulcaescala-amt.firebaseapp.com',
+  projectId: 'vulcaescala-amt',
+  storageBucket: 'vulcaescala-amt.firebasestorage.app',
+  messagingSenderId: '265495118168',
+  appId: '1:265495118168:web:4d303b48c23c8cc7ade52d',
 };
 
 /** Teste local com o emulador do Firebase: localStorage 'vulcaescala:emulador' = '127.0.0.1'.
