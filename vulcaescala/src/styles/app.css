@@ -221,7 +221,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- escala ---------- */
 .week-nav { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.week-title h1 { font-size: 1.25rem; }
+.week-title h1, .week-h1 { font-size: 1.25rem; font-weight: 600; }
 .week-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .week-buttons .btn { padding-inline: 6px; font-size: 0.9rem; }
 @media (min-width: 640px) { .week-nav { flex-direction: row; justify-content: space-between; align-items: center; } .week-buttons { min-width: 380px; } }
@@ -277,6 +277,45 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .abs-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
 .abs-btn { border: 1px solid transparent; background: var(--c-bg); color: var(--c-ink); border-radius: 6px; min-height: var(--tap); cursor: pointer; font-weight: 600; }
 .abs-btn:hover { border-color: currentColor; }
+
+/* ---------- calendário de semanas ---------- */
+.week-title-btn {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  background: none; border: 1px solid transparent; border-radius: 10px; padding: 4px 6px; margin: -4px -6px; color: inherit;
+}
+.week-title-btn:hover { background: var(--surface-2); border-color: var(--line); }
+.week-title-btn:focus-visible { outline: 2px solid var(--accent); }
+.week-title-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.cal-icon { font-size: 1.4rem; background: var(--accent-soft); border-radius: 10px; width: 44px; height: 44px; display: grid; place-items: center; flex-shrink: 0; }
+.cal-year { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.cal-year strong { font-size: 1.2rem; min-width: 56px; text-align: center; }
+.cal-months { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.cal-month {
+  position: relative; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 8px;
+  min-height: 40px; font-weight: 600; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+}
+.cal-month.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cal-month .cal-dot { position: absolute; top: 4px; right: 4px; }
+.cal-title { text-align: center; }
+.cal-grid { display: flex; flex-direction: column; gap: 4px; }
+.cal-row {
+  display: grid; grid-template-columns: 46px repeat(7, minmax(0, 1fr)); align-items: center; gap: 2px;
+  width: 100%; min-height: 46px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); cursor: pointer; font-size: 0.9rem;
+}
+.cal-row > span { text-align: center; }
+.cal-row:hover:not(.cal-head) { border-color: var(--accent); background: var(--accent-soft); }
+.cal-row.selected { border: 2px solid var(--accent); background: var(--accent-soft); font-weight: 700; }
+.cal-row.current .cal-wk .num { color: var(--accent-strong); }
+.cal-head { border: 0; background: none; cursor: default; min-height: 24px; font-size: 0.72rem; font-weight: 700; color: var(--ink-2); }
+.cal-wk { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-weight: 700; color: var(--ink-2); border-right: 1px solid var(--line); }
+.cal-row span.out { color: var(--ink-2); opacity: 0.45; }
+.cal-row span.today { color: var(--accent-ink); background: var(--accent); border-radius: 50%; width: 28px; height: 28px; line-height: 28px; justify-self: center; font-weight: 700; }
+.cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cal-dot.ok { background: var(--ok-ink); }
+.cal-dot.pendente { background: var(--pend-line); }
+.cal-dot.vazia { background: transparent; border: 1px solid var(--line-strong); }
+.legend .cal-dot { vertical-align: middle; margin-right: 2px; }
 
 /* ---------- resumo ---------- */
 .kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }

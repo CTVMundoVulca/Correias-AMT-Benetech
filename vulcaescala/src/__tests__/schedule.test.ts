@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reducer, type Action } from '../state/reducer';
 import { AppState, emptyState } from '../domain/types';
-import { allocationStatus, getDay, pendingWorkers, weekPending, workerHistory } from '../domain/schedule';
+import { allocationStatus, getDay, pendingWorkers, weekPending, weekStatus, workerHistory } from '../domain/schedule';
 import { activityRows, weekKpis, workerGrid } from '../domain/summary';
 import { migrate, InvalidDataError } from '../storage/migrations';
 
@@ -72,6 +72,18 @@ describe('escala', () => {
       hasActivities: true,
     });
     expect(weekPending(s, '2026-W46')).toEqual({ days: [], total: 0, hasActivities: false });
+  });
+
+  it('situação da semana para o calendário', () => {
+    const s = build(base); // segunda com atividades e 3 pendentes
+    expect(weekStatus(s, W)).toBe('pendente');
+    expect(weekStatus(s, '2026-W46')).toBe('vazia');
+    const ok = build([...base, { type: 'activity/remove', ...ref, activityId: 'y' }, { type: 'absence/set', ...ref, workerId: 'a', tipo: 'folga' },
+      { type: 'absence/set', ...ref, workerId: 'b', tipo: 'folga' }, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'c' }]);
+    expect(weekStatus(ok, W)).toBe('ok');
+    // só ausências (ex.: férias lançadas antes) não é "escala completa"
+    const soAusencia = reducer(s, { type: 'absence/set', weekKey: '2026-W47', dayIndex: 0, workerId: 'a', tipo: 'ferias' });
+    expect(weekStatus(soAusencia, '2026-W47')).toBe('vazia');
   });
 
   it('alocar/desalocar é idempotente', () => {

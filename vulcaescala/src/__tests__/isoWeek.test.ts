@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWeeks, currentWeekKey, formatDate, isoWeekOf, parseWeekKey, weekDates, weekKey, weeksInYear, locateDay } from '../domain/isoWeek';
+import { addWeeks, currentWeekKey, formatDate, monthOfWeek, monthWeeks, isoWeekOf, parseWeekKey, weekDates, weekKey, weeksInYear, locateDay } from '../domain/isoWeek';
 
 const d = (s: string) => new Date(s + 'T00:00:00Z');
 
@@ -58,5 +58,33 @@ describe('semana ISO 8601', () => {
   it('locateDay', () => {
     expect(locateDay(d('2026-11-08'))).toEqual({ weekKey: '2026-W45', dayIndex: 6 });
     expect(locateDay(d('2026-11-09'))).toEqual({ weekKey: '2026-W46', dayIndex: 0 });
+  });
+});
+
+describe('calendário do mês', () => {
+  it('julho de 2026: 5 semanas, da W27 à W31, começando na segunda', () => {
+    const w = monthWeeks(2026, 6);
+    expect(w.map((x) => x.weekKey)).toEqual(['2026-W27', '2026-W28', '2026-W29', '2026-W30', '2026-W31']);
+    expect(formatDate(w[0].days[0])).toBe('29/06/2026'); // segunda antes do dia 1
+    expect(formatDate(w[4].days[6])).toBe('02/08/2026');
+  });
+
+  it('virada de ano: dezembro de 2026 termina na W53; janeiro de 2027 começa nela', () => {
+    const dez = monthWeeks(2026, 11);
+    expect(dez[dez.length - 1].weekKey).toBe('2026-W53');
+    expect(monthWeeks(2027, 0)[0].weekKey).toBe('2026-W53');
+  });
+
+  it('mês que começa na segunda não ganha semana extra', () => {
+    // 1º de junho de 2026 é segunda-feira
+    const w = monthWeeks(2026, 5);
+    expect(formatDate(w[0].days[0])).toBe('01/06/2026');
+    expect(w).toHaveLength(5);
+  });
+
+  it('semana pertence ao mês da sua quinta-feira', () => {
+    expect(monthOfWeek('2026-W27')).toEqual({ year: 2026, month: 6 }); // 29/06–05/07 → julho
+    expect(monthOfWeek('2026-W53')).toEqual({ year: 2026, month: 11 });
+    expect(monthOfWeek('2025-W01')).toEqual({ year: 2025, month: 0 }); // começa 30/12/2024
   });
 });
