@@ -5,6 +5,7 @@ import { irPara, useEmenda } from './context';
 import { buscarTag, criarEmenda, ouvirMes } from './data';
 import { fmtData, hojeIso, mesAtual, nomeMes, novaEmenda, ordenar, somaMes, type Emenda } from './model';
 import { ListasDialog } from './ListasDialog';
+import { EfetivoDialog } from './EfetivoDialog';
 
 const MES_KEY = 'vulcaescala:emenda-mes';
 
@@ -27,6 +28,7 @@ export function EmendaLista() {
   const [busca, setBusca] = useState('');
   const [global, setGlobal] = useState<Emenda[] | null>(null);
   const [listasOpen, setListasOpen] = useState(false);
+  const [efetivoOpen, setEfetivoOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -76,9 +78,14 @@ export function EmendaLista() {
       <div className="card pad stack">
         <div className="row between">
           <h1>Relatórios de emenda</h1>
-          <button className="btn small" onClick={() => setListasOpen(true)}>
-            Materiais…
-          </button>
+          <div className="row nowrap">
+            <button className="btn small" onClick={() => setEfetivoOpen(true)}>
+              Efetivo…
+            </button>
+            <button className="btn small" onClick={() => setListasOpen(true)}>
+              Materiais…
+            </button>
+          </div>
         </div>
         <div className="mes-nav">
           <button className="btn" onClick={() => setYm((m) => somaMes(m, -1))} aria-label="Mês anterior">
@@ -150,6 +157,7 @@ export function EmendaLista() {
         {lista && lista.length === 0 && <p className="muted small">Nenhuma emenda neste mês.</p>}
       </div>
       {listasOpen && <ListasDialog onClose={() => setListasOpen(false)} />}
+      {efetivoOpen && <EfetivoDialog onClose={() => setEfetivoOpen(false)} />}
     </section>
   );
 }

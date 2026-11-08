@@ -8,10 +8,32 @@
 export type SimNao = 'Sim' | 'Não' | 'N/A' | '';
 
 export interface EfetivoItem {
+  /** relatórios antigos: id do cadastro da escala; novos: vazio (a escolha é pelo nome) */
   workerId: string;
   nome: string;
+  /** matrícula ou CPF (lista de colaboradores da emenda) */
   matricula: string;
 }
+
+/** Colaborador da lista própria do Registro de Emenda (separada do efetivo da escala). */
+export interface Funcionario {
+  nome: string;
+  /** matrícula ou CPF */
+  doc: string;
+}
+
+/**
+ * CPF (11 dígitos) aparece mascarado na tela: ***.***.789-01.
+ * Matrícula aparece inteira. O relatório/PDF usa o documento completo.
+ */
+export function mascararDoc(doc: string): string {
+  const d = (doc || '').replace(/\D/g, '');
+  if (d.length !== 11) return doc;
+  return `***.***.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+/** Nome em maiúsculas, sem espaços repetidos (como no app do Suzano). */
+export const normNome = (n: string) => n.replace(/\s+/g, ' ').trim().toUpperCase();
 
 export interface MaterialItem {
   material: string;

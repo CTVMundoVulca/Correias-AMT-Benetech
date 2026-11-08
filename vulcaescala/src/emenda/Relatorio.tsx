@@ -52,7 +52,7 @@ export function Relatorio({ id }: { id: string }) {
       </Bloco>
 
       <Bloco t="2. Efetivo" full>
-        <Tabela cab={['Nome', 'Matrícula']} linhas={e.efetivo.map((p) => [p.nome, p.matricula])} />
+        <Tabela cab={['Nome', 'Matrícula/CPF']} linhas={e.efetivo.map((p) => [p.nome, p.matricula])} />
       </Bloco>
 
       <Bloco t="3. Materiais da emenda" full>
@@ -214,7 +214,7 @@ function Lib({ t, l }: { t: string; l: Liberacao }) {
         <b>{l.nome || '—'}</b>
       </div>
       <div className="kv">
-        <span>Matrícula</span>
+        <span>Matrícula/CPF</span>
         <b>{l.matricula || '—'}</b>
       </div>
       <div className="kv">

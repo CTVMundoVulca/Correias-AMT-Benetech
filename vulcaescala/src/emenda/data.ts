@@ -1,21 +1,22 @@
 import type { FirebaseApi } from '../cloud/firebase';
-import type { Worker } from '../domain/types';
-import { sortByName } from '../domain/schedule';
-import { COL_EFETIVO, DOC_ADMIN } from '../cloud/sync';
-import { completarEmenda, intervaloMes, LISTAS_PADRAO, type Emenda, type Foto, type Listas } from './model';
+import { DOC_ADMIN } from '../cloud/sync';
+import { completarEmenda, intervaloMes, LISTAS_PADRAO, type Emenda, type Foto, type Funcionario, type Listas } from './model';
 
 /**
  * Firestore do Registro de Emenda (projeto Firebase do AMT):
  *   emendas/{id}                 um relatório (campos planos)
  *   emendas/{id}/fotos/{fotoId}  uma foto comprimida por documento
  *   emenda_config/listas         materiais e fabricantes ("Gerenciar")
- * O efetivo vem do mesmo cadastro da escala (escala_efetivo, só leitura aqui).
+ *   emenda_config/efetivo        colaboradores da emenda: nome + matrícula/CPF ("Gerenciar efetivo")
+ * O efetivo da emenda é uma lista PRÓPRIA, separada do cadastro da escala.
  *
  * Sem internet o próprio Firestore guarda as gravações no aparelho e envia
  * depois (cache persistente); a tela mostra o que está pendente.
  */
 export const COL_EMENDAS = 'emendas';
 export const DOC_LISTAS = 'emenda_config/listas';
+/** Lista de colaboradores do Registro de Emenda (nome + matrícula/CPF), separada do efetivo da escala */
+export const DOC_FUNCIONARIOS = 'emenda_config/efetivo';
 
 export interface Pendencia {
   /** há gravações deste aparelho ainda não confirmadas pela nuvem */
@@ -137,17 +138,27 @@ export function gravarListas(api: FirebaseApi, l: Listas): Promise<void> {
   return fsMod.setDoc(fsMod.doc(fs, DOC_LISTAS), l);
 }
 
-/** Efetivo ativo do cadastro da escala, em ordem alfabética. */
-export function ouvirEfetivo(api: FirebaseApi, cb: (w: Worker[]) => void, onErr: (e: unknown) => void): Unsub {
+/** Lista de colaboradores da emenda, em ordem alfabética. `null` = ainda não carregou. */
+export function ouvirFuncionarios(api: FirebaseApi, cb: (l: Funcionario[]) => void): Unsub {
   const { fsMod, fs } = api;
   return fsMod.onSnapshot(
-    fsMod.collection(fs, COL_EFETIVO),
+    fsMod.doc(fs, DOC_FUNCIONARIOS),
     (snap) => {
-      const ws = snap.docs.map((d) => ({ ...(d.data() as Worker), id: d.id })).filter((w) => w.ativo !== false && w.nome);
-      cb(sortByName(ws));
+      const l = (snap.data()?.lista ?? []) as Funcionario[];
+      cb(
+        (Array.isArray(l) ? l : [])
+          .filter((f) => f && typeof f.nome === 'string' && f.nome)
+          .map((f) => ({ nome: f.nome, doc: typeof f.doc === 'string' ? f.doc : '' }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      );
     },
-    onErr,
+    () => cb([]),
   );
+}
+
+export function gravarFuncionarios(api: FirebaseApi, lista: Funcionario[]): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, DOC_FUNCIONARIOS), { lista });
 }
 
 /** Administrador? (a regra do Firestore decide; o mesmo teste da escala) */
