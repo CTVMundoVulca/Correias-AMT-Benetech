@@ -1,14 +1,14 @@
 import { createContext, useContext } from 'react';
 import type { FirebaseApi } from '../cloud/firebase';
-import type { Worker } from '../domain/types';
-import type { Listas } from './model';
+import type { Funcionario, Listas } from './model';
 
 export interface EmendaCtx {
   api: FirebaseApi;
   /** quem está gravando: e-mail da liderança ou "anônimo" */
   por: string;
   isAdmin: boolean;
-  efetivo: Worker[];
+  /** lista de colaboradores da emenda (separada do efetivo da escala) */
+  efetivo: Funcionario[];
   listas: Listas;
   /** informa ao cabeçalho se há gravações pendentes / sem conexão */
   setPendencia: (pendente: boolean, offline: boolean) => void;

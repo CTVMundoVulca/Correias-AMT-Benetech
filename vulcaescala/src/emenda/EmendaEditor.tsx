@@ -8,13 +8,16 @@ import {
   liberacaoVazia,
   recalcular,
   type Emenda,
+  mascararDoc,
   type EquipItem,
+  type Funcionario,
   type Liberacao,
   type MaterialItem,
   type SimNao,
 } from './model';
 import { SignaturePad } from './SignaturePad';
 import { FotosSection } from './FotosSection';
+import { EfetivoDialog } from './EfetivoDialog';
 
 type SetFn = (campos: Partial<Emenda>) => void;
 
@@ -35,6 +38,23 @@ export function EmendaEditor({ id }: { id: string }) {
         id,
         (e, p) => {
           setRemoto(e);
+          // A cópia local de um campo só sai quando a nuvem/cache já mostra o mesmo valor
+          // (ou quando tudo foi confirmado). Antes, ela saía no momento de gravar e, por um
+          // instante, a tela voltava ao valor antigo — o texto "sumia e voltava".
+          if (e)
+            setDraft((d) => {
+              let mudou = false;
+              const n: Record<string, unknown> = { ...d };
+              for (const k of Object.keys(d)) {
+                if (k in fila.current) continue; // ainda não enviado
+                const igual = JSON.stringify((e as unknown as Record<string, unknown>)[k]) === JSON.stringify(n[k]);
+                if (igual || !p.pendente) {
+                  delete n[k];
+                  mudou = true;
+                }
+              }
+              return mudou ? (n as Partial<Emenda>) : d;
+            });
           setPendencia(p.pendente, p.offline);
         },
         () => setRemoto(null),
@@ -49,11 +69,7 @@ export function EmendaEditor({ id }: { id: string }) {
     fila.current = {};
     // sem internet o Firestore guarda no aparelho e envia depois
     gravarCampos(api, id, enviados, por).catch(() => toast('A nuvem recusou a gravação desta emenda.', 'danger'));
-    setDraft((d) => {
-      const n: Record<string, unknown> = { ...d };
-      for (const k of Object.keys(enviados)) if (n[k] === (enviados as Record<string, unknown>)[k]) delete n[k];
-      return n as Partial<Emenda>;
-    });
+    // a cópia local (draft) continua na tela até o retorno do Firestore (ver ouvirEmenda acima)
   }, [api, id, por, toast]);
 
   // grava ao sair da tela ou mandar o app para segundo plano
@@ -363,49 +379,63 @@ function Opts({ e, set, c, label, op }: { e: Emenda; set: SetFn; c: StrKeys; lab
   );
 }
 
+/** Seleção de colaborador pelo nome (lista própria da emenda), como no app do Suzano. */
+function SelectColaborador({ nome, onPick, excluir = [] }: { nome: string; onPick: (f: Funcionario | null) => void; excluir?: string[] }) {
+  const { efetivo } = useEmenda();
+  return (
+    <select className="input" value={nome} onChange={(ev) => onPick(efetivo.find((f) => f.nome === ev.target.value) ?? null)}>
+      <option value="">Selecione</option>
+      {nome && !efetivo.some((f) => f.nome === nome) && <option value={nome}>{nome}</option>}
+      {efetivo
+        .filter((f) => f.nome === nome || !excluir.includes(f.nome))
+        .map((f) => (
+          <option key={f.nome} value={f.nome}>
+            {f.nome}
+          </option>
+        ))}
+    </select>
+  );
+}
+
 function EfetivoSection({ e, set }: { e: Emenda; set: SetFn }) {
   const { efetivo } = useEmenda();
-  const usados = new Set(e.efetivo.map((x) => x.workerId));
+  const [gerenciar, setGerenciar] = useState(false);
+  const usados = e.efetivo.map((x) => x.nome).filter(Boolean);
   return (
     <>
       {e.efetivo.map((p, i) => (
         <div key={i} className="item-row">
           <label className="field grow">
             Nome
-            <select
-              className="input"
-              value={p.workerId}
-              onChange={(ev) => {
-                const w = efetivo.find((x) => x.id === ev.target.value);
+            <SelectColaborador
+              nome={p.nome}
+              excluir={usados}
+              onPick={(f) => {
                 const lista = [...e.efetivo];
-                lista[i] = { workerId: w?.id ?? '', nome: w?.nome ?? '', matricula: w?.matricula ?? '' };
+                lista[i] = { workerId: '', nome: f?.nome ?? '', matricula: f?.doc ?? '' };
                 set({ efetivo: lista });
               }}
-            >
-              <option value="">Selecione</option>
-              {p.workerId && !efetivo.some((w) => w.id === p.workerId) && <option value={p.workerId}>{p.nome}</option>}
-              {efetivo
-                .filter((w) => w.id === p.workerId || !usados.has(w.id))
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.nome}
-                  </option>
-                ))}
-            </select>
+            />
           </label>
           <label className="field mat">
-            Matrícula
-            <input className="input" value={p.matricula} readOnly />
+            Matrícula/CPF
+            <input className="input" value={mascararDoc(p.matricula)} readOnly />
           </label>
           <button className="icon-btn" aria-label={`Remover ${p.nome || 'pessoa'}`} onClick={() => set({ efetivo: e.efetivo.filter((_, j) => j !== i) })}>
             ×
           </button>
         </div>
       ))}
-      <button className="btn small" onClick={() => set({ efetivo: [...e.efetivo, { workerId: '', nome: '', matricula: '' }] })}>
-        + Adicionar pessoa
-      </button>
-      {efetivo.length === 0 && <p className="small muted">O efetivo vem do cadastro da Escala de Vulcanização.</p>}
+      <div className="row">
+        <button className="btn small" onClick={() => set({ efetivo: [...e.efetivo, { workerId: '', nome: '', matricula: '' }] })}>
+          + Adicionar pessoa
+        </button>
+        <button className="btn small" onClick={() => setGerenciar(true)}>
+          Gerenciar efetivo
+        </button>
+      </div>
+      {efetivo.length === 0 && <p className="small muted">A lista de colaboradores está vazia. Toque em “Gerenciar efetivo” para cadastrar.</p>}
+      {gerenciar && <EfetivoDialog onClose={() => setGerenciar(false)} />}
     </>
   );
 }
@@ -543,7 +573,6 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
 }
 
 function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico' | 'libSupervisor' }) {
-  const { efetivo } = useEmenda();
   const lib = e[c];
   const upd = (p: Partial<Liberacao>) => set({ [c]: { ...liberacaoVazia(), ...lib, ...p } } as Partial<Emenda>);
   return (
@@ -551,26 +580,11 @@ function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico
       <div className="g2">
         <label className="field">
           Liberado por
-          <select
-            className="input"
-            value={lib.workerId}
-            onChange={(ev) => {
-              const w = efetivo.find((x) => x.id === ev.target.value);
-              upd({ workerId: w?.id ?? '', nome: w?.nome ?? '', matricula: w?.matricula ?? '' });
-            }}
-          >
-            <option value="">Selecione</option>
-            {lib.workerId && !efetivo.some((w) => w.id === lib.workerId) && <option value={lib.workerId}>{lib.nome}</option>}
-            {efetivo.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.nome}
-              </option>
-            ))}
-          </select>
+          <SelectColaborador nome={lib.nome} onPick={(f) => upd({ workerId: '', nome: f?.nome ?? '', matricula: f?.doc ?? '' })} />
         </label>
         <label className="field">
-          Matrícula
-          <input className="input" value={lib.matricula} readOnly />
+          Matrícula/CPF
+          <input className="input" value={mascararDoc(lib.matricula)} readOnly />
         </label>
       </div>
       <label className="field">

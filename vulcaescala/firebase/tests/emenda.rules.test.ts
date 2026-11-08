@@ -61,12 +61,16 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(anon().doc('emendas/e1').get());
     await assertSucceeds(anon().doc('emendas/e1/fotos/f1').set(foto));
     await assertSucceeds(anon().doc('emendas/e1/fotos/f1').delete());
-    await assertSucceeds(anon().doc('escala_efetivo/w1').get());
+    await assertSucceeds(anon().doc('emenda_config/efetivo').set({ lista: [{ nome: 'FULANO', doc: '123' }] }));
+    await assertSucceeds(anon().doc('emenda_config/efetivo').get());
     await assertSucceeds(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'] }));
   });
 
   it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda', async () => {
     await assertFails(anon().doc('escala_dias/2026-W45_0').get());
+    await assertFails(anon().doc('escala_efetivo/w1').get()); // efetivo da escala: só a liderança
+    await assertFails(anon().doc('emenda_config/efetivo').set({ lista: [], extra: 1 }));
+    await assertFails(anon().doc('emenda_config/efetivo').set({ lista: Array.from({ length: 301 }, (_, i) => ({ nome: 'N' + i, doc: '' })) }));
     await assertFails(anon().doc('escala_efetivo/w2').set({ id: 'w2', nome: 'X', funcao: 'Vulcanizador', ativo: true }));
     await assertFails(anon().doc('escala_config/admin').get());
     await anon().doc('emendas/e1').set(emenda);

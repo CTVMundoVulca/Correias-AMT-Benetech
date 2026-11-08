@@ -78,8 +78,8 @@ service cloud.firestore {
     }
 
     match /escala_efetivo/{workerId} {
-      // leitura também pelo Registro de Emenda (nomes e matrículas do efetivo)
-      allow read: if signedIn();
+      // só a liderança (o Registro de Emenda tem lista própria: emenda_config/efetivo)
+      allow read: if isMember();
       allow delete: if isMember();
       allow create, update: if isMember()
         && request.resource.data.id == workerId
@@ -129,6 +129,16 @@ service cloud.firestore {
           && request.resource.data.legenda.size() <= 60;
         allow delete: if signedIn();
       }
+    }
+
+    // Colaboradores do Registro de Emenda (nome + matrícula/CPF), separados do efetivo da escala.
+    // Como no app do Suzano, qualquer pessoa usando o app pode manter a lista.
+    match /emenda_config/efetivo {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.resource.data.keys().hasOnly(['lista'])
+        && request.resource.data.lista is list
+        && request.resource.data.lista.size() <= 300;
     }
 
     match /emenda_config/listas {

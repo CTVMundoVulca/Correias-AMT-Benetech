@@ -28,8 +28,10 @@
   border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; color: var(--ink);
 }
 .opt.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.item-row { display: flex; gap: 6px; align-items: flex-end; }
-.item-row .mat { flex: 0 0 110px; }
+.item-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.item-row .grow { flex: 1 1 100%; min-width: 0; }   /* nome completo numa linha só */
+.item-row .mat { flex: 1 1 auto; }
+.item-row .mat .input { padding-inline: 8px; font-size: 13.5px; font-variant-numeric: tabular-nums; }
 .item-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); }
 
 .sig-box { position: relative; border: 2px dashed var(--line-strong); border-radius: 10px; background: #fff; }

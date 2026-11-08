@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '../ui/Header';
 import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { Splash } from '../cloud/AuthScreens';
-import type { Worker } from '../domain/types';
 import { Ctx, type EmendaCtx } from './context';
-import { ouvirEfetivo, ouvirListas, souAdmin } from './data';
-import { LISTAS_PADRAO, type Listas } from './model';
+import { ouvirFuncionarios, ouvirListas, souAdmin } from './data';
+import { LISTAS_PADRAO, type Funcionario, type Listas } from './model';
 import { EmendaLista } from './EmendaLista';
 import { EmendaEditor } from './EmendaEditor';
 import { Relatorio } from './Relatorio';
@@ -30,7 +29,7 @@ export function EmendaApp() {
   const [phase, setPhase] = useState<Phase>('sdk');
   const [por, setPor] = useState('anônimo');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [efetivo, setEfetivo] = useState<Worker[]>([]);
+  const [efetivo, setEfetivo] = useState<Funcionario[]>([]);
   const [listas, setListas] = useState<Listas>(LISTAS_PADRAO);
   const [rota, setRota] = useState<Rota>(lerRota);
   const [pend, setPend] = useState({ pendente: false, offline: false });
@@ -97,10 +96,10 @@ export function EmendaApp() {
     };
   }, [phase]);
 
-  // dados compartilhados: efetivo (cadastro da escala) e listas de materiais
+  // dados compartilhados: colaboradores da emenda e listas de materiais
   useEffect(() => {
     if (phase !== 'ready' || !api) return;
-    const u1 = ouvirEfetivo(api, setEfetivo, () => setEfetivo([]));
+    const u1 = ouvirFuncionarios(api, setEfetivo);
     const u2 = ouvirListas(api, setListas);
     return () => {
       u1();
@@ -108,7 +107,15 @@ export function EmendaApp() {
     };
   }, [phase, api]);
 
-  const setPendencia = useCallback((pendente: boolean, offline: boolean) => setPend({ pendente, offline }), []);
+  // "Salvando…" só aparece se a gravação demorar: gravações rápidas (o normal) não
+  // fazem o indicador piscar a cada pausa na digitação.
+  const pendTimer = useRef<ReturnType<typeof setTimeout>>();
+  const setPendencia = useCallback((pendente: boolean, offline: boolean) => {
+    clearTimeout(pendTimer.current);
+    if (pendente) pendTimer.current = setTimeout(() => setPend({ pendente: true, offline }), 1500);
+    else setPend((a) => (a.pendente || a.offline !== offline ? { pendente: false, offline } : a));
+  }, []);
+  useEffect(() => () => clearTimeout(pendTimer.current), []);
 
   const ctx = useMemo<EmendaCtx | null>(
     () => (api ? { api, por, isAdmin, efetivo, listas, setPendencia } : null),
