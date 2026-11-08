@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '../ui/Header';
 import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { Splash } from '../cloud/AuthScreens';
@@ -108,7 +108,15 @@ export function EmendaApp() {
     };
   }, [phase, api]);
 
-  const setPendencia = useCallback((pendente: boolean, offline: boolean) => setPend({ pendente, offline }), []);
+  // "Salvando…" só aparece se a gravação demorar: gravações rápidas (o normal) não
+  // fazem o indicador piscar a cada pausa na digitação.
+  const pendTimer = useRef<ReturnType<typeof setTimeout>>();
+  const setPendencia = useCallback((pendente: boolean, offline: boolean) => {
+    clearTimeout(pendTimer.current);
+    if (pendente) pendTimer.current = setTimeout(() => setPend({ pendente: true, offline }), 1500);
+    else setPend((a) => (a.pendente || a.offline !== offline ? { pendente: false, offline } : a));
+  }, []);
+  useEffect(() => () => clearTimeout(pendTimer.current), []);
 
   const ctx = useMemo<EmendaCtx | null>(
     () => (api ? { api, por, isAdmin, efetivo, listas, setPendencia } : null),

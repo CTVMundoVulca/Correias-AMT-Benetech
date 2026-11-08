@@ -35,6 +35,23 @@ export function EmendaEditor({ id }: { id: string }) {
         id,
         (e, p) => {
           setRemoto(e);
+          // A cópia local de um campo só sai quando a nuvem/cache já mostra o mesmo valor
+          // (ou quando tudo foi confirmado). Antes, ela saía no momento de gravar e, por um
+          // instante, a tela voltava ao valor antigo — o texto "sumia e voltava".
+          if (e)
+            setDraft((d) => {
+              let mudou = false;
+              const n: Record<string, unknown> = { ...d };
+              for (const k of Object.keys(d)) {
+                if (k in fila.current) continue; // ainda não enviado
+                const igual = JSON.stringify((e as unknown as Record<string, unknown>)[k]) === JSON.stringify(n[k]);
+                if (igual || !p.pendente) {
+                  delete n[k];
+                  mudou = true;
+                }
+              }
+              return mudou ? (n as Partial<Emenda>) : d;
+            });
           setPendencia(p.pendente, p.offline);
         },
         () => setRemoto(null),
@@ -49,11 +66,7 @@ export function EmendaEditor({ id }: { id: string }) {
     fila.current = {};
     // sem internet o Firestore guarda no aparelho e envia depois
     gravarCampos(api, id, enviados, por).catch(() => toast('A nuvem recusou a gravação desta emenda.', 'danger'));
-    setDraft((d) => {
-      const n: Record<string, unknown> = { ...d };
-      for (const k of Object.keys(enviados)) if (n[k] === (enviados as Record<string, unknown>)[k]) delete n[k];
-      return n as Partial<Emenda>;
-    });
+    // a cópia local (draft) continua na tela até o retorno do Firestore (ver ouvirEmenda acima)
   }, [api, id, por, toast]);
 
   // grava ao sair da tela ou mandar o app para segundo plano
