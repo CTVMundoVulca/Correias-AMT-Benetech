@@ -33,7 +33,7 @@ function Title() {
 }
 
 /** Login por e-mail e senha — mesmo fluxo do Registro de Horários. */
-export function AuthScreen({ api }: { api: FirebaseApi }) {
+export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () => void }) {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [msg, setMsg] = useState<{ kind: 'erro' | 'ok'; text: string } | null>(null);
@@ -105,6 +105,11 @@ export function AuthScreen({ api }: { api: FirebaseApi }) {
       <button className="link small" onClick={reset} disabled={busy}>
         Esqueci minha senha
       </button>
+      {onVoltar && (
+        <button className="link small" onClick={onVoltar} disabled={busy}>
+          ‹ Só visualizar a escala
+        </button>
+      )}
     </Shell>
   );
 }

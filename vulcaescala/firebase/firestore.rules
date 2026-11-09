@@ -106,6 +106,29 @@ service cloud.firestore {
         && request.resource.data.absences.size() <= 200;
     }
 
+    // ═══ CÓPIA PÚBLICA DA ESCALA — visualização por qualquer pessoa com o link ═══
+    // Mantida pelos aparelhos da liderança. Sem matrícula e sem o motivo de ausências
+    // sensíveis (atestado/exame/falta aparecem como "ausencia"). Só a liderança grava.
+    match /escala_publica/{diaId} {
+      allow read: if signedIn();
+      allow delete: if isMember();
+      allow create, update: if isMember()
+        && diaId.matches('^[0-9]{4}-W[0-9]{2}_[0-6]$')
+        && request.resource.data.keys().hasOnly(['activities', 'absences'])
+        && request.resource.data.activities is list
+        && request.resource.data.absences is list
+        && request.resource.data.activities.size() <= 100
+        && request.resource.data.absences.size() <= 200;
+    }
+
+    match /escala_publica_config/geral {
+      allow read: if signedIn();
+      allow write: if isMember()
+        && request.resource.data.keys().hasOnly(['efetivo', 'funcoes', 'ausencias', 'feriados'])
+        && request.resource.data.efetivo is list
+        && request.resource.data.efetivo.size() <= 300;
+    }
+
     // ═══ REGISTRO DE EMENDA — acesso de qualquer pessoa com o link (sessão anônima) ═══
     function emendaValida() {
       let d = request.resource.data;

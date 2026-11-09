@@ -10,8 +10,31 @@ import { loadFirebase, type FirebaseApi } from './firebase';
 import { CloudSync } from './sync';
 import { markLegacyDone, readLegacy } from './legacy';
 import { AuthScreen, Splash } from './AuthScreens';
+import { estadoPublico, ouvirPublico, Publicador } from './publico';
+import { ViewerStoreProvider } from '../state/store';
+import type { AppState } from '../domain/types';
 
-type Phase = 'sdk' | 'sdk-fail' | 'signed-out' | 'ready';
+/** Escala só para ver (cópia pública, sem motivos de ausência sensíveis). */
+function Visualizacao({ api, email, entrar, logout }: { api: FirebaseApi; email: string | null; entrar: () => void; logout: (() => void) | null }) {
+  const [st, setSt] = useState<{ state: AppState; loaded: boolean; offline: boolean }>(() => ({ state: estadoPublico(null, {}), loaded: false, offline: false }));
+  useEffect(
+    () =>
+      ouvirPublico(
+        api,
+        (cfg, dias, meta) => setSt({ state: estadoPublico(cfg, dias), loaded: meta.loaded, offline: meta.offline }),
+        () => setSt((s) => ({ ...s, loaded: true, offline: true })),
+      ),
+    [api],
+  );
+  return (
+    <ViewerStoreProvider state={st.state} loaded={st.loaded} offline={st.offline} email={email} entrar={entrar} logout={logout}>
+      <App />
+    </ViewerStoreProvider>
+  );
+}
+
+/** viewer = visualização da cópia pública (sem login, ou e-mail não liberado); login = tela de entrada */
+type Phase = 'sdk' | 'sdk-fail' | 'login' | 'viewer' | 'ready';
 const LAST_EMAIL = 'vulcaescala:ultimo-email';
 
 /** Há texto sendo digitado ou uma janela aberta? (não recarregar nessa hora) */
@@ -58,8 +81,13 @@ export function CloudApp() {
         setApi(fb);
         unsub = fb.authMod.onAuthStateChanged(fb.auth, (u) => {
           setUser(u);
-          // sessão anônima (aberta pelo Registro de Emenda) não dá acesso à escala
-          setPhase(u && !u.isAnonymous ? 'ready' : 'signed-out');
+          if (!u) {
+            // sem login: sessão anônima automática para VISUALIZAR a escala (cópia pública)
+            fb.authMod.signInAnonymously(fb.auth).catch(() => setPhase('login'));
+            return;
+          }
+          // anônimo só visualiza; quem fez login vai para a escala (se não for liberado, visualiza)
+          setPhase((p) => (u.isAnonymous ? (p === 'login' ? 'login' : 'viewer') : 'ready'));
           if (u?.email)
             try {
               getLocalStorage()?.setItem(LAST_EMAIL, u.email);
@@ -142,8 +170,24 @@ export function CloudApp() {
 
   const email = user?.email ?? lastEmail();
 
+  // cópia pública: os aparelhos da liderança a mantêm igual à escala confirmada na nuvem
+  useEffect(() => {
+    if (phase !== 'ready' || !api || !info.loaded || info.status === 'denied') return;
+    const pub = new Publicador(api, () => {
+      const i = sync.getInfo();
+      return i.loaded && (i.status === 'ok' || i.status === 'saving') ? sync.getConfirmed() : null;
+    });
+    const off = sync.subscribe(() => pub.agendar());
+    pub.agendar();
+    return () => {
+      off();
+      pub.stop();
+    };
+  }, [phase, api, info.loaded, info.status === 'denied', sync]);
+
   // ---------- telas ----------
-  if (phase === 'signed-out' && api) return <AuthScreen api={api} />;
+  if (phase === 'login' && api) return <AuthScreen api={api} onVoltar={() => setPhase(user?.isAnonymous ? 'viewer' : 'login')} />;
+  if (phase === 'viewer' && api) return <Visualizacao api={api} email={null} entrar={() => setPhase('login')} logout={null} />;
 
   const hasData = sync.hasCache();
   if ((phase === 'sdk' || phase === 'sdk-fail') && !hasData)
@@ -157,15 +201,9 @@ export function CloudApp() {
       />
     );
 
+  // logado mas e-mail não liberado: visualiza a escala (cópia pública), sem editar
   if (phase === 'ready' && info.status === 'denied' && !info.loaded && api)
-    return (
-      <Splash
-        title="Acesso não liberado"
-        text={`O e-mail ${email} ainda não está liberado para a escala do contrato AMT. Peça a um administrador para incluir o seu e-mail em “Dados → Acesso da liderança”.`}
-        action={{ label: 'Tentar de novo', onClick: () => api && user?.email && sync.attach(api, user.email) }}
-        secondary={{ label: 'Sair', onClick: () => void api.authMod.signOut(api.auth) }}
-      />
-    );
+    return <Visualizacao api={api} email={email} entrar={() => {}} logout={() => void api.authMod.signOut(api.auth)} />;
 
   return (
     <CloudStoreProvider

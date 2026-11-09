@@ -1,13 +1,21 @@
-import { useState, type FormEvent } from 'react';
-import { useStore } from '../../state/store';
-import { newId } from '../../domain/ids';
-import { WEEKDAYS, formatDate } from '../../domain/isoWeek';
-import { allocatedIds, dayHasData, feriadoDoDia, folgaAutoDoDia, folgasDeFeriado, getDay, pendingWorkers } from '../../domain/schedule';
-import { Worker, tipoAusencia } from '../../domain/types';
-import { useToast } from '../../ui/Toast';
-import { ActivityCard } from './ActivityCard';
-import { AbsencePicker } from './AbsencePicker';
-import { PendingWorkerDialog } from './PendingWorkerDialog';
+import { useState, type FormEvent } from "react";
+import { useSomenteLeitura, useStore } from "../../state/store";
+import { newId } from "../../domain/ids";
+import { WEEKDAYS, formatDate } from "../../domain/isoWeek";
+import {
+  allocatedIds,
+  dayHasData,
+  feriadoDoDia,
+  folgaAutoDoDia,
+  folgasDeFeriado,
+  getDay,
+  pendingWorkers,
+} from "../../domain/schedule";
+import { Worker, tipoAusencia } from "../../domain/types";
+import { useToast } from "../../ui/Toast";
+import { ActivityCard } from "./ActivityCard";
+import { AbsencePicker } from "./AbsencePicker";
+import { PendingWorkerDialog } from "./PendingWorkerDialog";
 
 interface Props {
   weekKey: string;
@@ -18,11 +26,19 @@ interface Props {
   onToggle: () => void;
 }
 
-export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: Props) {
+export function DayBlock({
+  weekKey,
+  dayIndex,
+  date,
+  isToday,
+  open,
+  onToggle,
+}: Props) {
   const { state, dispatch } = useStore();
+  const ro = useSomenteLeitura();
   const toast = useToast();
   const day = getDay(state, weekKey, dayIndex);
-  const [newName, setNewName] = useState('');
+  const [newName, setNewName] = useState("");
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [pendingWorker, setPendingWorker] = useState<Worker | null>(null);
 
@@ -44,13 +60,16 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
   const addActivity = (e: FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    dispatch({ type: 'activity/add', ...ref, id: newId(), nome: newName });
-    setNewName('');
-    toast('Atividade adicionada');
+    dispatch({ type: "activity/add", ...ref, id: newId(), nome: newName });
+    setNewName("");
+    toast("Atividade adicionada");
   };
 
   return (
-    <article id={`dia-${dayIndex}`} className={'card day' + (isToday ? ' today' : '') + (dim ? ' dim' : '')}>
+    <article
+      id={`dia-${dayIndex}`}
+      className={"card day" + (isToday ? " today" : "") + (dim ? " dim" : "")}
+    >
       <div
         className="day-head"
         role="button"
@@ -59,7 +78,7 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
         aria-controls={bodyId}
         onClick={onToggle}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+          if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             onToggle();
           }
@@ -70,16 +89,17 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
         </span>
         <div className="day-title">
           <div>
-            <strong>{WEEKDAYS[dayIndex]}</strong> <span className="num muted">{formatDate(date)}</span>
+            <strong>{WEEKDAYS[dayIndex]}</strong>{" "}
+            <span className="num muted">{formatDate(date)}</span>
             {isToday && (
               <>
-                {' '}
+                {" "}
                 <span className="badge today">Hoje</span>
               </>
             )}
             {feriado && (
               <>
-                {' '}
+                {" "}
                 <span className="badge feriado" title={feriado}>
                   🎌 {feriado}
                 </span>
@@ -87,9 +107,11 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
             )}
           </div>
           <div className="day-counts">
-            <span className="num">{day.activities.length}</span> ativ. · <span className="num">{allocated}</span>{' '}
-            alocado{allocated === 1 ? '' : 's'} · <span className="num">{ausentes}</span> ausente
-            {ausentes === 1 ? '' : 's'}
+            <span className="num">{day.activities.length}</span> ativ. ·{" "}
+            <span className="num">{allocated}</span> alocado
+            {allocated === 1 ? "" : "s"} ·{" "}
+            <span className="num">{ausentes}</span> ausente
+            {ausentes === 1 ? "" : "s"}
           </div>
         </div>
         {hasActivities &&
@@ -106,92 +128,150 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
         <div className="day-body" id={bodyId}>
           {folgaAuto && (
             <div className="pend-strip feriado">
-              <strong>{feriado ? `Feriado — ${feriado}.` : 'Fim de semana.'}</strong> Quem não estiver em nenhuma atividade
-              fica de <b>folga automaticamente</b>
-              {folgas.length ? ` (${folgas.length})` : ''}. Toque no nome para alocar ou registrar outra ausência.
+              <strong>
+                {feriado ? `Feriado — ${feriado}.` : "Fim de semana."}
+              </strong>{" "}
+              Quem não estiver em nenhuma atividade fica de{" "}
+              <b>folga automaticamente</b>
+              {folgas.length ? ` (${folgas.length})` : ""}.
+              {ro
+                ? ""
+                : " Toque no nome para alocar ou registrar outra ausência."}
             </div>
           )}
           {hasActivities &&
             (pending.length ? (
               <div className="pend-strip warn">
-                <strong>Sem alocação ({pending.length}):</strong> toque no nome para alocar ou registrar ausência.
+                <strong>Sem alocação ({pending.length}):</strong>
+                {ro ? "" : " toque no nome para alocar ou registrar ausência."}
                 <div className="chips">
-                  {pending.map((w) => (
-                    <button key={w.id} className="pend-name" onClick={() => setPendingWorker(w)}>
-                      {w.nome}
-                    </button>
-                  ))}
+                  {pending.map((w) =>
+                    ro ? (
+                      <span key={w.id} className="pend-name">
+                        {w.nome}
+                      </span>
+                    ) : (
+                      <button
+                        key={w.id}
+                        className="pend-name"
+                        onClick={() => setPendingWorker(w)}
+                      >
+                        {w.nome}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="pend-strip ok">✓ Todo o efetivo ativo está alocado ou com ausência registrada.</div>
+              <div className="pend-strip ok">
+                ✓ Todo o efetivo ativo está alocado ou com ausência registrada.
+              </div>
             ))}
 
-          <form className="row nowrap" onSubmit={addActivity}>
-            <input
-              className="input grow"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Nova atividade"
-              aria-label={`Nova atividade em ${dayLabel}`}
-              enterKeyHint="done"
-            />
-            <button className="btn primary" type="submit" disabled={!newName.trim()}>
-              Adicionar
-            </button>
-          </form>
+          {!ro && (
+            <form className="row nowrap" onSubmit={addActivity}>
+              <input
+                className="input grow"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Nova atividade"
+                aria-label={`Nova atividade em ${dayLabel}`}
+                enterKeyHint="done"
+              />
+              <button
+                className="btn primary"
+                type="submit"
+                disabled={!newName.trim()}
+              >
+                Adicionar
+              </button>
+            </form>
+          )}
 
           {day.activities.map((a) => (
-            <ActivityCard key={a.id} dayRef={ref} dayLabel={dayLabel} activity={a} />
+            <ActivityCard
+              key={a.id}
+              dayRef={ref}
+              dayLabel={dayLabel}
+              activity={a}
+            />
           ))}
 
           <div className="absences">
             <div className="row between">
               <h3>Ausências</h3>
-              <button className="btn small" onClick={() => setAbsenceOpen(true)}>
-                Registrar ausência
-              </button>
+              {!ro && (
+                <button
+                  className="btn small"
+                  onClick={() => setAbsenceOpen(true)}
+                >
+                  Registrar ausência
+                </button>
+              )}
             </div>
             {folgas.length > 0 && (
               <div className="chips">
                 {folgas.map((w) => (
                   <button
                     key={w.id}
-                    className={`chip chip-btn cor-${tipoAusencia(state, 'folga').cor}`}
-                    onClick={() => setFolgaWorker(w)}
-                    title="Folga automática — toque para alterar"
+                    className={`chip chip-btn cor-${tipoAusencia(state, "folga").cor}`}
+                    onClick={() => !ro && setFolgaWorker(w)}
+                    disabled={ro}
+                    title={
+                      ro
+                        ? "Folga automática"
+                        : "Folga automática — toque para alterar"
+                    }
                   >
                     <span className="chip-label">
-                      {w.nome} · {tipoAusencia(state, 'folga').nome} (automática)
+                      {w.nome} · {tipoAusencia(state, "folga").nome}{" "}
+                      (automática)
                     </span>
                   </button>
                 ))}
               </div>
             )}
             {day.absences.length === 0 ? (
-              folgas.length ? null : <p className="muted small">Nenhuma ausência registrada.</p>
+              folgas.length ? null : (
+                <p className="muted small">Nenhuma ausência registrada.</p>
+              )
             ) : (
               <div className="chips">
-                {[...new Set([...state.ausencias.map((t) => t.id), ...day.absences.map((a) => a.tipo)])].flatMap((tipo) =>
+                {[
+                  ...new Set([
+                    ...state.ausencias.map((t) => t.id),
+                    ...day.absences.map((a) => a.tipo),
+                  ]),
+                ].flatMap((tipo) =>
                   day.absences
                     .filter((a) => a.tipo === tipo)
                     .map((a) => {
                       const w = byId.get(a.workerId);
                       return (
-                        <span key={a.workerId} className={`chip cor-${tipoAusencia(state, tipo).cor}`}>
+                        <span
+                          key={a.workerId}
+                          className={`chip cor-${tipoAusencia(state, tipo).cor}`}
+                        >
                           <span className="chip-label">
-                            {w?.nome ?? '?'} · {tipoAusencia(state, tipo).nome}
+                            {w?.nome ?? "?"} · {tipoAusencia(state, tipo).nome}
                           </span>
-                          <button
-                            className="chip-x"
-                            aria-label={`Remover ausência de ${w?.nome ?? ''}`}
-                            onClick={() => {
-                              dispatch({ type: 'absence/set', ...ref, workerId: a.workerId, tipo: null });
-                              toast('Ausência removida');
-                            }}
-                          >
-                            ×
-                          </button>
+                          {!ro && (
+                            <button
+                              className="chip-x"
+                              aria-label={`Remover ausência de ${w?.nome ?? ""}`}
+                              onClick={() => {
+                                dispatch({
+                                  type: "absence/set",
+                                  ...ref,
+                                  workerId: a.workerId,
+                                  tipo: null,
+                                });
+                                toast("Ausência removida");
+                              }}
+                            >
+                              ×
+                            </button>
+                          )}
                         </span>
                       );
                     }),
@@ -202,17 +282,28 @@ export function DayBlock({ weekKey, dayIndex, date, isToday, open, onToggle }: P
         </div>
       )}
 
-      {absenceOpen && <AbsencePicker dayRef={ref} dayLabel={dayLabel} onClose={() => setAbsenceOpen(false)} />}
+      {absenceOpen && (
+        <AbsencePicker
+          dayRef={ref}
+          dayLabel={dayLabel}
+          onClose={() => setAbsenceOpen(false)}
+        />
+      )}
       {folgaWorker && (
         <PendingWorkerDialog
           dayRef={ref}
-          dayLabel={`${dayLabel} · folga automática (${feriado ? 'feriado' : 'fim de semana'})`}
+          dayLabel={`${dayLabel} · folga automática (${feriado ? "feriado" : "fim de semana"})`}
           worker={folgaWorker}
           onClose={() => setFolgaWorker(null)}
         />
       )}
       {pendingWorker && (
-        <PendingWorkerDialog dayRef={ref} dayLabel={dayLabel} worker={pendingWorker} onClose={() => setPendingWorker(null)} />
+        <PendingWorkerDialog
+          dayRef={ref}
+          dayLabel={dayLabel}
+          worker={pendingWorker}
+          onClose={() => setPendingWorker(null)}
+        />
       )}
     </article>
   );
