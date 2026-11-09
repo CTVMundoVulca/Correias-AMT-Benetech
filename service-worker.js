@@ -5,7 +5,7 @@
    (abre offline); demais arquivos = cache-first.
    CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs),
    a partir do conteúdo de todos os arquivos do APP_SHELL. */
-const CACHE_VERSION = 'amt-b252c030699d';
+const CACHE_VERSION = 'amt-55fcbe23c6ac';
 
 const APP_SHELL = [
   './',
@@ -26,6 +26,9 @@ const APP_SHELL = [
   './emenda/index.html',
   './emenda/logo-benetech.png',
   './emenda/logo-ctv.webp',
+  // geração de PDF no aparelho (mesmas bibliotecas dos Apps CTV Campo)
+  './vendor/html2canvas.min.js',
+  './vendor/jspdf.umd.min.js',
 ];
 
 /* SDK do Firebase (mesma versão dos apps CTV): guardado para abrir offline */

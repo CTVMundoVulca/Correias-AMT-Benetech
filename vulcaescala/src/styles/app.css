@@ -422,3 +422,24 @@ input.input[type='date'],
 input.input[type='time'] { -webkit-appearance: none; appearance: none; min-width: 0; width: 100%; max-width: 100%; display: block; }
 input.input[type='date']::-webkit-date-and-time-value,
 input.input[type='time']::-webkit-date-and-time-value { text-align: left; margin: 0; }
+
+/* ===== PDF gerado no aparelho (ui/pdf.ts): mesmo visual da impressão ===== */
+.modo-pdf { font-family: inherit; }
+.modo-pdf .no-print, .modo-pdf .app-header, .modo-pdf .toast-region { display: none !important; }
+.modo-pdf .print-only { display: block !important; }
+.modo-pdf .print-head { display: flex !important; align-items: center; gap: 14px; border-bottom: 3px solid #43a6ea; padding-bottom: 8px; margin-bottom: 10px; }
+.modo-pdf .print-head img { height: 32px; }
+.modo-pdf .print-head h1 { font-size: 1.15rem; color: #001a33; }
+.modo-pdf .print-kicker { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #1f7fc4; }
+.modo-pdf .card { box-shadow: none; border: 1px solid #d5dae1; margin-bottom: 8px; }
+.modo-pdf .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+.modo-pdf .kpi { padding: 6px 10px; }
+.modo-pdf .kpi b { font-size: 1.2rem; }
+.modo-pdf .table-wrap { overflow: visible; }
+.modo-pdf .summary-card { padding: 8px; }
+.modo-pdf .grid-table { font-size: 11px; }
+.modo-pdf .grid-table th, .modo-pdf .grid-table td { padding: 2px 4px; }
+.modo-pdf .grid-table .name-col { max-width: none; white-space: nowrap; }
+.modo-pdf .act-table li { padding: 3px 0; font-size: 12px; }
+.modo-pdf #ctv-copyright { padding: 10px 0 0; text-align: center; }
+.modo-pdf #ctv-copyright .ctv-logo { width: 110px; }
