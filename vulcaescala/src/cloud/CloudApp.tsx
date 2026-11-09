@@ -11,11 +11,23 @@ import { CloudSync } from './sync';
 import { markLegacyDone, readLegacy } from './legacy';
 import { AuthScreen, Splash } from './AuthScreens';
 import { estadoPublico, ouvirPublico, Publicador } from './publico';
-import { ViewerStoreProvider } from '../state/store';
+import { ViewerStoreProvider, type Notice } from '../state/store';
 import type { AppState } from '../domain/types';
 
 /** Escala só para ver (cópia pública, sem motivos de ausência sensíveis). */
-function Visualizacao({ api, email, entrar, logout }: { api: FirebaseApi; email: string | null; entrar: () => void; logout: (() => void) | null }) {
+function Visualizacao({
+  api,
+  email,
+  entrar,
+  logout,
+  aviso,
+}: {
+  api: FirebaseApi;
+  email: string | null;
+  entrar: () => void;
+  logout: (() => void) | null;
+  aviso?: Notice;
+}) {
   const [st, setSt] = useState<{ state: AppState; loaded: boolean; offline: boolean }>(() => ({ state: estadoPublico(null, {}), loaded: false, offline: false }));
   useEffect(
     () =>
@@ -27,14 +39,14 @@ function Visualizacao({ api, email, entrar, logout }: { api: FirebaseApi; email:
     [api],
   );
   return (
-    <ViewerStoreProvider state={st.state} loaded={st.loaded} offline={st.offline} email={email} entrar={entrar} logout={logout}>
+    <ViewerStoreProvider state={st.state} loaded={st.loaded} offline={st.offline} email={email} entrar={entrar} logout={logout} aviso={aviso}>
       <App />
     </ViewerStoreProvider>
   );
 }
 
 /** viewer = visualização da cópia pública (sem login, ou e-mail não liberado); login = tela de entrada */
-type Phase = 'sdk' | 'sdk-fail' | 'login' | 'viewer' | 'ready';
+type Phase = 'sdk' | 'sdk-fail' | 'login' | 'viewer' | 'verificar' | 'ready';
 const LAST_EMAIL = 'vulcaescala:ultimo-email';
 
 /** Há texto sendo digitado ou uma janela aberta? (não recarregar nessa hora) */
@@ -87,7 +99,8 @@ export function CloudApp() {
             return;
           }
           // anônimo só visualiza; quem fez login vai para a escala (se não for liberado, visualiza)
-          setPhase((p) => (u.isAnonymous ? (p === 'login' ? 'login' : 'viewer') : 'ready'));
+          // e-mail ainda não confirmado: visualiza até clicar no link (as regras exigem)
+          setPhase((p) => (u.isAnonymous ? (p === 'login' ? 'login' : 'viewer') : u.emailVerified ? 'ready' : 'verificar'));
           if (u?.email)
             try {
               getLocalStorage()?.setItem(LAST_EMAIL, u.email);
@@ -185,9 +198,75 @@ export function CloudApp() {
     };
   }, [phase, api, info.loaded, info.status === 'denied', sync]);
 
+  // ---------- confirmação de e-mail ----------
+  const [verifMsg, setVerifMsg] = useState('');
+  const enviarConfirmacao = useCallback(
+    async (manual: boolean) => {
+      const u = api?.auth.currentUser;
+      if (!api || !u || u.emailVerified) return;
+      const chave = `vulcaescala:confirmacao:${u.email}`;
+      try {
+        // automático no máximo a cada 10 min (o Firebase limita envios repetidos)
+        const ultimo = Number(getLocalStorage()?.getItem(chave) ?? 0);
+        if (!manual && Date.now() - ultimo < 600_000) return;
+        // conta recém-criada: o próprio cadastro já mandou o link
+        const criada = Date.parse(u.metadata.creationTime ?? '');
+        if (!manual && Date.now() - criada < 120_000) return;
+        await api.authMod.sendEmailVerification(u);
+        getLocalStorage()?.setItem(chave, String(Date.now()));
+        setVerifMsg(`Enviamos o link para ${u.email}. Confira também a caixa de spam.`);
+      } catch {
+        setVerifMsg('Não foi possível enviar agora (muitos envios seguidos ou sem internet). Tente de novo em alguns minutos.');
+      }
+    },
+    [api],
+  );
+  const jaConfirmei = useCallback(
+    async (silencioso = false) => {
+      const u = api?.auth.currentUser;
+      if (!api || !u) return;
+      try {
+        await u.reload();
+        if (api.auth.currentUser?.emailVerified) {
+          await api.auth.currentUser.getIdToken(true); // token novo já com email_verified
+          setUser(api.auth.currentUser);
+          setPhase('ready');
+        } else if (!silencioso) setVerifMsg('Ainda não consta a confirmação. Abra o link do e-mail e toque de novo em “Já confirmei”.');
+      } catch {
+        if (!silencioso) setVerifMsg('Sem conexão. Tente de novo quando a internet voltar.');
+      }
+    },
+    [api],
+  );
+  useEffect(() => {
+    if (phase !== 'verificar') return;
+    void enviarConfirmacao(false);
+    // voltou do app de e-mail: confere sozinho
+    const vis = () => document.visibilityState === 'visible' && void jaConfirmei(true);
+    document.addEventListener('visibilitychange', vis);
+    return () => document.removeEventListener('visibilitychange', vis);
+  }, [phase, enviarConfirmacao, jaConfirmei]);
+
   // ---------- telas ----------
   if (phase === 'login' && api) return <AuthScreen api={api} onVoltar={() => setPhase(user?.isAnonymous ? 'viewer' : 'login')} />;
   if (phase === 'viewer' && api) return <Visualizacao api={api} email={null} entrar={() => setPhase('login')} logout={null} />;
+  if (phase === 'verificar' && api)
+    return (
+      <Visualizacao
+        api={api}
+        email={email}
+        entrar={() => {}}
+        logout={() => void api.authMod.signOut(api.auth)}
+        aviso={{
+          kind: 'warn',
+          text: `Confirme o seu e-mail para editar a escala: abra o link que enviamos para ${email}. ${verifMsg}`,
+          actions: [
+            { label: 'Já confirmei', onClick: () => void jaConfirmei() },
+            { label: 'Reenviar e-mail', onClick: () => void enviarConfirmacao(true) },
+          ],
+        }}
+      />
+    );
 
   const hasData = sync.hasCache();
   if ((phase === 'sdk' || phase === 'sdk-fail') && !hasData)
