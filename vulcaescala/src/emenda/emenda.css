@@ -89,3 +89,7 @@
   #ctv-copyright .ctv-logo { width: 110px; }
 }
 .rel-toolbar .btn:not(.primary) { background: #fff; color: #111; border-color: #c6ccd4; }
+/* item da lista + botão de excluir ao lado */
+.emenda-li { display: flex; gap: 6px; align-items: stretch; }
+.emenda-li .emenda-item { flex: 1; min-width: 0; }
+.icon-btn.danger { border: 1px solid var(--line); border-radius: 10px; width: 48px; height: auto; font-size: 1.15rem; background: var(--surface); }

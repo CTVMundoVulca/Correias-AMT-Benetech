@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '../ui/Toast';
-import { useConfirm } from '../ui/ConfirmDialog';
-import { irPara, useEmenda } from './context';
-import { excluirEmenda, gravarCampos, ouvirEmenda } from './data';
+import { irPara, podeExcluir, useEmenda } from './context';
+import { useExcluirEmenda } from './EmendaLista';
+import { gravarCampos, ouvirEmenda } from './data';
 import {
   fmtData,
   liberacaoVazia,
+  novaEmenda,
   recalcular,
   type Emenda,
   mascararDoc,
@@ -21,12 +22,20 @@ import { EfetivoDialog } from './EfetivoDialog';
 
 type SetFn = (campos: Partial<Emenda>) => void;
 
-/** Edição de um relatório. Cada alteração é gravada sozinha (só o campo alterado). */
-export function EmendaEditor({ id }: { id: string }) {
-  const { api, por, isAdmin, setPendencia } = useEmenda();
+/**
+ * Edição de um relatório. Cada alteração é gravada sozinha (só o campo alterado).
+ * Relatório novo (`novo` = data inicial): fica só na tela até a primeira alteração —
+ * abrir e sair sem preencher nada não cria relatório vazio na nuvem.
+ */
+export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
+  const ctx = useEmenda();
+  const { api, por, uid, setPendencia } = ctx;
   const toast = useToast();
-  const confirm = useConfirm();
+  const excluirEmenda = useExcluirEmenda();
   const [remoto, setRemoto] = useState<Emenda | null | undefined>(undefined);
+  // relatório novo ainda não gravado: modelo local (com a data escolhida)
+  const [modelo] = useState(() => (novo ? novaEmenda(id, novo, por) : null));
+  const criado = useRef(!novo);
   const [draft, setDraft] = useState<Partial<Emenda>>({});
   const fila = useRef<Partial<Emenda>>({});
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -62,15 +71,36 @@ export function EmendaEditor({ id }: { id: string }) {
     [api, id, setPendencia],
   );
 
+  /** Primeira gravação de um relatório novo: grava o relatório inteiro, com quem criou. */
+  const garantirCriado = useCallback(
+    (campos: Partial<Emenda> = {}) => {
+      if (criado.current || !modelo) return false;
+      criado.current = true;
+      const agora = new Date().toISOString();
+      void gravarCampos(api, id, { ...modelo, criadoEm: agora, ...campos, criadoUid: uid }, por).catch(() =>
+        toast('A nuvem recusou a gravação desta emenda.', 'danger'),
+      );
+      // a partir daqui o endereço é o de um relatório que existe (recarregar abre ele)
+      try {
+        history.replaceState(null, '', `#/e/${id}`);
+      } catch {
+        /* ignore */
+      }
+      return true;
+    },
+    [api, id, modelo, por, toast, uid],
+  );
+
   const flush = useCallback(() => {
     clearTimeout(timer.current);
     const enviados = fila.current;
     if (!Object.keys(enviados).length) return;
     fila.current = {};
+    if (garantirCriado(enviados)) return;
     // sem internet o Firestore guarda no aparelho e envia depois
     gravarCampos(api, id, enviados, por).catch(() => toast('A nuvem recusou a gravação desta emenda.', 'danger'));
     // a cópia local (draft) continua na tela até o retorno do Firestore (ver ouvirEmenda acima)
-  }, [api, id, por, toast]);
+  }, [api, id, por, toast, garantirCriado]);
 
   // grava ao sair da tela ou mandar o app para segundo plano
   useEffect(() => {
@@ -82,8 +112,9 @@ export function EmendaEditor({ id }: { id: string }) {
     };
   }, [flush]);
 
-  if (remoto === undefined) return <p className="muted">Carregando…</p>;
-  if (remoto === null)
+  if (remoto === undefined && !modelo) return <p className="muted">Carregando…</p>;
+  const atual = remoto ?? (criado.current && !modelo ? null : modelo);
+  if (!atual)
     return (
       <div className="card pad stack">
         <p>Relatório não encontrado (pode ter sido excluído).</p>
@@ -93,7 +124,8 @@ export function EmendaEditor({ id }: { id: string }) {
       </div>
     );
 
-  const e: Emenda = { ...remoto, ...draft };
+  const e: Emenda = { ...atual, ...draft };
+  const vazio = !criado.current;
   const set: SetFn = (campos) => {
     const base = { ...e, ...campos };
     const patch = { ...campos, ...recalcular(base, Object.keys(campos) as (keyof Emenda)[]) };
@@ -104,25 +136,13 @@ export function EmendaEditor({ id }: { id: string }) {
   };
 
   const excluir = async () => {
-    const ok = await confirm({
-      title: 'Excluir este relatório?',
-      message: (
-        <p>
-          Emenda nº {e.numero || '?'} — TAG {e.tag || '?'} e todas as fotos serão apagadas para todos. Não há como desfazer.
-        </p>
-      ),
-      confirmLabel: 'Excluir',
-      danger: true,
-      requireText: 'EXCLUIR',
-    });
-    if (!ok) return;
-    try {
-      await excluirEmenda(api, id);
-      toast('Relatório excluído');
-      irPara('#');
-    } catch {
-      toast('Não foi possível excluir (somente administradores, com internet).', 'danger');
-    }
+    if (await excluirEmenda(e)) irPara('#');
+  };
+  // PDF de um relatório que ainda não tem nada não faz sentido (e ele nem existe na nuvem)
+  const abrirPdf = () => {
+    if (vazio) return toast('Preencha o relatório antes de gerar o PDF.', 'warn');
+    flush();
+    irPara(`#/r/${id}`);
   };
 
   return (
@@ -134,7 +154,7 @@ export function EmendaEditor({ id }: { id: string }) {
         <strong className="grow ellipsis" style={{ textAlign: 'center' }}>
           Emenda nº {e.numero || '?'} — {e.tag || 'sem TAG'}
         </strong>
-        <button className="btn small primary" onClick={() => (flush(), irPara(`#/r/${id}`))}>
+        <button className="btn small primary" onClick={abrirPdf}>
           PDF
         </button>
       </div>
@@ -275,17 +295,18 @@ export function EmendaEditor({ id }: { id: string }) {
       </Sec>
 
       <Sec n="📷" t="Etapas do processo (registro fotográfico)">
-        <FotosSection emendaId={id} />
+        <FotosSection emendaId={id} antesDeGravar={() => void garantirCriado()} />
       </Sec>
 
       <div className="card pad stack">
-        <button className="btn primary" onClick={() => (flush(), irPara(`#/r/${id}`))}>
+        <button className="btn primary" onClick={abrirPdf}>
           📄 Gerar relatório (PDF)
         </button>
         <button className="btn" onClick={() => (flush(), irPara('#'))}>
           Voltar à lista
         </button>
-        {isAdmin && (
+        {vazio && <p className="small muted">Relatório novo: ele só é salvo quando você preencher alguma informação.</p>}
+        {!vazio && podeExcluir(ctx, e) && (
           <button className="btn ghost-danger" onClick={excluir}>
             Excluir relatório
           </button>
@@ -312,7 +333,7 @@ function Sec({ n, t, children }: { n: string; t: string; children: ReactNode }) 
   );
 }
 
-type StrKeys = { [K in keyof Emenda]: Emenda[K] extends string ? K : never }[keyof Emenda];
+type StrKeys = { [K in keyof Emenda]-?: Emenda[K] extends string ? K : never }[keyof Emenda];
 
 function Txt({
   e,

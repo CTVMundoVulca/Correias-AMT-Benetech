@@ -8,7 +8,8 @@ import { comprimirFoto, excluirFoto, gravarFoto, legendaFoto, ouvirFotos } from 
 import { FOTO_LEGENDAS, legendaSugerida, type Foto } from './model';
 
 /** Registro fotográfico: cada foto é comprimida no aparelho e gravada à parte. */
-export function FotosSection({ emendaId }: { emendaId: string }) {
+/** `antesDeGravar`: relatório novo ainda não gravado é criado antes da primeira foto. */
+export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; antesDeGravar?: () => void }) {
   const { api } = useEmenda();
   const toast = useToast();
   const confirm = useConfirm();
@@ -22,6 +23,7 @@ export function FotosSection({ emendaId }: { emendaId: string }) {
   const adicionar = async (files: FileList | null) => {
     if (!files?.length) return;
     setOcupado(true);
+    antesDeGravar?.();
     try {
       let ordem = fotos.reduce((m, f) => Math.max(m, f.ordem), -1) + 1;
       for (const file of Array.from(files)) {

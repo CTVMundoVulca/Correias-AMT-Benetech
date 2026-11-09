@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { newId } from '../domain/ids';
 import { useToast } from '../ui/Toast';
-import { irPara, useEmenda } from './context';
-import { buscarTag, criarEmenda, ouvirMes } from './data';
-import { fmtData, hojeIso, mesAtual, nomeMes, novaEmenda, ordenar, somaMes, type Emenda } from './model';
+import { useConfirm } from '../ui/ConfirmDialog';
+import { irPara, podeExcluir, useEmenda } from './context';
+import { buscarTag, excluirEmenda, ouvirMes } from './data';
+import { emendaVazia, fmtData, hojeIso, mesAtual, nomeMes, ordenar, somaMes, type Emenda } from './model';
+import { ouvirFotos } from './data';
 import { ListasDialog } from './ListasDialog';
 import { EfetivoDialog } from './EfetivoDialog';
 
@@ -21,7 +23,7 @@ function mesInicial(): string {
 
 /** Relatórios organizados por mês: só o mês escolhido é carregado da nuvem. */
 export function EmendaLista() {
-  const { api, por, setPendencia } = useEmenda();
+  const { api, setPendencia, lideranca } = useEmenda();
   const toast = useToast();
   const [ym, setYm] = useState(mesInicial);
   const [lista, setLista] = useState<Emenda[] | null>(null);
@@ -59,9 +61,8 @@ export function EmendaLista() {
 
   const nova = async () => {
     const hoje = hojeIso();
-    const e = novaEmenda(newId(), ym === mesAtual() ? hoje : `${ym}-01`, por);
-    void criarEmenda(api, e).catch(() => toast('Falha ao criar na nuvem; ficou salvo neste aparelho.', 'warn'));
-    irPara(`#/e/${e.id}`);
+    // não grava nada agora: o relatório só é criado quando algo for preenchido
+    irPara(`#/n/${newId()}/${ym === mesAtual() ? hoje : `${ym}-01`}`);
   };
 
   const buscarTodos = async () => {
@@ -149,6 +150,7 @@ export function EmendaLista() {
         <p className="small muted tabnum">
           {lista === null ? 'Carregando…' : `${filtrada.length} de ${lista.length} emenda(s) em ${nomeMes(ym)}`}
         </p>
+        {lideranca && lista && <LimparVazios lista={lista} />}
         <ul className="plain-list emenda-list">
           {filtrada.map((e) => (
             <EmendaItem key={e.id} e={e} />
@@ -162,10 +164,83 @@ export function EmendaLista() {
   );
 }
 
+/** Liderança: exclui de uma vez os relatórios vazios do mês (abertos e nunca preenchidos). */
+function LimparVazios({ lista }: { lista: Emenda[] }) {
+  const { api } = useEmenda();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const vazias = lista.filter(emendaVazia);
+  if (!vazias.length) return null;
+  const limpar = async () => {
+    const ok = await confirm({
+      title: `Excluir ${vazias.length} relatório(s) vazio(s)?`,
+      message: <p>São relatórios abertos sem nenhuma informação preenchida. Os que têm fotos são mantidos.</p>,
+      confirmLabel: 'Excluir vazios',
+      danger: true,
+    });
+    if (!ok) return;
+    let n = 0;
+    for (const e of vazias) {
+      // confere as fotos antes: relatório com foto não é "vazio"
+      const temFoto = await new Promise<boolean>((res) => {
+        const u = ouvirFotos(api, e.id, (f) => (u(), res(f.length > 0)), () => res(true));
+      });
+      if (temFoto) continue;
+      try {
+        await excluirEmenda(api, e.id);
+        n++;
+      } catch {
+        /* sem internet ou sem permissão: segue */
+      }
+    }
+    toast(n ? `${n} relatório(s) vazio(s) excluído(s)` : 'Nenhum relatório excluído', n ? 'ok' : 'warn');
+  };
+  return (
+    <div className="banner warn row between">
+      <span className="small">{vazias.length} relatório(s) vazio(s) neste mês</span>
+      <button className="btn small" onClick={limpar}>
+        Excluir vazios
+      </button>
+    </div>
+  );
+}
+
+/** Confirma e exclui (relatório + fotos). Usado na lista e no editor. */
+export function useExcluirEmenda() {
+  const { api } = useEmenda();
+  const toast = useToast();
+  const confirm = useConfirm();
+  return async (e: Emenda): Promise<boolean> => {
+    const ok = await confirm({
+      title: 'Excluir este relatório?',
+      message: (
+        <p>
+          Emenda nº {e.numero || '?'} — TAG {e.tag || '?'} ({fmtData(e.data)}) e todas as fotos serão apagadas para todos. Não há como
+          desfazer.
+        </p>
+      ),
+      confirmLabel: 'Excluir',
+      danger: true,
+      requireText: 'EXCLUIR',
+    });
+    if (!ok) return false;
+    try {
+      await excluirEmenda(api, e.id);
+      toast('Relatório excluído');
+      return true;
+    } catch {
+      toast('Não foi possível excluir. É preciso internet, e só quem criou o relatório ou a liderança pode excluir.', 'danger');
+      return false;
+    }
+  };
+}
+
 function EmendaItem({ e }: { e: Emenda }) {
+  const ctx = useEmenda();
+  const excluir = useExcluirEmenda();
   const assinaturas = [e.libTecnico.assinatura, e.libSupervisor.assinatura].filter(Boolean).length;
   return (
-    <li>
+    <li className="emenda-li">
       <button className="emenda-item" onClick={() => irPara(`#/e/${e.id}`)}>
         <span className="grow">
           <strong>
@@ -180,6 +255,11 @@ function EmendaItem({ e }: { e: Emenda }) {
           ✍ {assinaturas}/2
         </span>
       </button>
+      {podeExcluir(ctx, e) && (
+        <button className="icon-btn danger" onClick={() => void excluir(e)} aria-label={`Excluir emenda nº ${e.numero || '?'} — TAG ${e.tag || '?'}`} title="Excluir">
+          🗑
+        </button>
+      )}
     </li>
   );
 }

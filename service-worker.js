@@ -5,7 +5,7 @@
    (abre offline); demais arquivos = cache-first.
    CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs),
    a partir do conteúdo de todos os arquivos do APP_SHELL. */
-const CACHE_VERSION = 'amt-54f0e3a220f8';
+const CACHE_VERSION = 'amt-359ada95e4c5';
 
 const APP_SHELL = [
   './',
