@@ -112,3 +112,22 @@
   box-shadow: inset 3px 0 0 var(--accent);
 }
 .emenda-form select.input.cheio { font-weight: 650; }
+
+/* ===== PDF gerado no aparelho (ui/pdf.ts): mesmo visual da impressão ===== */
+.modo-pdf .rel { padding: 0; border-radius: 0; box-shadow: none; max-width: none; }
+.modo-pdf .rel-kv { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.modo-pdf .rel-libs { grid-template-columns: 1fr 1fr; }
+.modo-pdf .rel-foto-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.modo-pdf .rel-fotos { break-before: page; }
+
+/* Campos de foto guiados (formato do app do Suzano) */
+.foto-slot {
+  aspect-ratio: 4 / 3; border: 2px dashed var(--line-strong); border-radius: 8px; background: var(--surface-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--ink-2); cursor: pointer; padding: 4px;
+}
+.foto-slot:hover { border-color: var(--accent); }
+.foto-add { font-size: 28px; line-height: 1; }
+.foto-desc { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+.foto-legenda { display: flex; align-items: center; gap: 4px; }
+.foto-num { font-weight: 700; font-size: 13px; }
+.foto.com-foto .foto-legenda .input { font-weight: 600; }

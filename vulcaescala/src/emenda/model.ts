@@ -172,11 +172,15 @@ export const LISTAS_PADRAO: Listas = {
   fabricantes: ['VIPAFIX', 'BENETECH'],
 };
 
-export const FOTO_LEGENDAS = ['Material de emenda', 'Termômetro a laser', 'Termo higrômetro', 'Emenda'];
+/**
+ * Campos de foto guiados (mesma sequência do app do Suzano): cada campo mostra embaixo
+ * qual foto vai nele. "+ Adicionar mais fotos" cria campos extras ("Emenda").
+ */
+export const FOTO_CAMPOS = ['Material de emenda', 'Material de emenda', 'Termômetro a laser', 'Termo higrômetro', 'Emenda'];
 
-/** Sugestão de legenda pela posição (mesma sequência do app do Suzano). */
+/** Descrição padrão do campo de foto na posição `ordem` (0 = primeiro). */
 export function legendaSugerida(ordem: number): string {
-  return ['Material de emenda', 'Material de emenda', 'Termômetro a laser', 'Termo higrômetro'][ordem] ?? 'Emenda';
+  return FOTO_CAMPOS[ordem] ?? 'Emenda';
 }
 
 export const liberacaoVazia = (): Liberacao => ({ workerId: '', nome: '', matricula: '', data: '', assinatura: '' });

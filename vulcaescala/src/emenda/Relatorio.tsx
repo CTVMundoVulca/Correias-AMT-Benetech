@@ -1,16 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, useEmenda } from './context';
 import { ouvirEmenda, ouvirFotos } from './data';
 import { fmtData, type Emenda, type Foto, type Liberacao } from './model';
 
 /**
- * Relatório da emenda para imprimir / salvar em PDF (no celular: Compartilhar →
- * Imprimir → Salvar como PDF; no computador: Imprimir → Salvar como PDF).
+ * Relatório da emenda em PDF, gerado no próprio aparelho (funciona também no iPhone pela
+ * tela inicial, onde imprimir não funciona). Depois: salvar, compartilhar ou imprimir.
  */
 export function Relatorio({ id }: { id: string }) {
   const { api } = useEmenda();
   const [e, setE] = useState<Emenda | null | undefined>(undefined);
   const [fotos, setFotos] = useState<Foto[]>([]);
+  const ref = useRef<HTMLElement>(null);
 
   useEffect(() => ouvirEmenda(api, id, (x) => setE(x), () => setE(null)), [api, id]);
   useEffect(() => ouvirFotos(api, id, setFotos, () => setFotos([])), [api, id]);
@@ -26,14 +28,12 @@ export function Relatorio({ id }: { id: string }) {
 
   const aco = e.tipoCorreia === 'Cabo Aço';
   return (
-    <article className="rel">
+    <article className="rel" ref={ref}>
       <div className="rel-toolbar no-print">
         <button className="btn" onClick={() => irPara(`#/e/${id}`)}>
           ‹ Voltar
         </button>
-        <button className="btn primary" onClick={() => window.print()}>
-          🖨 Imprimir / Salvar PDF
-        </button>
+        <PdfBotao alvo={() => ref.current} titulo={`Emenda ${e.numero || 'sem numero'} - TAG ${e.tag || 'sem TAG'} - ${fmtData(e.data)}`} />
       </div>
 
       <header className="rel-head">

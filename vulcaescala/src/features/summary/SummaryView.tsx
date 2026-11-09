@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useStore } from '../../state/store';
 import { WEEKDAYS_SHORT, formatDate, parseWeekKey, weekDates } from '../../domain/isoWeek';
 import { activityRows, weekKpis, workerGrid } from '../../domain/summary';
 import { tipoAusencia } from '../../domain/types';
 import { WeekNav } from '../week/WeekNav';
+import { PdfBotao } from '../../ui/PdfBotao';
 
 interface Props {
   weekKey: string;
@@ -12,6 +13,8 @@ interface Props {
 
 export function SummaryView({ weekKey, onWeekChange }: Props) {
   const { state } = useStore();
+  const ref = useRef<HTMLElement>(null);
+  const { week, year } = parseWeekKey(weekKey);
   const dates = weekDates(weekKey);
   const kpis = useMemo(() => weekKpis(state, weekKey), [state, weekKey]);
   const grid = useMemo(() => workerGrid(state, weekKey), [state, weekKey]);
@@ -24,7 +27,7 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
   }, [state, grid]);
 
   return (
-    <section>
+    <section ref={ref}>
       <div className="print-only print-head">
         <img src="logo-benetech.png" alt="Benetech" />
         <div>
@@ -43,10 +46,8 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
       </div>
 
       <div className="card pad row between no-print">
-        <span className="small muted">Resumo da semana para imprimir ou enviar em PDF.</span>
-        <button className="btn primary" onClick={() => imprimir(weekKey)}>
-          🖨 Imprimir / Salvar PDF
-        </button>
+        <span className="small muted">Resumo da semana em PDF (salvar, imprimir ou enviar).</span>
+        <PdfBotao alvo={() => ref.current} titulo={`Escala AMT - Semana ${String(week).padStart(2, '0')}-${year}`} paisagem />
       </div>
 
       <div className="kpis">
@@ -144,19 +145,6 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
       </div>
     </section>
   );
-}
-
-/** Abre a impressão do navegador ("Salvar como PDF"); o nome do arquivo sai com a semana. */
-function imprimir(weekKey: string) {
-  const { week, year } = parseWeekKey(weekKey);
-  const antes = document.title;
-  document.title = `Escala AMT - Semana ${String(week).padStart(2, '0')}-${year}`;
-  const restaurar = () => {
-    document.title = antes;
-    window.removeEventListener('afterprint', restaurar);
-  };
-  window.addEventListener('afterprint', restaurar);
-  window.print();
 }
 
 function Kpi({ value, label }: { value: number; label: string }) {
