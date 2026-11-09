@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useStore } from '../../state/store';
+import { useSomenteLeitura, useStore } from '../../state/store';
 import { WEEKDAYS_SHORT, locateDay, toUtcDay, weekDates } from '../../domain/isoWeek';
 import { dayHasData, getDay, weekPending } from '../../domain/schedule';
 import { DayBlock } from './DayBlock';
@@ -44,6 +44,7 @@ interface Props {
 
 export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
   const { state } = useStore();
+  const ro = useSomenteLeitura();
   const [prefs, setPrefs] = useState<Prefs>(lerPrefs);
   const setRecolhido = (i: number, recolhido: boolean) =>
     setPrefs((p) => {
@@ -83,9 +84,11 @@ export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
       {activeCount === 0 && (
         <div className="banner info">
           Nenhum colaborador ativo.{' '}
-          <button className="link" onClick={onGoToWorkers}>
-            Cadastrar efetivo
-          </button>
+          {!ro && (
+            <button className="link" onClick={onGoToWorkers}>
+              Cadastrar efetivo
+            </button>
+          )}
         </div>
       )}
 

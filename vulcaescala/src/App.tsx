@@ -18,7 +18,9 @@ const TABS = [
 type Tab = (typeof TABS)[number]['id'];
 
 export function App() {
-  const { ready, notices, saveError } = useStore();
+  const { ready, notices, saveError, visualizacao } = useStore();
+  // visualização: só Escala, Resumo e Consultas (Efetivo e Dados são da liderança)
+  const abas = visualizacao ? TABS.filter((t) => t.id === 'escala' || t.id === 'resumo' || t.id === 'consultas') : TABS;
   const [tab, setTab] = useState<Tab>('escala');
   // semana compartilhada entre Escala e Resumo
   const [weekKey, setWeekKey] = useState(currentWeekKey);
@@ -32,7 +34,7 @@ export function App() {
     <>
       <Header>
         <nav className="tabs" aria-label="Seções">
-          {TABS.map((t) => (
+          {abas.map((t) => (
             <button
               key={t.id}
               className={'tab' + (tab === t.id ? ' on' : '')}
@@ -69,9 +71,9 @@ export function App() {
           <>
             {tab === 'escala' && <WeekView weekKey={weekKey} onWeekChange={setWeekKey} onGoToWorkers={() => go('efetivo')} />}
             {tab === 'resumo' && <SummaryView weekKey={weekKey} onWeekChange={setWeekKey} />}
-            {tab === 'efetivo' && <WorkersView />}
+            {tab === 'efetivo' && !visualizacao && <WorkersView />}
             {tab === 'consultas' && <ReportsView />}
-            {tab === 'dados' && <DataView />}
+            {tab === 'dados' && !visualizacao && <DataView />}
           </>
         )}
       </main>

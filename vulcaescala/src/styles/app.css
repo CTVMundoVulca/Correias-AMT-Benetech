@@ -411,3 +411,7 @@ a.hdr-btn { text-decoration: none; }
   #ctv-copyright { padding: 6px 0 0; }
   #ctv-copyright .ctv-logo { width: 100px; }
 }
+
+/* botão "Entrar" da visualização (texto, não ícone) */
+.hdr-btn.entrar { width: auto; padding: 0 12px; font-size: 13px; font-weight: 700; background: #43a6ea; color: #001a33; }
+@media (max-width: 400px) { .hdr-btn.entrar { padding: 0 9px; font-size: 12.5px; } }

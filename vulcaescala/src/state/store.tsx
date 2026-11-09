@@ -44,6 +44,11 @@ export interface Store {
   replaceAll: (s: AppState) => Promise<void>;
   /** `null` = modo local (só neste aparelho) */
   cloud: CloudInfo | null;
+  /**
+   * Visualização (sem login ou e-mail não liberado): só vê a cópia pública da escala,
+   * sem editar. `entrar` abre a tela de login da liderança.
+   */
+  visualizacao?: { entrar: () => void; email: string | null; logout: (() => void) | null; status: { cls: string; short: string; long: string } };
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -159,6 +164,48 @@ export function CloudStoreProvider({ sync, email, isAdmin, logout, extraNotices 
     },
   };
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
+}
+
+// ---------------------------------------------------------------- visualização (só leitura)
+
+interface ViewerProps {
+  state: AppState;
+  loaded: boolean;
+  offline: boolean;
+  email: string | null;
+  entrar: () => void;
+  logout: (() => void) | null;
+  children: ReactNode;
+}
+
+/** Store só de leitura: a escala vem da cópia pública e nenhuma ação altera dados. */
+export function ViewerStoreProvider({ state, loaded, offline, email, entrar, logout, children }: ViewerProps) {
+  const notices: Notice[] = [];
+  if (email)
+    notices.push({
+      kind: 'warn',
+      text: `Modo visualização: o e-mail ${email} ainda não está liberado para editar. Peça a um administrador para incluir em “Dados → Acesso da liderança”.`,
+    });
+  const status = offline
+    ? { cls: 'offline', short: 'Offline', long: 'Sem internet: mostrando a última cópia da escala salva neste aparelho.' }
+    : { cls: 'ok', short: 'Visualização', long: 'Modo visualização: você vê a escala, mas só a liderança edita. Toque em “Entrar” para fazer login.' };
+  const store: Store = {
+    state,
+    dispatch: () => {},
+    ready: loaded,
+    notices,
+    saveError: null,
+    persistent: true,
+    replaceAll: () => Promise.reject(new Error('Somente leitura')),
+    cloud: null,
+    visualizacao: { entrar, email, logout, status },
+  };
+  return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
+}
+
+/** true quando a tela é só de visualização (nenhum botão de edição deve aparecer). */
+export function useSomenteLeitura(): boolean {
+  return !!useContext(Ctx)?.visualizacao;
 }
 
 /** Igual a useStore, mas devolve null fora do StoreProvider (app de emenda). */

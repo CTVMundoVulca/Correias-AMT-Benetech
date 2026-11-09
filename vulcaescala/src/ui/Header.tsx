@@ -54,7 +54,9 @@ interface HeaderProps {
 }
 
 export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcanização', status }: HeaderProps) {
-  const cloud = useStoreOptional()?.cloud ?? null;
+  const store = useStoreOptional();
+  const cloud = store?.cloud ?? null;
+  const vis = store?.visualizacao ?? null;
   const toast = useToast();
   const [dark, setDark] = useState(false);
   useEffect(() => setDark(effectiveDark()), []);
@@ -70,7 +72,7 @@ export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcaniza�
     setDark(next);
   };
 
-  const sync = status ?? syncLabel(cloud?.info ?? null);
+  const sync = status ?? vis?.status ?? syncLabel(cloud?.info ?? null);
 
   return (
     <header className="app-header">
@@ -99,6 +101,16 @@ export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcaniza�
                 ⏻
               </button>
             )}
+            {vis &&
+              (vis.logout ? (
+                <button className="hdr-btn" onClick={vis.logout} title="Sair" aria-label="Sair da conta">
+                  ⏻
+                </button>
+              ) : (
+                <button className="hdr-btn entrar" onClick={vis.entrar} title="Entrar (liderança)" aria-label="Entrar (liderança)">
+                  Entrar
+                </button>
+              ))}
           </div>
         </div>
         {children}

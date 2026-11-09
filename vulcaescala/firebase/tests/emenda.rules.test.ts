@@ -109,6 +109,25 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertFails(anon().doc('emendas/e1/fotos/f2').set({ ...foto, outro: 1 }));
   });
 
+  it('escala pública: qualquer sessão do app lê; só a liderança grava; escala real continua fechada', async () => {
+    const dia = { activities: [{ id: 'a1', nome: 'TR-01', workerIds: ['w1'] }], absences: [{ workerId: 'w2', tipo: 'ausencia' }] };
+    const cfg = { efetivo: [{ id: 'w1', nome: 'ADILSON', funcao: 'Vulcanizador', ativo: true }], funcoes: ['Vulcanizador'], ausencias: [], feriados: {} };
+    const lider = 'lider3@empresa.com';
+    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('escala_config/membros').set({ emails: [lider] }));
+    await assertSucceeds(as(lider).doc('escala_publica/2026-W45_0').set(dia));
+    await assertSucceeds(as(lider).doc('escala_publica_config/geral').set(cfg));
+    await assertSucceeds(anon().doc('escala_publica/2026-W45_0').get());
+    await assertSucceeds(anon().doc('escala_publica_config/geral').get());
+    await assertFails(semLogin().doc('escala_publica/2026-W45_0').get());
+    await assertFails(anon().doc('escala_publica/2026-W45_1').set(dia));
+    await assertFails(anon().doc('escala_publica_config/geral').set(cfg));
+    await assertFails(as('naoliberado@empresa.com').doc('escala_publica/2026-W45_1').set(dia));
+    await assertFails(as(lider).doc('escala_publica/2026-W45_1').set({ ...dia, extra: 1 }));
+    await assertFails(as(lider).doc('escala_publica/qualquer').set(dia));
+    await assertFails(anon().doc('escala_dias/2026-W45_0').get());
+    await assertSucceeds(as(lider).doc('escala_publica/2026-W45_0').delete());
+  });
+
   it('matrícula no cadastro do efetivo: opcional, até 30 caracteres', async () => {
     const lider = 'lider@empresa.com';
     await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('escala_config/membros').set({ emails: [lider] }));

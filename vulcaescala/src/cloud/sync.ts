@@ -52,7 +52,7 @@ export interface SyncInfo {
   rulesOutdated: boolean;
 }
 
-interface DocMaps {
+export interface DocMaps {
   workers: Record<string, Worker>;
   days: Record<string, Day>;
   /** null = documento ainda não existe na nuvem (usa a lista padrão) */
@@ -183,6 +183,8 @@ export class CloudSync {
   // ---------- leitura para a interface ----------
   getState = (): AppState => this.view;
   getInfo = (): SyncInfo => this.info;
+  /** Somente o que a nuvem já confirmou (sem alterações pendentes) — base da cópia pública. */
+  getConfirmed = (): DocMaps => this.confirmed;
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
