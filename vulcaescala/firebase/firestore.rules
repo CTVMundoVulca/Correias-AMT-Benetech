@@ -116,8 +116,14 @@ service cloud.firestore {
 
     match /emendas/{emendaId} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && emendaValida();
-      allow delete: if isAdmin();
+      // criadoUid = sessão (aparelho) que criou; só pode ser a própria e nunca muda depois
+      allow create: if signedIn() && emendaValida()
+        && request.resource.data.get('criadoUid', request.auth.uid) == request.auth.uid;
+      allow update: if signedIn() && emendaValida()
+        && request.resource.data.get('criadoUid', '') == resource.data.get('criadoUid', '');
+      // excluir: quem criou o relatório (mesmo aparelho) ou a liderança (membros e administradores)
+      allow delete: if isMember()
+        || (signedIn() && resource.data.get('criadoUid', '') != '' && resource.data.criadoUid == request.auth.uid);
 
       match /fotos/{fotoId} {
         allow read: if signedIn();

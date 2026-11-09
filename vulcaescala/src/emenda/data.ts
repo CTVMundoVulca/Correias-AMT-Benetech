@@ -161,6 +161,16 @@ export function gravarFuncionarios(api: FirebaseApi, lista: Funcionario[]): Prom
   return fsMod.setDoc(fsMod.doc(fs, DOC_FUNCIONARIOS), { lista });
 }
 
+/** Liderança (membro ou administrador)? A regra só deixa a liderança ler a lista de membros. */
+export async function souLideranca(api: FirebaseApi): Promise<boolean> {
+  try {
+    await api.fsMod.getDoc(api.fsMod.doc(api.fs, 'escala_config/membros'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Administrador? (a regra do Firestore decide; o mesmo teste da escala) */
 export async function souAdmin(api: FirebaseApi): Promise<boolean> {
   try {

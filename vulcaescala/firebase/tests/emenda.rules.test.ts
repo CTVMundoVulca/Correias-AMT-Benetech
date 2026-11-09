@@ -66,7 +66,7 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'] }));
   });
 
-  it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda', async () => {
+  it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda de outros', async () => {
     await assertFails(anon().doc('escala_dias/2026-W45_0').get());
     await assertFails(anon().doc('escala_efetivo/w1').get()); // efetivo da escala: só a liderança
     await assertFails(anon().doc('emenda_config/efetivo').set({ lista: [], extra: 1 }));
@@ -80,6 +80,26 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
   it('administrador exclui emenda', async () => {
     await anon().doc('emendas/e1').set(emenda);
     await assertSucceeds(as(ADMIN).doc('emendas/e1').delete());
+  });
+
+  it('exclusão: quem criou (mesmo aparelho) ou a liderança; outro aparelho não', async () => {
+    const outro = env.authenticatedContext('outro-uid', { firebase: { sign_in_provider: 'anonymous' } } as never).firestore();
+    // cria marcando a própria sessão; não pode se passar por outra
+    await assertFails(anon().doc('emendas/c0').set({ ...emenda, criadoUid: 'outro-uid' }));
+    await assertSucceeds(anon().doc('emendas/c1').set({ ...emenda, criadoUid: 'anon-uid' }));
+    // ninguém troca o criador depois
+    await assertFails(outro.doc('emendas/c1').set({ criadoUid: 'outro-uid' }, { merge: true }));
+    await assertSucceeds(outro.doc('emendas/c1').set({ tag: 'TR-09' }, { merge: true })); // editar continua liberado
+    await assertFails(outro.doc('emendas/c1').delete());
+    await assertSucceeds(anon().doc('emendas/c1').delete());
+    // relatório sem criador (antigos): só a liderança
+    await anon().doc('emendas/c2').set(emenda);
+    await assertFails(anon().doc('emendas/c2').delete());
+    const lider = 'lider2@empresa.com';
+    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('escala_config/membros').set({ emails: [lider] }));
+    await anon().doc('emendas/c3').set({ ...emenda, criadoUid: 'anon-uid' });
+    await assertSucceeds(as(lider).doc('emendas/c2').delete());
+    await assertSucceeds(as(lider).doc('emendas/c3').delete());
   });
 
   it('validação: data AAAA-MM-DD (usada para organizar por mês), foto até ~1 MB', async () => {

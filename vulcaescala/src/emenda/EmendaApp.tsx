@@ -3,16 +3,19 @@ import { Header } from '../ui/Header';
 import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { Splash } from '../cloud/AuthScreens';
 import { Ctx, type EmendaCtx } from './context';
-import { ouvirFuncionarios, ouvirListas, souAdmin } from './data';
+import { ouvirFuncionarios, ouvirListas, souAdmin, souLideranca } from './data';
 import { LISTAS_PADRAO, type Funcionario, type Listas } from './model';
 import { EmendaLista } from './EmendaLista';
 import { EmendaEditor } from './EmendaEditor';
 import { Relatorio } from './Relatorio';
 
 type Phase = 'sdk' | 'fail' | 'auth-off' | 'ready';
-type Rota = { tela: 'lista' } | { tela: 'editor'; id: string } | { tela: 'relatorio'; id: string };
+type Rota = { tela: 'lista' } | { tela: 'editor'; id: string; novo?: string } | { tela: 'relatorio'; id: string };
 
 function lerRota(): Rota {
+  // relatório novo (#/n/id/AAAA-MM-DD): só passa a existir na nuvem quando algo é preenchido
+  const n = /^#\/n\/([\w-]+)\/(\d{4}-\d{2}-\d{2})$/.exec(window.location.hash);
+  if (n) return { tela: 'editor', id: n[1], novo: n[2] };
   const m = /^#\/(e|r)\/([\w-]+)$/.exec(window.location.hash);
   if (!m) return { tela: 'lista' };
   return m[1] === 'e' ? { tela: 'editor', id: m[2] } : { tela: 'relatorio', id: m[2] };
@@ -29,6 +32,8 @@ export function EmendaApp() {
   const [phase, setPhase] = useState<Phase>('sdk');
   const [por, setPor] = useState('anônimo');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [lideranca, setLideranca] = useState(false);
+  const [uid, setUid] = useState('');
   const [efetivo, setEfetivo] = useState<Funcionario[]>([]);
   const [listas, setListas] = useState<Listas>(LISTAS_PADRAO);
   const [rota, setRota] = useState<Rota>(lerRota);
@@ -71,7 +76,9 @@ export function EmendaApp() {
           }
           setPor(u.email ?? 'anônimo');
           setPhase('ready');
+          setUid(u.uid);
           void souAdmin(fb).then(setIsAdmin);
+          void souLideranca(fb).then(setLideranca);
         });
       })
       .catch(() => !cancel && setPhase('fail'));
@@ -118,8 +125,8 @@ export function EmendaApp() {
   useEffect(() => () => clearTimeout(pendTimer.current), []);
 
   const ctx = useMemo<EmendaCtx | null>(
-    () => (api ? { api, por, isAdmin, efetivo, listas, setPendencia } : null),
-    [api, por, isAdmin, efetivo, listas, setPendencia],
+    () => (api ? { api, por, isAdmin, lideranca, uid, efetivo, listas, setPendencia } : null),
+    [api, por, isAdmin, lideranca, uid, efetivo, listas, setPendencia],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };
@@ -154,7 +161,7 @@ export function EmendaApp() {
       {rota.tela !== 'relatorio' && <Header kicker="Registro · AMT" title="Emenda" status={status} />}
       <main className={rota.tela === 'relatorio' ? 'relatorio-wrap' : 'container'}>
         {rota.tela === 'lista' && <EmendaLista />}
-        {rota.tela === 'editor' && <EmendaEditor id={rota.id} />}
+        {rota.tela === 'editor' && <EmendaEditor key={rota.id} id={rota.id} novo={rota.novo} />}
         {rota.tela === 'relatorio' && <Relatorio id={rota.id} />}
       </main>
     </Ctx.Provider>

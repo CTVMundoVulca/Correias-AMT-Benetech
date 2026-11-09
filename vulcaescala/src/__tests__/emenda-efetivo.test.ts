@@ -19,3 +19,16 @@ describe('normNome', () => {
     expect(normNome('  joão   da  silva ')).toBe('JOÃO DA SILVA');
   });
 });
+
+import { emendaVazia, novaEmenda } from '../emenda/model';
+
+describe('emendaVazia', () => {
+  it('relatório só aberto (com data e controle) é vazio; qualquer dado preenchido não é', () => {
+    const e = novaEmenda('x', '2026-11-09', 'anônimo');
+    expect(emendaVazia(e)).toBe(true);
+    expect(emendaVazia({ ...e, criadoUid: 'u1', atualizadoPor: 'a@b.c', data: '2026-11-01' })).toBe(true);
+    expect(emendaVazia({ ...e, tag: 'TR-01' })).toBe(false);
+    expect(emendaVazia({ ...e, libTecnico: { ...e.libTecnico, nome: 'ALCEMAR' } })).toBe(false);
+    expect(emendaVazia({ ...e, tipoEmenda: 'Quente' })).toBe(false);
+  });
+});

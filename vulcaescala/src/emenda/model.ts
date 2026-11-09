@@ -64,6 +64,8 @@ export interface Liberacao {
 export interface Emenda {
   id: string;
   criadoEm: string;
+  /** sessão (aparelho) que criou o relatório: pode excluí-lo, além da liderança */
+  criadoUid?: string;
   atualizadoEm: string;
   atualizadoPor: string;
   // 1 identificação
@@ -251,6 +253,14 @@ export function novaEmenda(id: string, hoje: string, por: string): Emenda {
     libSupervisor: liberacaoVazia(),
   };
   return { ...e, ...recalcular(e, ['tipoCorreia']) };
+}
+
+/** Relatório sem nenhuma informação preenchida (só data e dados de controle)? */
+export function emendaVazia(e: Emenda): boolean {
+  const META = new Set(['id', 'criadoEm', 'criadoUid', 'atualizadoEm', 'atualizadoPor', 'data']);
+  const base = novaEmenda(e.id, e.data, '') as unknown as Record<string, unknown>;
+  const r = e as unknown as Record<string, unknown>;
+  return Object.keys(base).every((k) => META.has(k) || JSON.stringify(r[k] ?? base[k]) === JSON.stringify(base[k]));
 }
 
 /** Preenche um registro antigo/incompleto com os valores padrão (nunca perde campos). */

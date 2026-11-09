@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { newId } from '../domain/ids';
 import { useToast } from '../ui/Toast';
-import { irPara, useEmenda } from './context';
-import { buscarTag, criarEmenda, ouvirMes } from './data';
-import { fmtData, hojeIso, mesAtual, nomeMes, novaEmenda, ordenar, somaMes, type Emenda } from './model';
+import { useConfirm } from '../ui/ConfirmDialog';
+import { irPara, podeExcluir, useEmenda } from './context';
+import { buscarTag, excluirEmenda, ouvirMes } from './data';
+import { emendaVazia, fmtData, hojeIso, mesAtual, nomeMes, ordenar, somaMes, type Emenda } from './model';
+import { ouvirFotos } from './data';
 import { ListasDialog } from './ListasDialog';
 import { EfetivoDialog } from './EfetivoDialog';
 
@@ -21,8 +23,14 @@ function mesInicial(): string {
 
 /** Relatórios organizados por mês: só o mês escolhido é carregado da nuvem. */
 export function EmendaLista() {
-  const { api, por, setPendencia } = useEmenda();
+  const ctx = useEmenda();
+  const { api, setPendencia, lideranca } = ctx;
   const toast = useToast();
+  const confirm = useConfirm();
+  // seleção de vários relatórios para excluir de uma vez
+  const [selecionando, setSelecionando] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [excluindo, setExcluindo] = useState(false);
   const [ym, setYm] = useState(mesInicial);
   const [lista, setLista] = useState<Emenda[] | null>(null);
   const [busca, setBusca] = useState('');
@@ -57,11 +65,66 @@ export function EmendaLista() {
     [lista, q],
   );
 
+  const excluiveis = filtrada.filter((e) => podeExcluir(ctx, e));
+  const sairSelecao = () => {
+    setSelecionando(false);
+    setSel(new Set());
+  };
+  // ao trocar de mês ou buscar, a seleção recomeça
+  useEffect(() => setSel(new Set()), [ym, q]);
+  const alternar = (id: string) =>
+    setSel((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const todosMarcados = excluiveis.length > 0 && excluiveis.every((e) => sel.has(e.id));
+  const marcarTodos = () => setSel(todosMarcados ? new Set() : new Set(excluiveis.map((e) => e.id)));
+
+  const excluirSelecionados = async () => {
+    const alvo = (lista ?? []).filter((e) => sel.has(e.id) && podeExcluir(ctx, e));
+    if (!alvo.length) return;
+    const ok = await confirm({
+      title: `Excluir ${alvo.length} relatório(s)?`,
+      message: (
+        <>
+          <p>Os relatórios abaixo e todas as fotos deles serão apagados para todos. Não há como desfazer.</p>
+          <ul className="small">
+            {alvo.slice(0, 8).map((e) => (
+              <li key={e.id}>
+                Emenda nº {e.numero || '?'} — TAG {e.tag || '?'} ({fmtData(e.data)})
+              </li>
+            ))}
+            {alvo.length > 8 && <li>… e mais {alvo.length - 8}</li>}
+          </ul>
+        </>
+      ),
+      confirmLabel: `Excluir ${alvo.length}`,
+      danger: true,
+      requireText: 'EXCLUIR',
+    });
+    if (!ok) return;
+    setExcluindo(true);
+    let n = 0;
+    for (const e of alvo) {
+      try {
+        await excluirEmenda(api, e.id);
+        n++;
+      } catch {
+        /* sem internet ou sem permissão: segue com os outros */
+      }
+    }
+    setExcluindo(false);
+    sairSelecao();
+    if (n === alvo.length) toast(`${n} relatório(s) excluído(s)`);
+    else toast(`${n} de ${alvo.length} excluído(s). Os outros precisam de internet ou de permissão.`, 'warn');
+  };
+
   const nova = async () => {
     const hoje = hojeIso();
-    const e = novaEmenda(newId(), ym === mesAtual() ? hoje : `${ym}-01`, por);
-    void criarEmenda(api, e).catch(() => toast('Falha ao criar na nuvem; ficou salvo neste aparelho.', 'warn'));
-    irPara(`#/e/${e.id}`);
+    // não grava nada agora: o relatório só é criado quando algo for preenchido
+    irPara(`#/n/${newId()}/${ym === mesAtual() ? hoje : `${ym}-01`}`);
   };
 
   const buscarTodos = async () => {
@@ -146,12 +209,42 @@ export function EmendaLista() {
             <hr />
           </div>
         )}
-        <p className="small muted tabnum">
-          {lista === null ? 'Carregando…' : `${filtrada.length} de ${lista.length} emenda(s) em ${nomeMes(ym)}`}
-        </p>
+        <div className="row between">
+          <p className="small muted tabnum">
+            {lista === null ? 'Carregando…' : `${filtrada.length} de ${lista.length} emenda(s) em ${nomeMes(ym)}`}
+          </p>
+          {excluiveis.length > 0 && !selecionando && (
+            <button className="btn small" onClick={() => setSelecionando(true)}>
+              Selecionar
+            </button>
+          )}
+        </div>
+        {selecionando && (
+          <div className="sel-bar" role="toolbar" aria-label="Relatórios selecionados">
+            <div className="sel-top">
+              <label className="row nowrap small">
+                <input type="checkbox" checked={todosMarcados} onChange={marcarTodos} /> Todos ({excluiveis.length})
+              </label>
+              <span className="small tabnum sel-count">{sel.size} selecionado(s)</span>
+            </div>
+            <div className="sel-acoes">
+              <button className="btn small" onClick={sairSelecao}>
+                Cancelar
+              </button>
+              <button className="btn small danger" disabled={!sel.size || excluindo} onClick={excluirSelecionados}>
+                {excluindo ? 'Excluindo…' : `Excluir (${sel.size})`}
+              </button>
+            </div>
+          </div>
+        )}
+        {lideranca && lista && <LimparVazios lista={lista} />}
         <ul className="plain-list emenda-list">
           {filtrada.map((e) => (
-            <EmendaItem key={e.id} e={e} />
+            <EmendaItem
+              key={e.id}
+              e={e}
+              selecao={selecionando ? { marcado: sel.has(e.id), alternar: () => alternar(e.id) } : undefined}
+            />
           ))}
         </ul>
         {lista && lista.length === 0 && <p className="muted small">Nenhuma emenda neste mês.</p>}
@@ -162,10 +255,102 @@ export function EmendaLista() {
   );
 }
 
-function EmendaItem({ e }: { e: Emenda }) {
-  const assinaturas = [e.libTecnico.assinatura, e.libSupervisor.assinatura].filter(Boolean).length;
+/** Liderança: exclui de uma vez os relatórios vazios do mês (abertos e nunca preenchidos). */
+function LimparVazios({ lista }: { lista: Emenda[] }) {
+  const { api } = useEmenda();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const vazias = lista.filter(emendaVazia);
+  if (!vazias.length) return null;
+  const limpar = async () => {
+    const ok = await confirm({
+      title: `Excluir ${vazias.length} relatório(s) vazio(s)?`,
+      message: <p>São relatórios abertos sem nenhuma informação preenchida. Os que têm fotos são mantidos.</p>,
+      confirmLabel: 'Excluir vazios',
+      danger: true,
+    });
+    if (!ok) return;
+    let n = 0;
+    for (const e of vazias) {
+      // confere as fotos antes: relatório com foto não é "vazio"
+      const temFoto = await new Promise<boolean>((res) => {
+        const u = ouvirFotos(api, e.id, (f) => (u(), res(f.length > 0)), () => res(true));
+      });
+      if (temFoto) continue;
+      try {
+        await excluirEmenda(api, e.id);
+        n++;
+      } catch {
+        /* sem internet ou sem permissão: segue */
+      }
+    }
+    toast(n ? `${n} relatório(s) vazio(s) excluído(s)` : 'Nenhum relatório excluído', n ? 'ok' : 'warn');
+  };
   return (
-    <li>
+    <div className="banner warn row between">
+      <span className="small">{vazias.length} relatório(s) vazio(s) neste mês</span>
+      <button className="btn small" onClick={limpar}>
+        Excluir vazios
+      </button>
+    </div>
+  );
+}
+
+/** Confirma e exclui (relatório + fotos). Usado na lista e no editor. */
+export function useExcluirEmenda() {
+  const { api } = useEmenda();
+  const toast = useToast();
+  const confirm = useConfirm();
+  return async (e: Emenda): Promise<boolean> => {
+    const ok = await confirm({
+      title: 'Excluir este relatório?',
+      message: (
+        <p>
+          Emenda nº {e.numero || '?'} — TAG {e.tag || '?'} ({fmtData(e.data)}) e todas as fotos serão apagadas para todos. Não há como
+          desfazer.
+        </p>
+      ),
+      confirmLabel: 'Excluir',
+      danger: true,
+      requireText: 'EXCLUIR',
+    });
+    if (!ok) return false;
+    try {
+      await excluirEmenda(api, e.id);
+      toast('Relatório excluído');
+      return true;
+    } catch {
+      toast('Não foi possível excluir. É preciso internet, e só quem criou o relatório ou a liderança pode excluir.', 'danger');
+      return false;
+    }
+  };
+}
+
+function EmendaItem({ e, selecao }: { e: Emenda; selecao?: { marcado: boolean; alternar: () => void } }) {
+  const ctx = useEmenda();
+  const excluir = useExcluirEmenda();
+  const assinaturas = [e.libTecnico.assinatura, e.libSupervisor.assinatura].filter(Boolean).length;
+  const pode = podeExcluir(ctx, e);
+  // modo seleção: tocar no relatório marca/desmarca (só os que este aparelho pode excluir)
+  if (selecao)
+    return (
+      <li className="emenda-li">
+        <label className={'emenda-item sel' + (selecao.marcado ? ' on' : '') + (pode ? '' : ' off')}>
+          <input type="checkbox" checked={selecao.marcado} disabled={!pode} onChange={selecao.alternar} aria-label={`Selecionar emenda nº ${e.numero || '?'} — TAG ${e.tag || '?'}`} />
+          <span className="grow">
+            <strong>
+              Emenda nº {e.numero || '?'} — TAG {e.tag || '?'}
+            </strong>
+            <span className="small muted">
+              {fmtData(e.data)}
+              {pode ? '' : ' · sem permissão para excluir'}
+            </span>
+          </span>
+        </label>
+      </li>
+    );
+  return (
+    <li className="emenda-li">
       <button className="emenda-item" onClick={() => irPara(`#/e/${e.id}`)}>
         <span className="grow">
           <strong>
@@ -180,6 +365,11 @@ function EmendaItem({ e }: { e: Emenda }) {
           ✍ {assinaturas}/2
         </span>
       </button>
+      {pode && (
+        <button className="icon-btn danger" onClick={() => void excluir(e)} aria-label={`Excluir emenda nº ${e.numero || '?'} — TAG ${e.tag || '?'}`} title="Excluir">
+          🗑
+        </button>
+      )}
     </li>
   );
 }
