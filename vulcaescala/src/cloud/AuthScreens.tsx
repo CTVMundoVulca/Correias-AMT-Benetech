@@ -1,3 +1,4 @@
+import { getLocalStorage } from '../storage/LocalStorageRepository';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import type { FirebaseApi } from './firebase';
 import { authErrorMsg } from './authErrors';
@@ -60,7 +61,21 @@ export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () 
   };
   const register = () => {
     if (!email.trim() || pass.length < 6) return setMsg({ kind: 'erro', text: 'Informe e-mail e uma senha com pelo menos 6 caracteres.' });
-    void run(() => authMod.createUserWithEmailAndPassword(auth, email.trim(), pass));
+    void run(async () => {
+      const cred = await authMod.createUserWithEmailAndPassword(auth, email.trim(), pass);
+      // a liderança só edita depois de confirmar o e-mail (link enviado agora)
+      await authMod
+        .sendEmailVerification(cred.user)
+        .then(() => {
+          // registra o envio: a tela de aviso não manda outro em seguida
+          try {
+            getLocalStorage()?.setItem(`vulcaescala:confirmacao:${cred.user.email}`, String(Date.now()));
+          } catch {
+            /* ignore */
+          }
+        })
+        .catch(() => {});
+    });
   };
   const reset = () => {
     if (!email.trim()) return setMsg({ kind: 'erro', text: 'Digite seu e-mail no campo acima para receber o link.' });

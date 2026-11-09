@@ -49,8 +49,16 @@ async function device(email: string, fsPort = Number(FS_PORT)): Promise<Firebase
   } catch {
     cred = await authMod.signInWithEmailAndPassword(auth, email, 'senha123');
   }
-  // sem confirmação de e-mail: a conta criada já entra
-  expect(cred.user.emailVerified).toBe(false);
+  // as regras exigem e-mail confirmado: no emulador, marca como confirmado (como se a pessoa
+  // tivesse clicado no link) e renova o token para levar o email_verified
+  await fetch(`http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
+    body: JSON.stringify({ localId: cred.user.uid, emailVerified: true }),
+  });
+  await cred.user.reload();
+  await cred.user.getIdToken(true);
+  expect(auth.currentUser?.emailVerified).toBe(true);
   return { auth, fs, authMod, fsMod };
 }
 

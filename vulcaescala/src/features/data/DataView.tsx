@@ -199,9 +199,9 @@ function MembersCard() {
     <div className="card pad stack">
       <h2>Acesso da liderança</h2>
       <p className="small muted">
-        Só os e-mails abaixo (e os administradores) veem e lançam a escala. Depois de liberar, a pessoa toca em “Criar
-        conta” na tela de entrada com o mesmo e-mail — faça isso logo, para ninguém criar a conta antes dela.
-        Administradores são definidos nas regras do Firestore (console do Firebase).
+        Só os e-mails abaixo (e os administradores) veem a escala completa e lançam. Depois de liberar, a pessoa toca em
+        “Entrar” → “Criar conta” com o mesmo e-mail e confirma pelo link que chega no e-mail (uma vez só). Sem confirmar,
+        ela só visualiza. Administradores são definidos nas regras do Firestore (console do Firebase).
       </p>
       <form className="row nowrap" onSubmit={add}>
         <input

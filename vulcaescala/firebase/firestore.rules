@@ -11,8 +11,12 @@ service cloud.firestore {
     // Qualquer sessão do app, inclusive a anônima automática do Registro de Emenda
     function signedIn() { return request.auth != null; }
 
+    // E-mail CONFIRMADO (a pessoa clicou no link enviado ao e-mail). Sem isso, qualquer um
+    // poderia criar conta com o e-mail de um administrador ou membro que ainda não se cadastrou.
+    // Só vale para editar/ver a escala completa — visualizar e o Registro de Emenda não exigem.
     function emailOk() {
-      return request.auth != null && request.auth.token.email != null;
+      return request.auth != null && request.auth.token.email != null
+        && request.auth.token.email_verified == true;
     }
     function email() { return request.auth.token.email.lower(); }
 

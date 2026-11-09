@@ -77,9 +77,14 @@ describe('acesso', () => {
     await assertFails(setDoc(doc(db, 'escala_dias/2026-W45_0'), day));
   });
 
-  it('não exige confirmação de e-mail: liberado entra direto', async () => {
-    await assertSucceeds(getDoc(doc(as(LIDER, false), 'escala_efetivo/w1')));
-    await assertSucceeds(getDoc(doc(as(ADMIN, false), 'escala_config/admin')));
+  it('exige e-mail confirmado: conta criada com o e-mail de admin/membro sem confirmar não tem acesso', async () => {
+    await assertFails(getDoc(doc(as(LIDER, false), 'escala_efetivo/w1')));
+    await assertFails(getDoc(doc(as(ADMIN, false), 'escala_config/admin')));
+    await assertFails(setDoc(doc(as(ADMIN, false), 'escala_dias/2026-W45_0'), day));
+    await assertFails(getDoc(doc(as(ADMIN, false), 'escala_dias/2026-W45_0')));
+    // confirmado: entra
+    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_efetivo/w1')));
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_config/admin')));
   });
 
   it('detecção de administrador: só admin lê escala_config/admin; ninguém grava', async () => {

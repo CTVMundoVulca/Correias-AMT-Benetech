@@ -175,13 +175,16 @@ interface ViewerProps {
   email: string | null;
   entrar: () => void;
   logout: (() => void) | null;
+  /** aviso no lugar do padrão "e-mail não liberado" (ex.: confirmar o e-mail) */
+  aviso?: Notice;
   children: ReactNode;
 }
 
 /** Store só de leitura: a escala vem da cópia pública e nenhuma ação altera dados. */
-export function ViewerStoreProvider({ state, loaded, offline, email, entrar, logout, children }: ViewerProps) {
+export function ViewerStoreProvider({ state, loaded, offline, email, entrar, logout, aviso, children }: ViewerProps) {
   const notices: Notice[] = [];
-  if (email)
+  if (aviso) notices.push(aviso);
+  else if (email)
     notices.push({
       kind: 'warn',
       text: `Modo visualização: o e-mail ${email} ainda não está liberado para editar. Peça a um administrador para incluir em “Dados → Acesso da liderança”.`,
