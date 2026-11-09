@@ -77,14 +77,9 @@ describe('acesso', () => {
     await assertFails(setDoc(doc(db, 'escala_dias/2026-W45_0'), day));
   });
 
-  it('exige e-mail confirmado: conta criada com o e-mail de admin/membro sem confirmar não tem acesso', async () => {
-    await assertFails(getDoc(doc(as(LIDER, false), 'escala_efetivo/w1')));
-    await assertFails(getDoc(doc(as(ADMIN, false), 'escala_config/admin')));
-    await assertFails(setDoc(doc(as(ADMIN, false), 'escala_dias/2026-W45_0'), day));
-    await assertFails(getDoc(doc(as(ADMIN, false), 'escala_dias/2026-W45_0')));
-    // confirmado: entra
-    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_efetivo/w1')));
-    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_config/admin')));
+  it('sem confirmação de e-mail: administrador entra direto (cadastro manual)', async () => {
+    await assertSucceeds(getDoc(doc(as(ADMIN, false), 'escala_config/admin')));
+    await assertSucceeds(getDoc(doc(as(ADMIN, false), 'escala_dias/2026-W45_0')));
   });
 
   it('detecção de administrador: só admin lê escala_config/admin; ninguém grava', async () => {
@@ -96,28 +91,24 @@ describe('acesso', () => {
     await assertFails(setDoc(doc(as(ADMIN), 'escala_config/admin'), { x: 1 }));
   });
 
-  it('membro lê e grava escala e efetivo', async () => {
-    const db = as(LIDER);
+  it('administrador lê e grava escala e efetivo', async () => {
+    const db = as(ADMIN);
     await assertSucceeds(getDoc(doc(db, 'escala_efetivo/w1')));
     await assertSucceeds(setDoc(doc(db, 'escala_dias/2026-W45_0'), day));
     await assertSucceeds(setDoc(doc(db, 'escala_efetivo/w2'), { ...worker, id: 'w2', nome: 'ALLAN' }));
     await assertSucceeds(deleteDoc(doc(db, 'escala_efetivo/w2')));
-    await assertSucceeds(getDoc(doc(db, 'escala_config/membros')));
   });
 
   it('e-mail com maiúsculas também é reconhecido', async () => {
-    await assertSucceeds(getDoc(doc(as('Lider@Empresa.com'), 'escala_efetivo/w1')));
+    await assertSucceeds(getDoc(doc(as('Glauber.Dutra@Benetechbrasil.com.br'), 'escala_efetivo/w1')));
   });
 
-  it('membro não altera a lista de membros; admin altera', async () => {
-    await assertFails(setDoc(doc(as(LIDER), 'escala_config/membros'), { emails: [LIDER, 'x@y.com'] }));
-    await assertSucceeds(setDoc(doc(as(ADMIN), 'escala_config/membros'), { emails: [LIDER, 'x@y.com'] }));
-  });
-
-  it('admin tem acesso mesmo sem a lista existir', async () => {
-    await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'escala_config/membros')));
-    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_dias/2026-W45_0')));
+  it('a antiga lista de membros não dá mais acesso; ninguém a altera', async () => {
+    // LIDER continua no documento escala_config/membros (semente acima), mas não acessa
+    await assertFails(getDoc(doc(as(LIDER), 'escala_efetivo/w1')));
     await assertFails(getDoc(doc(as(LIDER), 'escala_dias/2026-W45_0')));
+    await assertFails(setDoc(doc(as(LIDER), 'escala_dias/2026-W45_0'), day));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_config/membros'), { emails: [LIDER] }));
   });
 
   it('outras coleções bloqueadas', async () => {
@@ -127,12 +118,12 @@ describe('acesso', () => {
 
 describe('validação de formato', () => {
   it('id do dia precisa ser AAAA-Www_D', async () => {
-    await assertFails(setDoc(doc(as(LIDER), 'escala_dias/semana1'), day));
-    await assertFails(setDoc(doc(as(LIDER), 'escala_dias/2026-W45_7'), day));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_dias/semana1'), day));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_dias/2026-W45_7'), day));
   });
 
   it('colaborador: id coerente, função preenchida (qualquer da lista), nome limitado', async () => {
-    const db = as(LIDER);
+    const db = as(ADMIN);
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'outro' }));
     await assertSucceeds(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: 'Montador' }));
     await assertFails(setDoc(doc(db, 'escala_efetivo/w9'), { ...worker, id: 'w9', funcao: '' }));
@@ -142,25 +133,25 @@ describe('validação de formato', () => {
   });
 
   it('feriados municipais: membro lê e grava; não liberado não acessa', async () => {
-    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/feriados'), { map: { '2026-09-08': 'Aniversário de Vitória' } }));
-    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/feriados')));
-    await assertFails(setDoc(doc(as(LIDER), 'escala_config/feriados'), { map: {}, outro: 1 }));
+    await assertSucceeds(setDoc(doc(as(ADMIN), 'escala_config/feriados'), { map: { '2026-09-08': 'Aniversário de Vitória' } }));
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_config/feriados')));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_config/feriados'), { map: {}, outro: 1 }));
     await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/feriados')));
   });
 
   it('tipos de ausência: membro lê e grava; não liberado e anônimo não acessam', async () => {
     const lista = [{ id: 'folga', nome: 'Folga', sigla: 'F', cor: 'cinza', ativo: true }];
-    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista }));
-    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/ausencias')));
-    await assertFails(setDoc(doc(as(LIDER), 'escala_config/ausencias'), { lista: [] }));
+    await assertSucceeds(setDoc(doc(as(ADMIN), 'escala_config/ausencias'), { lista }));
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_config/ausencias')));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_config/ausencias'), { lista: [] }));
     await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/ausencias')));
   });
 
   it('lista de funções: membro lê e grava; formato validado; não liberado não acessa', async () => {
-    await assertSucceeds(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: ['Vulcanizador', 'Montador'] }));
-    await assertSucceeds(getDoc(doc(as(LIDER), 'escala_config/funcoes')));
-    await assertFails(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: [] }));
-    await assertFails(setDoc(doc(as(LIDER), 'escala_config/funcoes'), { lista: ['A'], outro: 1 }));
+    await assertSucceeds(setDoc(doc(as(ADMIN), 'escala_config/funcoes'), { lista: ['Vulcanizador', 'Montador'] }));
+    await assertSucceeds(getDoc(doc(as(ADMIN), 'escala_config/funcoes')));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_config/funcoes'), { lista: [] }));
+    await assertFails(setDoc(doc(as(ADMIN), 'escala_config/funcoes'), { lista: ['A'], outro: 1 }));
     await assertFails(getDoc(doc(as('curioso@gmail.com'), 'escala_config/funcoes')));
     await assertFails(setDoc(doc(as('curioso@gmail.com'), 'escala_config/funcoes'), { lista: ['X'] }));
   });

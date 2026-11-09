@@ -27,7 +27,6 @@ export interface CloudInfo {
   info: SyncInfo;
   email: string;
   isAdmin: boolean;
-  setMembros: (emails: string[]) => Promise<void>;
   logout: () => void;
   retry: () => void;
 }
@@ -158,7 +157,6 @@ export function CloudStoreProvider({ sync, email, isAdmin, logout, extraNotices 
       info,
       email,
       isAdmin,
-      setMembros: (e) => sync.setMembros(e),
       logout,
       retry: () => void sync.flush(),
     },
@@ -187,7 +185,7 @@ export function ViewerStoreProvider({ state, loaded, offline, email, entrar, log
   else if (email)
     notices.push({
       kind: 'warn',
-      text: `Modo visualização: o e-mail ${email} ainda não está liberado para editar. Peça a um administrador para incluir em “Dados → Acesso da liderança”.`,
+      text: `Modo visualização: o e-mail ${email} não é de administrador. Só os administradores cadastrados editam a escala.`,
     });
   const status = offline
     ? { cls: 'offline', short: 'Offline', long: 'Sem internet: mostrando a última cópia da escala salva neste aparelho.' }

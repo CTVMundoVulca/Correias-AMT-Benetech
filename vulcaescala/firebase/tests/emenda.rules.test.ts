@@ -95,8 +95,7 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     // relatório sem criador (antigos): só a liderança
     await anon().doc('emendas/c2').set(emenda);
     await assertFails(anon().doc('emendas/c2').delete());
-    const lider = 'lider2@empresa.com';
-    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('escala_config/membros').set({ emails: [lider] }));
+    const lider = 'warley.silva@benetechbrasil.com.br'; // administrador
     await anon().doc('emendas/c3').set({ ...emenda, criadoUid: 'anon-uid' });
     await assertSucceeds(as(lider).doc('emendas/c2').delete());
     await assertSucceeds(as(lider).doc('emendas/c3').delete());
@@ -112,8 +111,7 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
   it('escala pública: qualquer sessão do app lê; só a liderança grava; escala real continua fechada', async () => {
     const dia = { activities: [{ id: 'a1', nome: 'TR-01', workerIds: ['w1'] }], absences: [{ workerId: 'w2', tipo: 'ausencia' }] };
     const cfg = { efetivo: [{ id: 'w1', nome: 'ADILSON', funcao: 'Vulcanizador', ativo: true }], funcoes: ['Vulcanizador'], ausencias: [], feriados: {} };
-    const lider = 'lider3@empresa.com';
-    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('escala_config/membros').set({ emails: [lider] }));
+    const lider = 'warley.silva@benetechbrasil.com.br'; // administrador
     await assertSucceeds(as(lider).doc('escala_publica/2026-W45_0').set(dia));
     await assertSucceeds(as(lider).doc('escala_publica_config/geral').set(cfg));
     await assertSucceeds(anon().doc('escala_publica/2026-W45_0').get());
@@ -129,8 +127,7 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
   });
 
   it('matrícula no cadastro do efetivo: opcional, até 30 caracteres', async () => {
-    const lider = 'lider@empresa.com';
-    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('escala_config/membros').set({ emails: [lider] }));
+    const lider = 'warley.silva@benetechbrasil.com.br'; // administrador
     await assertSucceeds(as(lider).doc('escala_efetivo/w3').set({ id: 'w3', nome: 'B', funcao: 'Vulcanizador', ativo: true, matricula: '98765' }));
     await assertFails(as(lider).doc('escala_efetivo/w4').set({ id: 'w4', nome: 'C', funcao: 'Vulcanizador', ativo: true, matricula: 'X'.repeat(31) }));
   });

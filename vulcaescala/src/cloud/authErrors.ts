@@ -2,7 +2,7 @@
 export function authErrorMsg(e: unknown): string {
   const c = String((e as { code?: string })?.code ?? '');
   if (c.includes('wrong-password') || c.includes('invalid-credential') || c.includes('invalid-login')) return 'E-mail ou senha incorretos.';
-  if (c.includes('user-not-found')) return 'Conta não encontrada. Toque em “Criar conta”.';
+  if (c.includes('user-not-found')) return 'Conta não encontrada. As contas de administrador são criadas pelo administrador do sistema.';
   if (c.includes('email-already-in-use')) return 'Este e-mail já tem conta. Use “Entrar” ou “Esqueci minha senha”.';
   if (c.includes('invalid-email')) return 'E-mail inválido.';
   if (c.includes('weak-password')) return 'Senha fraca: use pelo menos 6 caracteres.';

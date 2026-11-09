@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../state/store';
 import { migrate } from '../../storage/migrations';
 import { emptyState, type AppState } from '../../domain/types';
@@ -69,7 +69,6 @@ export function DataView() {
   return (
     <section>
       {cloud && <AccountCard />}
-      {cloud?.isAdmin && <MembersCard />}
       {cloud && <LegacyCard />}
       {(!cloud || cloud.info.status !== 'denied') && <FeriadosCard />}
 
@@ -145,88 +144,6 @@ function AccountCard() {
       <button className="btn ghost-danger" onClick={cloud.logout}>
         Sair da conta
       </button>
-    </div>
-  );
-}
-
-/** Lista de e-mails da liderança com acesso (somente administradores editam). */
-function MembersCard() {
-  const { cloud } = useStore();
-  const toast = useToast();
-  const confirm = useConfirm();
-  const [novo, setNovo] = useState('');
-  const [busy, setBusy] = useState(false);
-  if (!cloud) return null;
-  const membros = cloud.info.membros ?? [];
-
-  const save = async (emails: string[], ok: string) => {
-    setBusy(true);
-    try {
-      await cloud.setMembros(emails);
-      toast(ok);
-      return true;
-    } catch (e) {
-      toast(`Não foi possível salvar: ${e instanceof Error ? e.message : String(e)}`, 'danger');
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    const em = novo.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return toast('E-mail inválido', 'warn');
-    if (membros.includes(em)) return toast('E-mail já liberado', 'warn');
-    if (await save([...membros, em], 'Acesso liberado')) setNovo('');
-  };
-
-  const remove = async (em: string) => {
-    const ok = await confirm({
-      title: 'Retirar acesso?',
-      message: (
-        <p>
-          <b>{em}</b> deixará de ver e lançar a escala.
-        </p>
-      ),
-      confirmLabel: 'Retirar',
-      danger: true,
-    });
-    if (ok) await save(membros.filter((m) => m !== em), 'Acesso retirado');
-  };
-
-  return (
-    <div className="card pad stack">
-      <h2>Acesso da liderança</h2>
-      <p className="small muted">
-        Só os e-mails abaixo (e os administradores) veem a escala completa e lançam. Depois de liberar, a pessoa toca em
-        “Entrar” → “Criar conta” com o mesmo e-mail e confirma pelo link que chega no e-mail (uma vez só). Sem confirmar,
-        ela só visualiza. Administradores são definidos nas regras do Firestore (console do Firebase).
-      </p>
-      <form className="row nowrap" onSubmit={add}>
-        <input
-          className="input grow"
-          type="email"
-          placeholder="email@empresa.com"
-          value={novo}
-          onChange={(e) => setNovo(e.target.value)}
-          aria-label="E-mail para liberar"
-        />
-        <button className="btn primary" type="submit" disabled={busy || !novo.trim()}>
-          Liberar
-        </button>
-      </form>
-      <ul className="plain-list member-list">
-        {membros.map((em) => (
-          <li key={em}>
-            <span className="small">{em}</span>
-            <button className="btn small ghost-danger" onClick={() => remove(em)} disabled={busy}>
-              Retirar
-            </button>
-          </li>
-        ))}
-      </ul>
-      {cloud.info.membros === null && <p className="small muted">Carregando lista…</p>}
     </div>
   );
 }
