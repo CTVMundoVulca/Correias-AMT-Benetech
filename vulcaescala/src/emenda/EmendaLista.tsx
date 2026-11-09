@@ -23,8 +23,14 @@ function mesInicial(): string {
 
 /** Relatórios organizados por mês: só o mês escolhido é carregado da nuvem. */
 export function EmendaLista() {
-  const { api, setPendencia, lideranca } = useEmenda();
+  const ctx = useEmenda();
+  const { api, setPendencia, lideranca } = ctx;
   const toast = useToast();
+  const confirm = useConfirm();
+  // seleção de vários relatórios para excluir de uma vez
+  const [selecionando, setSelecionando] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [excluindo, setExcluindo] = useState(false);
   const [ym, setYm] = useState(mesInicial);
   const [lista, setLista] = useState<Emenda[] | null>(null);
   const [busca, setBusca] = useState('');
@@ -58,6 +64,62 @@ export function EmendaLista() {
     () => (lista ?? []).filter((e) => !q || e.tag.toUpperCase().includes(q) || e.numero.includes(q) || e.om.toUpperCase().includes(q)),
     [lista, q],
   );
+
+  const excluiveis = filtrada.filter((e) => podeExcluir(ctx, e));
+  const sairSelecao = () => {
+    setSelecionando(false);
+    setSel(new Set());
+  };
+  // ao trocar de mês ou buscar, a seleção recomeça
+  useEffect(() => setSel(new Set()), [ym, q]);
+  const alternar = (id: string) =>
+    setSel((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const todosMarcados = excluiveis.length > 0 && excluiveis.every((e) => sel.has(e.id));
+  const marcarTodos = () => setSel(todosMarcados ? new Set() : new Set(excluiveis.map((e) => e.id)));
+
+  const excluirSelecionados = async () => {
+    const alvo = (lista ?? []).filter((e) => sel.has(e.id) && podeExcluir(ctx, e));
+    if (!alvo.length) return;
+    const ok = await confirm({
+      title: `Excluir ${alvo.length} relatório(s)?`,
+      message: (
+        <>
+          <p>Os relatórios abaixo e todas as fotos deles serão apagados para todos. Não há como desfazer.</p>
+          <ul className="small">
+            {alvo.slice(0, 8).map((e) => (
+              <li key={e.id}>
+                Emenda nº {e.numero || '?'} — TAG {e.tag || '?'} ({fmtData(e.data)})
+              </li>
+            ))}
+            {alvo.length > 8 && <li>… e mais {alvo.length - 8}</li>}
+          </ul>
+        </>
+      ),
+      confirmLabel: `Excluir ${alvo.length}`,
+      danger: true,
+      requireText: 'EXCLUIR',
+    });
+    if (!ok) return;
+    setExcluindo(true);
+    let n = 0;
+    for (const e of alvo) {
+      try {
+        await excluirEmenda(api, e.id);
+        n++;
+      } catch {
+        /* sem internet ou sem permissão: segue com os outros */
+      }
+    }
+    setExcluindo(false);
+    sairSelecao();
+    if (n === alvo.length) toast(`${n} relatório(s) excluído(s)`);
+    else toast(`${n} de ${alvo.length} excluído(s). Os outros precisam de internet ou de permissão.`, 'warn');
+  };
 
   const nova = async () => {
     const hoje = hojeIso();
@@ -147,13 +209,42 @@ export function EmendaLista() {
             <hr />
           </div>
         )}
-        <p className="small muted tabnum">
-          {lista === null ? 'Carregando…' : `${filtrada.length} de ${lista.length} emenda(s) em ${nomeMes(ym)}`}
-        </p>
+        <div className="row between">
+          <p className="small muted tabnum">
+            {lista === null ? 'Carregando…' : `${filtrada.length} de ${lista.length} emenda(s) em ${nomeMes(ym)}`}
+          </p>
+          {excluiveis.length > 0 && !selecionando && (
+            <button className="btn small" onClick={() => setSelecionando(true)}>
+              Selecionar
+            </button>
+          )}
+        </div>
+        {selecionando && (
+          <div className="sel-bar" role="toolbar" aria-label="Relatórios selecionados">
+            <div className="sel-top">
+              <label className="row nowrap small">
+                <input type="checkbox" checked={todosMarcados} onChange={marcarTodos} /> Todos ({excluiveis.length})
+              </label>
+              <span className="small tabnum sel-count">{sel.size} selecionado(s)</span>
+            </div>
+            <div className="sel-acoes">
+              <button className="btn small" onClick={sairSelecao}>
+                Cancelar
+              </button>
+              <button className="btn small danger" disabled={!sel.size || excluindo} onClick={excluirSelecionados}>
+                {excluindo ? 'Excluindo…' : `Excluir (${sel.size})`}
+              </button>
+            </div>
+          </div>
+        )}
         {lideranca && lista && <LimparVazios lista={lista} />}
         <ul className="plain-list emenda-list">
           {filtrada.map((e) => (
-            <EmendaItem key={e.id} e={e} />
+            <EmendaItem
+              key={e.id}
+              e={e}
+              selecao={selecionando ? { marcado: sel.has(e.id), alternar: () => alternar(e.id) } : undefined}
+            />
           ))}
         </ul>
         {lista && lista.length === 0 && <p className="muted small">Nenhuma emenda neste mês.</p>}
@@ -235,10 +326,29 @@ export function useExcluirEmenda() {
   };
 }
 
-function EmendaItem({ e }: { e: Emenda }) {
+function EmendaItem({ e, selecao }: { e: Emenda; selecao?: { marcado: boolean; alternar: () => void } }) {
   const ctx = useEmenda();
   const excluir = useExcluirEmenda();
   const assinaturas = [e.libTecnico.assinatura, e.libSupervisor.assinatura].filter(Boolean).length;
+  const pode = podeExcluir(ctx, e);
+  // modo seleção: tocar no relatório marca/desmarca (só os que este aparelho pode excluir)
+  if (selecao)
+    return (
+      <li className="emenda-li">
+        <label className={'emenda-item sel' + (selecao.marcado ? ' on' : '') + (pode ? '' : ' off')}>
+          <input type="checkbox" checked={selecao.marcado} disabled={!pode} onChange={selecao.alternar} aria-label={`Selecionar emenda nº ${e.numero || '?'} — TAG ${e.tag || '?'}`} />
+          <span className="grow">
+            <strong>
+              Emenda nº {e.numero || '?'} — TAG {e.tag || '?'}
+            </strong>
+            <span className="small muted">
+              {fmtData(e.data)}
+              {pode ? '' : ' · sem permissão para excluir'}
+            </span>
+          </span>
+        </label>
+      </li>
+    );
   return (
     <li className="emenda-li">
       <button className="emenda-item" onClick={() => irPara(`#/e/${e.id}`)}>
@@ -255,7 +365,7 @@ function EmendaItem({ e }: { e: Emenda }) {
           ✍ {assinaturas}/2
         </span>
       </button>
-      {podeExcluir(ctx, e) && (
+      {pode && (
         <button className="icon-btn danger" onClick={() => void excluir(e)} aria-label={`Excluir emenda nº ${e.numero || '?'} — TAG ${e.tag || '?'}`} title="Excluir">
           🗑
         </button>

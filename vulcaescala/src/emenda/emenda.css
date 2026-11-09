@@ -93,3 +93,12 @@
 .emenda-li { display: flex; gap: 6px; align-items: stretch; }
 .emenda-li .emenda-item { flex: 1; min-width: 0; }
 .icon-btn.danger { border: 1px solid var(--line); border-radius: 10px; width: 48px; height: auto; font-size: 1.15rem; background: var(--surface); }
+/* seleção de vários relatórios */
+.sel-bar { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); position: sticky; top: 0; z-index: 2; }
+.sel-bar input[type=checkbox], .emenda-item.sel input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--red-ink); flex-shrink: 0; }
+.emenda-item.sel { align-items: center; gap: 12px; cursor: pointer; }
+.emenda-item.sel.on { border-color: var(--red-ink); background: var(--red-bg); }
+.emenda-item.sel.off { opacity: .55; cursor: default; }
+.sel-top, .sel-acoes { display: flex; align-items: center; gap: 8px; }
+.sel-top { justify-content: space-between; }
+.sel-acoes > .btn { flex: 1; }
