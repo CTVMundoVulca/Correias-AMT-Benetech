@@ -22,6 +22,9 @@ import { EfetivoDialog } from './EfetivoDialog';
 
 type SetFn = (campos: Partial<Emenda>) => void;
 
+/** Campo preenchido fica em destaque (negrito, fundo e borda na cor do app). "N/A" padrão não conta. */
+const inp = (v: unknown) => 'input' + (typeof v === 'string' && v.trim() && v !== 'N/A' ? ' cheio' : '');
+
 /**
  * Edição de um relatório. Cada alteração é gravada sozinha (só o campo alterado).
  * Relatório novo (`novo` = data inicial): fica só na tela até a primeira alteração —
@@ -358,7 +361,7 @@ function Txt({
     <label className="field">
       {label}
       <input
-        className="input"
+        className={inp(e[c] as string)}
         type={type}
         inputMode={mode}
         placeholder={placeholder}
@@ -373,7 +376,7 @@ function Area({ e, set, c, label }: { e: Emenda; set: SetFn; c: StrKeys; label: 
   return (
     <label className="field">
       {label}
-      <textarea className="input" rows={3} value={e[c] as string} onChange={(ev) => set({ [c]: ev.target.value } as Partial<Emenda>)} />
+      <textarea className={inp(e[c] as string)} rows={3} value={e[c] as string} onChange={(ev) => set({ [c]: ev.target.value } as Partial<Emenda>)} />
     </label>
   );
 }
@@ -404,7 +407,7 @@ function Opts({ e, set, c, label, op }: { e: Emenda; set: SetFn; c: StrKeys; lab
 function SelectColaborador({ nome, onPick, excluir = [] }: { nome: string; onPick: (f: Funcionario | null) => void; excluir?: string[] }) {
   const { efetivo } = useEmenda();
   return (
-    <select className="input" value={nome} onChange={(ev) => onPick(efetivo.find((f) => f.nome === ev.target.value) ?? null)}>
+    <select className={inp(nome)} value={nome} onChange={(ev) => onPick(efetivo.find((f) => f.nome === ev.target.value) ?? null)}>
       <option value="">Selecione</option>
       {nome && !efetivo.some((f) => f.nome === nome) && <option value={nome}>{nome}</option>}
       {efetivo
@@ -440,7 +443,7 @@ function EfetivoSection({ e, set }: { e: Emenda; set: SetFn }) {
           </label>
           <label className="field mat">
             Matrícula/CPF
-            <input className="input" value={mascararDoc(p.matricula)} readOnly />
+            <input className={inp(mascararDoc(p.matricula))} value={mascararDoc(p.matricula)} readOnly />
           </label>
           <button className="icon-btn" aria-label={`Remover ${p.nome || 'pessoa'}`} onClick={() => set({ efetivo: e.efetivo.filter((_, j) => j !== i) })}>
             ×
@@ -477,7 +480,7 @@ function MateriaisSection({ lista, e, set }: { lista: 'materiaisEmenda' | 'mater
           <div className="g2">
             <label className="field">
               Material
-              <select className="input" value={m.material} onChange={(ev) => upd(i, { material: ev.target.value })}>
+              <select className={inp(m.material)} value={m.material} onChange={(ev) => upd(i, { material: ev.target.value })}>
                 <option value="">Selecione</option>
                 {m.material && !opcoes.includes(m.material) && <option>{m.material}</option>}
                 {opcoes.map((o) => (
@@ -487,7 +490,7 @@ function MateriaisSection({ lista, e, set }: { lista: 'materiaisEmenda' | 'mater
             </label>
             <label className="field">
               Fabricante
-              <select className="input" value={m.fabricante} onChange={(ev) => upd(i, { fabricante: ev.target.value })}>
+              <select className={inp(m.fabricante)} value={m.fabricante} onChange={(ev) => upd(i, { fabricante: ev.target.value })}>
                 {m.fabricante && !listas.fabricantes.includes(m.fabricante) && <option>{m.fabricante}</option>}
                 {listas.fabricantes.map((o) => (
                   <option key={o}>{o}</option>
@@ -498,15 +501,15 @@ function MateriaisSection({ lista, e, set }: { lista: 'materiaisEmenda' | 'mater
           <div className="g3">
             <label className="field">
               Lote
-              <input className="input" value={m.lote} onChange={(ev) => upd(i, { lote: ev.target.value })} />
+              <input className={inp(m.lote)} value={m.lote} onChange={(ev) => upd(i, { lote: ev.target.value })} />
             </label>
             <label className="field">
               Qtd.
-              <input className="input" inputMode="decimal" value={m.qtd} onChange={(ev) => upd(i, { qtd: ev.target.value })} />
+              <input className={inp(m.qtd)} inputMode="decimal" value={m.qtd} onChange={(ev) => upd(i, { qtd: ev.target.value })} />
             </label>
             <label className="field">
               Validade
-              <input className="input" type="date" value={m.validade} onChange={(ev) => upd(i, { validade: ev.target.value })} />
+              <input className={inp(m.validade)} type="date" value={m.validade} onChange={(ev) => upd(i, { validade: ev.target.value })} />
             </label>
           </div>
           <button className="btn small ghost-danger" onClick={() => set({ [lista]: itens.filter((_, j) => j !== i) } as Partial<Emenda>)}>
@@ -545,24 +548,24 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
           <div className="g2">
             <label className="field">
               Equipamento
-              <input className="input" value={q.equip} onChange={(ev) => upd(i, { equip: ev.target.value })} />
+              <input className={inp(q.equip)} value={q.equip} onChange={(ev) => upd(i, { equip: ev.target.value })} />
             </label>
             <label className="field">
               Marca / modelo
-              <input className="input" value={q.marca} onChange={(ev) => upd(i, { marca: ev.target.value })} />
+              <input className={inp(q.marca)} value={q.marca} onChange={(ev) => upd(i, { marca: ev.target.value })} />
             </label>
             <label className="field">
               Código
-              <input className="input" value={q.codigo} onChange={(ev) => upd(i, { codigo: ev.target.value })} />
+              <input className={inp(q.codigo)} value={q.codigo} onChange={(ev) => upd(i, { codigo: ev.target.value })} />
             </label>
             <label className="field">
               Certificado
-              <input className="input" value={q.certificado} onChange={(ev) => upd(i, { certificado: ev.target.value })} />
+              <input className={inp(q.certificado)} value={q.certificado} onChange={(ev) => upd(i, { certificado: ev.target.value })} />
             </label>
             <label className="field">
               Data calibração
               <input
-                className="input"
+                className={inp(q.dataCal)}
                 type="date"
                 value={q.dataCal}
                 onChange={(ev) => {
@@ -575,7 +578,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
             </label>
             <label className="field">
               Validade calibração
-              <input className="input" type="date" value={q.validadeCal} onChange={(ev) => upd(i, { validadeCal: ev.target.value })} />
+              <input className={inp(q.validadeCal)} type="date" value={q.validadeCal} onChange={(ev) => upd(i, { validadeCal: ev.target.value })} />
             </label>
           </div>
           <button className="btn small ghost-danger" onClick={() => set({ equipamentos: e.equipamentos.filter((_, j) => j !== i) })}>
@@ -605,12 +608,12 @@ function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico
         </label>
         <label className="field">
           Matrícula/CPF
-          <input className="input" value={mascararDoc(lib.matricula)} readOnly />
+          <input className={inp(mascararDoc(lib.matricula))} value={mascararDoc(lib.matricula)} readOnly />
         </label>
       </div>
       <label className="field">
         Data
-        <input className="input" type="date" value={lib.data} onChange={(ev) => upd({ data: ev.target.value })} />
+        <input className={inp(lib.data)} type="date" value={lib.data} onChange={(ev) => upd({ data: ev.target.value })} />
       </label>
       <span className="field">Assinatura</span>
       <SignaturePad value={lib.assinatura} label={c === 'libTecnico' ? 'técnico de área' : 'supervisor de área'} onChange={(assinatura) => upd({ assinatura })} />
