@@ -15,7 +15,7 @@ const PROJECT = 'demo-vulcaescala';
 const [FS_HOST, FS_PORT] = (process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8085').split(':');
 const AUTH_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099';
 const ADMIN = 'glauber.dutra@benetechbrasil.com.br';
-const LIDER = 'lider.amt@empresa.com';
+const LIDER = 'warley.silva@benetechbrasil.com.br'; // segundo administrador
 const INTRUSO = 'intruso@gmail.com';
 const W = '2026-W45';
 
@@ -49,8 +49,8 @@ async function device(email: string, fsPort = Number(FS_PORT)): Promise<Firebase
   } catch {
     cred = await authMod.signInWithEmailAndPassword(auth, email, 'senha123');
   }
-  // as regras exigem e-mail confirmado: no emulador, marca como confirmado (como se a pessoa
-  // tivesse clicado no link) e renova o token para levar o email_verified
+  // as regras não exigem confirmação de e-mail; marcar como confirmado aqui é indiferente
+  // (mantido para o teste valer com qualquer uma das duas situações)
   await fetch(`http://${AUTH_HOST}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer owner' },
@@ -95,24 +95,20 @@ describe('sincronização entre aparelhos', () => {
   let a: CloudSync; // admin
   let b: CloudSync; // líder
 
-  it('admin libera o líder; líder passa a ler', async () => {
+  it('dois administradores: o segundo aparelho também lê', async () => {
     a = newSync(adminApi, ADMIN);
     await until(() => a.getInfo().loaded);
     expect(a.getInfo().cloudEmpty).toBe(true);
     // primeira carga: a nuvem deixa de estar "vazia" na hora (não pode ser preenchida duas vezes)
     await a.replaceAll({ version: 3, workers: [], funcoes: [...FUNCOES_PADRAO], ausencias: AUSENCIAS_PADRAO.map((x) => ({ ...x })), weeks: {} });
     expect(a.getInfo().cloudEmpty).toBe(false);
-    await a.setMembros([LIDER.toUpperCase(), ' ']);
-    await until(() => (a.getInfo().membros ?? []).includes(LIDER));
-    expect(a.getInfo().membros).toEqual([LIDER]);
 
     b = newSync(liderApi, LIDER);
     await until(() => b.getInfo().loaded);
     expect(b.getInfo().status).toBe('ok');
     // administrador é descoberto pela regra do Firestore
     await until(() => a.getInfo().isAdmin);
-    await new Promise((r) => setTimeout(r, 300));
-    expect(b.getInfo().isAdmin).toBe(false);
+    await until(() => b.getInfo().isAdmin);
   });
 
   it('o que um lança aparece no outro', async () => {

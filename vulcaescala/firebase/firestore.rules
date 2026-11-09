@@ -3,7 +3,11 @@ rules_version = '2';
 // VulcaEscala — contrato AMT. Projeto Firebase SEPARADO do contrato Suzano.
 // Cole este conteúdo em: Console Firebase → Firestore Database → Regras → Publicar.
 //
-// PARA MUDAR OS ADMINISTRADORES: edite a lista em isAdmin() abaixo e clique em Publicar.
+// QUEM EDITA: só os e-mails da lista em isAdmin() abaixo (cadastro manual).
+// PARA INCLUIR UM ADMINISTRADOR (nesta ordem):
+//   1) Console Firebase → Authentication → Usuários → Adicionar usuário (e-mail + senha);
+//   2) inclua o e-mail na lista abaixo e clique em Publicar.
+// Criar a conta ANTES de incluir o e-mail impede que outra pessoa se cadastre com ele.
 // O app descobre sozinho quem é administrador (não precisa mudar o código do app).
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -11,12 +15,8 @@ service cloud.firestore {
     // Qualquer sessão do app, inclusive a anônima automática do Registro de Emenda
     function signedIn() { return request.auth != null; }
 
-    // E-mail CONFIRMADO (a pessoa clicou no link enviado ao e-mail). Sem isso, qualquer um
-    // poderia criar conta com o e-mail de um administrador ou membro que ainda não se cadastrou.
-    // Só vale para editar/ver a escala completa — visualizar e o Registro de Emenda não exigem.
     function emailOk() {
-      return request.auth != null && request.auth.token.email != null
-        && request.auth.token.email_verified == true;
+      return request.auth != null && request.auth.token.email != null;
     }
     function email() { return request.auth.token.email.lower(); }
 
@@ -29,13 +29,10 @@ service cloud.firestore {
       ];
     }
 
-    // Membros (liderança): e-mails liberados pelos administradores no próprio app.
+    // Liderança = administradores (lista acima). A antiga liberação de e-mails pelo app
+    // ("Acesso da liderança") não vale mais.
     function isMember() {
-      return isAdmin() || (
-        emailOk()
-        && exists(/databases/$(database)/documents/escala_config/membros)
-        && email() in get(/databases/$(database)/documents/escala_config/membros).data.emails
-      );
+      return isAdmin();
     }
 
     // O app lê este documento só para saber se o usuário é administrador.
@@ -44,12 +41,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Antiga lista de membros liberados pelo app: não é mais usada.
     match /escala_config/membros {
-      allow read: if isMember();
-      allow write: if isAdmin()
-        && request.resource.data.keys().hasOnly(['emails', 'atualizadoEm', 'atualizadoPor'])
-        && request.resource.data.emails is list
-        && request.resource.data.emails.size() <= 100;
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // Lista de funções do cadastro (editável pela liderança no app)

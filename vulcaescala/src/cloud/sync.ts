@@ -288,19 +288,6 @@ export class CloudSync {
         },
       ),
     );
-    this.listen('membros', (onError) =>
-      fsMod.onSnapshot(
-        fsMod.doc(fs, DOC_MEMBROS),
-        (snap) => {
-          const emails = (snap.data()?.emails as string[] | undefined) ?? [];
-          this.setInfo({ membros: emails.map((e) => String(e).toLowerCase()) });
-        },
-        () => {
-          this.setInfo({ membros: null });
-          onError();
-        },
-      ),
-    );
     if (typeof window !== 'undefined') window.addEventListener('online', this.onOnline);
   }
 
@@ -435,17 +422,6 @@ export class CloudSync {
     // a nuvem deixou de estar vazia (evita preencher de novo antes do próximo retorno da nuvem)
     this.info = { ...this.info, cloudEmpty: false };
     this.refresh();
-  }
-
-  async setMembros(emails: string[]): Promise<void> {
-    const api = this.api;
-    if (!api) throw new Error('sem conexão com a nuvem');
-    const clean = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))].sort();
-    await api.fsMod.setDoc(api.fsMod.doc(api.fs, DOC_MEMBROS), {
-      emails: clean,
-      atualizadoEm: new Date().toISOString(),
-      atualizadoPor: this.email,
-    });
   }
 
   /** Envia a fila, uma ação por vez, na ordem. */

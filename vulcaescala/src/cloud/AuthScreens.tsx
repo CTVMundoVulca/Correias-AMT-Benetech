@@ -1,4 +1,3 @@
-import { getLocalStorage } from '../storage/LocalStorageRepository';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import type { FirebaseApi } from './firebase';
 import { authErrorMsg } from './authErrors';
@@ -59,24 +58,6 @@ export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () 
     if (!email.trim() || !pass) return setMsg({ kind: 'erro', text: 'Preencha e-mail e senha.' });
     void run(() => authMod.signInWithEmailAndPassword(auth, email.trim(), pass));
   };
-  const register = () => {
-    if (!email.trim() || pass.length < 6) return setMsg({ kind: 'erro', text: 'Informe e-mail e uma senha com pelo menos 6 caracteres.' });
-    void run(async () => {
-      const cred = await authMod.createUserWithEmailAndPassword(auth, email.trim(), pass);
-      // a liderança só edita depois de confirmar o e-mail (link enviado agora)
-      await authMod
-        .sendEmailVerification(cred.user)
-        .then(() => {
-          // registra o envio: a tela de aviso não manda outro em seguida
-          try {
-            getLocalStorage()?.setItem(`vulcaescala:confirmacao:${cred.user.email}`, String(Date.now()));
-          } catch {
-            /* ignore */
-          }
-        })
-        .catch(() => {});
-    });
-  };
   const reset = () => {
     if (!email.trim()) return setMsg({ kind: 'erro', text: 'Digite seu e-mail no campo acima para receber o link.' });
     void run(() => authMod.sendPasswordResetEmail(auth, email.trim()), 'Enviamos um link para redefinir a senha. Confira o e-mail (e a caixa de spam).');
@@ -85,7 +66,7 @@ export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () 
   return (
     <Shell>
       <Title />
-      <p className="small muted">Entre com seu e-mail e senha. Acesso restrito à liderança.</p>
+      <p className="small muted">Entre com seu e-mail e senha. Edição restrita aos administradores (contas criadas pelo administrador do sistema).</p>
       <form className="stack" onSubmit={login}>
         <input
           className="input"
@@ -114,9 +95,6 @@ export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () 
           Entrar
         </button>
       </form>
-      <button className="btn" onClick={register} disabled={busy}>
-        Criar conta
-      </button>
       <button className="link small" onClick={reset} disabled={busy}>
         Esqueci minha senha
       </button>
