@@ -102,3 +102,13 @@
 .sel-top, .sel-acoes { display: flex; align-items: center; gap: 8px; }
 .sel-top { justify-content: space-between; }
 .sel-acoes > .btn { flex: 1; }
+
+/* Campo preenchido: destaque para ver de relance o que já está no relatório */
+.emenda-form .input.cheio {
+  font-weight: 650;
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.emenda-form select.input.cheio { font-weight: 650; }
