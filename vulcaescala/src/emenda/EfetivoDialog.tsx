@@ -44,6 +44,32 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
       .catch(() => toast('Não foi possível salvar a lista.', 'danger'));
   };
 
+  // edição de um colaborador (nome e/ou matrícula/CPF)
+  const [editando, setEditando] = useState<string | null>(null);
+  const [eNome, setENome] = useState('');
+  const [eDoc, setEDoc] = useState('');
+  const abrirEdicao = (f: { nome: string; doc: string }) => {
+    setEditando(f.nome);
+    setENome(f.nome);
+    setEDoc(f.doc);
+  };
+  const salvarEdicao = async (ev: FormEvent) => {
+    ev.preventDefault();
+    const n = normNome(eNome);
+    const d = eDoc.trim();
+    if (!n) return toast('Informe o nome', 'warn');
+    if (!d) return toast('Informe a matrícula/CPF', 'warn');
+    if (n !== editando && efetivo.some((f) => f.nome === n)) return toast('Já existe um colaborador com esse nome', 'warn');
+    try {
+      const lista = efetivo.map((f) => (f.nome === editando ? { nome: n, doc: d } : f)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      await gravarFuncionarios(api, lista);
+      setEditando(null);
+      toast('Colaborador atualizado');
+    } catch {
+      toast('Não foi possível salvar a lista.', 'danger');
+    }
+  };
+
   const q = normNome(busca);
   const vis = q ? efetivo.filter((f) => f.nome.includes(q)) : efetivo;
 
@@ -71,20 +97,48 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
         <input className="input" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome" aria-label="Buscar nome" />
       )}
       <ul className="plain-list funcao-list">
-        {vis.map((f) => (
-          <li key={f.nome}>
-            <span className="grow">
-              {f.nome}
-              <br />
-              <span className="small muted tabnum">{mascararDoc(f.doc)}</span>
-            </span>
-            <button className="btn small ghost-danger" onClick={() => remove(f.nome)} aria-label={`Remover ${f.nome}`}>
-              Remover
-            </button>
-          </li>
-        ))}
+        {vis.map((f) =>
+          editando === f.nome ? (
+            <li key={f.nome} className="efetivo-edit">
+              <form className="stack grow" onSubmit={(ev) => void salvarEdicao(ev)}>
+                <input
+                  className="input"
+                  value={eNome}
+                  onChange={(e) => setENome(e.target.value)}
+                  aria-label="Nome completo"
+                  style={{ textTransform: 'uppercase' }}
+                  autoFocus
+                />
+                <input className="input" value={eDoc} onChange={(e) => setEDoc(e.target.value)} aria-label="Matrícula/CPF" inputMode="numeric" />
+                <div className="row nowrap">
+                  <button className="btn small" type="button" onClick={() => setEditando(null)}>
+                    Cancelar
+                  </button>
+                  <button className="btn small primary" type="submit" disabled={!eNome.trim() || !eDoc.trim()}>
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            </li>
+          ) : (
+            <li key={f.nome}>
+              <span className="grow">
+                {f.nome}
+                <br />
+                <span className="small muted tabnum">{mascararDoc(f.doc)}</span>
+              </span>
+              <button className="btn small" onClick={() => abrirEdicao(f)} aria-label={`Editar ${f.nome}`}>
+                Editar
+              </button>
+              <button className="btn small ghost-danger" onClick={() => remove(f.nome)} aria-label={`Remover ${f.nome}`}>
+                Remover
+              </button>
+            </li>
+          ),
+        )}
       </ul>
       {efetivo.length === 0 && <p className="small muted">Nenhum colaborador cadastrado.</p>}
+      {efetivo.length > 0 && <p className="small muted">Ao editar, os relatórios já feitos continuam com os dados antigos; os próximos usam os novos.</p>}
     </Modal>
   );
 }
