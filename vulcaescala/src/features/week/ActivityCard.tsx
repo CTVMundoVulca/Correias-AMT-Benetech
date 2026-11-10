@@ -6,6 +6,7 @@ import { sortByName } from "../../domain/schedule";
 import { useToast } from "../../ui/Toast";
 import { useConfirm } from "../../ui/ConfirmDialog";
 import { AllocationPicker } from "./AllocationPicker";
+import { AtrasosAtividade } from "../atrasos/AtrasosAtividade";
 
 interface Props {
   dayRef: DayRef;
@@ -159,6 +160,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
           ))}
         </div>
       )}
+      <AtrasosAtividade weekKey={dayRef.weekKey} dayIndex={dayRef.dayIndex} atividadeId={activity.id} atividadeNome={activity.nome} />
       {picking && (
         <AllocationPicker
           dayRef={dayRef}

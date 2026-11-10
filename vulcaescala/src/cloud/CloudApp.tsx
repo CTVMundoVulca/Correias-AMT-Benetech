@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { User } from 'firebase/auth';
 import { App } from '../App';
 import { CloudStoreProvider } from '../state/store';
@@ -13,6 +13,7 @@ import { AuthScreen, Splash } from './AuthScreens';
 import { estadoPublico, ouvirPublico, Publicador } from './publico';
 import { ViewerStoreProvider, type Notice } from '../state/store';
 import type { AppState } from '../domain/types';
+import { AtrasosProvider } from '../features/atrasos/AtrasosCtx';
 
 /** Escala só para ver (cópia pública, sem motivos de ausência sensíveis). */
 function Visualizacao({
@@ -38,9 +39,14 @@ function Visualizacao({
       ),
     [api],
   );
+  const uid = api.auth.currentUser?.uid ?? '';
+  const atrasos = useMemo(() => (uid ? { api, uid, isAdmin: false, por: email ?? 'anônimo' } : null), [api, uid, email]);
   return (
     <ViewerStoreProvider state={st.state} loaded={st.loaded} offline={st.offline} email={email} entrar={entrar} logout={logout} aviso={aviso}>
-      <App />
+      {/* atrasos: qualquer pessoa com o link registra (sessão anônima) */}
+      <AtrasosProvider value={atrasos}>
+        <App />
+      </AtrasosProvider>
     </ViewerStoreProvider>
   );
 }
@@ -198,6 +204,12 @@ export function CloudApp() {
     };
   }, [phase, api, info.loaded, info.status === 'denied', sync]);
 
+  // registro de atrasos (administrador logado)
+  const atrasosAdmin = useMemo(
+    () => (api && user ? { api, uid: user.uid, isAdmin: info.isAdmin, por: user.email ?? 'anônimo' } : null),
+    [api, user, info.isAdmin],
+  );
+
   // ---------- telas ----------
   if (phase === 'login' && api) return <AuthScreen api={api} onVoltar={() => setPhase(user?.isAnonymous ? 'viewer' : 'login')} />;
   if (phase === 'viewer' && api) return <Visualizacao api={api} email={null} entrar={() => setPhase('login')} logout={null} />;
@@ -236,7 +248,9 @@ export function CloudApp() {
           : []
       }
     >
-      <App />
+      <AtrasosProvider value={atrasosAdmin}>
+        <App />
+      </AtrasosProvider>
     </CloudStoreProvider>
   );
 }

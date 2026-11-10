@@ -126,6 +126,43 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(as(lider).doc('escala_publica/2026-W45_0').delete());
   });
 
+  it('atrasos: qualquer sessão registra; corrige/exclui quem registrou ou administrador', async () => {
+    const outro = env.authenticatedContext('outro-uid', { firebase: { sign_in_provider: 'anonymous' } } as never).firestore();
+    const admin = as('glauber.dutra@benetechbrasil.com.br');
+    const a = {
+      id: 'at1', semana: '2026-W46', diaId: '2026-W46_1', atividadeId: 'a1', atividadeNome: 'EMENDA TR-05',
+      inicio: '08:30', fim: '10:00', motivo: 'Bloqueio', descricao: 'bloqueio liberado às 10h', criadoUid: 'anon-uid',
+      criadoEm: 'x', atualizadoEm: 'x', por: 'anônimo',
+    };
+    await assertFails(semLogin().doc('escala_atrasos/at1').set(a));
+    await assertSucceeds(anon().doc('escala_atrasos/at1').set(a));
+    await assertSucceeds(outro.doc('escala_atrasos/at1').get());
+    // outra sessão não altera nem exclui; não pode se passar por outra
+    await assertFails(outro.doc('escala_atrasos/at1').set({ ...a, fim: '11:00' }));
+    await assertFails(outro.doc('escala_atrasos/at1').delete());
+    await assertFails(outro.doc('escala_atrasos/at2').set({ ...a, id: 'at2' }));
+    // quem registrou corrige; administrador também; ninguém troca o criador
+    await assertSucceeds(anon().doc('escala_atrasos/at1').set({ ...a, fim: '10:15' }));
+    await assertSucceeds(admin.doc('escala_atrasos/at1').set({ ...a, motivo: 'Recurso' }));
+    await assertFails(anon().doc('escala_atrasos/at1').set({ ...a, criadoUid: 'outro-uid' }));
+    // validação
+    await assertFails(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', inicio: '8h30' }));
+    await assertFails(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', fim: '25:00' }));
+    await assertFails(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', semana: '2026-W47' }));
+    await assertFails(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', motivo: '' }));
+    await assertFails(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', descricao: 'x'.repeat(501) }));
+    await assertFails(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', extra: 1 }));
+    await assertSucceeds(anon().doc('escala_atrasos/at3').set({ ...a, id: 'at3', fim: '' })); // em andamento
+    // exclusão: quem registrou; administrador
+    await assertSucceeds(anon().doc('escala_atrasos/at3').delete());
+    await assertSucceeds(admin.doc('escala_atrasos/at1').delete());
+    // motivos: qualquer sessão inclui; registrar atraso não abre a escala
+    await assertSucceeds(anon().doc('escala_config/motivos_atraso').set({ lista: ['Bloqueio', 'Recurso', 'Limpeza', 'Chuva'] }));
+    await assertFails(anon().doc('escala_config/motivos_atraso').set({ lista: [] }));
+    await assertFails(anon().doc('escala_config/funcoes').get());
+    await assertFails(anon().doc('escala_dias/2026-W46_1').set({ activities: [], absences: [] }));
+  });
+
   it('matrícula no cadastro do efetivo: opcional, até 30 caracteres', async () => {
     const lider = 'warley.silva@benetechbrasil.com.br'; // administrador
     await assertSucceeds(as(lider).doc('escala_efetivo/w3').set({ id: 'w3', nome: 'B', funcao: 'Vulcanizador', ativo: true, matricula: '98765' }));

@@ -5,6 +5,7 @@ import { activityRows, weekKpis, workerGrid } from '../../domain/summary';
 import { tipoAusencia } from '../../domain/types';
 import { WeekNav } from '../week/WeekNav';
 import { PdfBotao } from '../../ui/PdfBotao';
+import { AtrasosResumo } from '../atrasos/AtrasosResumo';
 
 interface Props {
   weekKey: string;
@@ -143,6 +144,7 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
           </ul>
         )}
       </div>
+      <AtrasosResumo weekKey={weekKey} />
     </section>
   );
 }
