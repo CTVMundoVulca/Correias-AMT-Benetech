@@ -131,3 +131,6 @@
 .foto-legenda { display: flex; align-items: center; gap: 4px; }
 .foto-num { font-weight: 700; font-size: 13px; }
 .foto.com-foto .foto-legenda .input { font-weight: 600; }
+/* edição de colaborador no "Gerenciar efetivo" */
+.funcao-list li.efetivo-edit { display: block; padding: 8px 0; }
+.funcao-list li { gap: 6px; }
