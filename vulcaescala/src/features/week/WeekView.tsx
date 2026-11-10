@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSomenteLeitura, useStore } from '../../state/store';
+import { AtrasosDaSemana } from '../atrasos/AtrasosCtx';
 import { WEEKDAYS_SHORT, locateDay, toUtcDay, weekDates } from '../../domain/isoWeek';
 import { dayHasData, getDay, weekPending } from '../../domain/schedule';
 import { DayBlock } from './DayBlock';
@@ -78,6 +79,7 @@ export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
   }, [scrollTo]);
 
   return (
+    <AtrasosDaSemana semana={weekKey}>
     <section>
       <WeekNav weekKey={weekKey} onChange={goTo} />
 
@@ -125,5 +127,6 @@ export function WeekView({ weekKey, onWeekChange, onGoToWorkers }: Props) {
         />
       ))}
     </section>
+    </AtrasosDaSemana>
   );
 }
