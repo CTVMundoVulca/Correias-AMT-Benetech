@@ -134,3 +134,4 @@
 /* edição de colaborador no "Gerenciar efetivo" */
 .funcao-list li.efetivo-edit { display: block; padding: 8px 0; }
 .funcao-list li { gap: 6px; }
+.rel-sub { font-size: 0.78rem; font-weight: 700; color: #001a33; margin: 8px 0 4px; text-transform: uppercase; letter-spacing: 0.3px; }

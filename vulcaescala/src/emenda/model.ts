@@ -74,7 +74,10 @@ export interface Emenda {
   numero: string;
   om: string;
   // 2–4
+  /** efetivo que fez a TROCA da correia (execução da emenda) */
   efetivo: EfetivoItem[];
+  /** efetivo que PREPAROU a correia antes (abertura das emendas) — pode ser outra equipe */
+  efetivoPreparo: EfetivoItem[];
   materiaisEmenda: MaterialItem[];
   materiaisManta: MaterialItem[];
   equipamentos: EquipItem[];
@@ -200,6 +203,7 @@ export function novaEmenda(id: string, hoje: string, por: string): Emenda {
     numero: '',
     om: '',
     efetivo: [],
+    efetivoPreparo: [],
     materiaisEmenda: [],
     materiaisManta: [],
     equipamentos: [],

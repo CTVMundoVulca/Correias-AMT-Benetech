@@ -69,3 +69,18 @@ describe('superfície × ponto de orvalho (mínimo 3 °C)', () => {
     expect(margemOrvalho('25', '')).toBeNull();
   });
 });
+
+import { completarEmenda } from '../emenda/model';
+
+describe('efetivo em dois grupos (preparação × troca)', () => {
+  it('relatório antigo (sem efetivoPreparo) continua com o efetivo na troca e preparação vazia', () => {
+    const antigo = { id: 'x', data: '2026-11-01', efetivo: [{ workerId: '', nome: 'ADILSON', matricula: '1' }] } as never;
+    const e = completarEmenda(antigo);
+    expect(e.efetivo).toHaveLength(1);
+    expect(e.efetivoPreparo).toEqual([]);
+  });
+  it('preencher só a preparação já não é relatório vazio', () => {
+    const e = novaEmenda('x', '2026-11-11', '');
+    expect(emendaVazia({ ...e, efetivoPreparo: [{ workerId: '', nome: 'BRUNO', matricula: '2' }] })).toBe(false);
+  });
+});
