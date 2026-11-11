@@ -10,6 +10,8 @@ export interface ProgCtx {
   uid: string;
   isAdmin: boolean;
   areas: Area[];
+  /** feriados municipais (Vitória) da escala; os nacionais são calculados */
+  feriados: Record<string, string>;
   /** abre a tela de login (administradores) */
   entrar: () => void;
   /** informa ao cabeçalho se há gravações pendentes */

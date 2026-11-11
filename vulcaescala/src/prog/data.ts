@@ -265,3 +265,16 @@ export function gravarAreas(api: FirebaseApi, lista: Area[]): Promise<void> {
   const { fsMod, fs } = api;
   return fsMod.setDoc(fsMod.doc(fs, DOC_AREAS), { lista });
 }
+
+/** Feriados municipais cadastrados na escala (cópia pública: qualquer sessão do app lê). */
+export function ouvirFeriados(api: FirebaseApi, cb: (m: Record<string, string>) => void): Unsub {
+  const { fsMod, fs } = api;
+  return fsMod.onSnapshot(
+    fsMod.doc(fs, 'escala_publica_config/geral'),
+    (snap) => {
+      const f = snap.data()?.feriados;
+      cb(f && typeof f === 'object' && !Array.isArray(f) ? (f as Record<string, string>) : {});
+    },
+    () => cb({}),
+  );
+}

@@ -43,7 +43,7 @@ export function Programar() {
     setEdicao({
       nova: true,
       solic: s,
-      a: { ...a, area: s.area, equipamento: s.equipamento, om: s.om, descricao: desc, tipo: tipoPelaDescricao(desc), solicitacaoId: s.id },
+      a: { ...a, area: s.area, equipamento: s.equipamento, om: s.om, descricao: desc, tipo: tipoPelaDescricao(desc), solicitacaoId: s.id, comunicadoEm: s.criadoEm },
     });
   };
   const recusar = (s: Solicitacao) => {

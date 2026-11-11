@@ -15,7 +15,8 @@ import {
   PESSOAS_MAX,
   RECURSOS_MAX,
   TIPOS,
-  classeSugerida,
+  classificar,
+  ANTECEDENCIA_HORAS,
   limparOm,
   limparTexto,
   maiusculas,
@@ -39,7 +40,7 @@ interface Props {
 
 /** Lançar / editar uma atividade da programação (administradores). */
 export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Props) {
-  const { api, por, areas } = useProg();
+  const { api, por, areas, feriados } = useProg();
   const toast = useToast();
   const confirm = useConfirm();
   const [a, setA] = useState<Atividade>(() => ({ ...atual, area: atual.area || (nova ? '' : AREA_INTERNA) }));
@@ -49,10 +50,15 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
 
   const setDescricao = (v: string) => setA((x) => ({ ...x, descricao: v, tipo: tipoManual ? x.tipo : tipoPelaDescricao(v) }));
   const omInfo = a.om ? oms?.get(limparOm(a.om)) : undefined;
-  const sugerida = classeSugerida(a.data, nova ? new Date() : new Date(a.criadoEm || Date.now()), solicitacao?.urgencia === 'emergencia');
+  // regra automática (fim de semana/feriado = emergência; 48 h de antecedência = programada)
+  const auto = autoClasse(a.data, a.comunicadoEm, feriados);
+  const efetiva: Classe = a.classeManual || a.classe === 'cancelada' || !auto ? a.classe : auto.classe;
+  const escolher = (c: Classe) => setA((x) => ({ ...x, classe: c, classeManual: !auto || c !== auto.classe }));
 
   const montar = (base: Atividade): Atividade => ({
     ...base,
+    classe: base === a ? efetiva : base.classe,
+    classeManual: base === a ? efetiva !== auto?.classe : base.classeManual,
     area: base.area === AREA_INTERNA ? '' : limparTexto(base.area, 60),
     equipamento: maiusculas(base.equipamento, EQUIP_MAX),
     om: limparOm(base.om),
@@ -76,7 +82,7 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     const x = montar(a);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(x.data)) return toast('Informe a data.', 'warn');
     if (!x.descricao) return toast('Descreva a atividade.', 'warn');
-    if (!x.classe) return toast('Classifique a atividade (programada, não programada, emergência ou cancelada).', 'warn');
+    if (!x.classe) return toast('Informe quando a demanda foi comunicada ou escolha a classificação.', 'warn');
     if (x.classe === 'cancelada' && !x.motivo) return toast('Informe o motivo do cancelamento.', 'warn');
     if (x.om && x.om.length < 6) return toast('Número da OM incompleto.', 'warn');
     gravar(x, nova ? undefined : mesDe(atual.data));
@@ -98,7 +104,10 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     const x = montar(a);
     if (!x.descricao || !x.classe) return toast('Preencha descrição e classificação antes de copiar.', 'warn');
     const agora = new Date().toISOString();
-    gravar({ ...x, id: newId(), data: copiarPara, solicitacaoId: '', origem: 'app', ordem: Date.now(), criadoEm: agora, criadoPor: por });
+    // continuação: mesma comunicação, classificação recalculada para o novo dia (salvo se foi trocada à mão)
+    const ac = autoClasse(copiarPara, x.comunicadoEm, feriados);
+    const classe = x.classeManual || x.classe === 'cancelada' || !ac ? x.classe : ac.classe;
+    gravar({ ...x, classe, id: newId(), data: copiarPara, solicitacaoId: '', origem: 'app', ordem: Date.now(), criadoEm: agora, criadoPor: por });
     toast('Atividade copiada');
     setCopiarPara('');
   };
@@ -235,6 +244,15 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
           />
         </label>
 
+        <label className="field">
+          Demanda comunicada em
+          <input
+            className="input"
+            type="datetime-local"
+            value={paraLocal(a.comunicadoEm)}
+            onChange={(e) => set('comunicadoEm', deLocal(e.target.value))}
+          />
+        </label>
         <span className="field">Classificação</span>
         <div className="segmented" role="radiogroup" aria-label="Classificação">
           {CLASSES.map((c) => (
@@ -242,23 +260,34 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
               key={c.id}
               type="button"
               role="radio"
-              aria-checked={a.classe === c.id}
-              className={'seg' + (a.classe === c.id ? ' on' : '')}
-              onClick={() => set('classe', c.id as Classe)}
+              aria-checked={efetiva === c.id}
+              className={'seg' + (efetiva === c.id ? ' on' : '')}
+              onClick={() => escolher(c.id as Classe)}
             >
               {c.nome}
             </button>
           ))}
         </div>
-        {!a.classe && (
+        {auto ? (
           <p className="small muted">
-            Sugestão: <b>{CLASSES.find((c) => c.id === sugerida)?.nome}</b>{' '}
-            <button type="button" className="link small" onClick={() => set('classe', sugerida)}>
-              usar
-            </button>{' '}
-            — lançada antes da segunda-feira da semana conta como programada; durante a semana, não programada.
+            Regra: <b>{CLASSES.find((c) => c.id === auto.classe)?.nome}</b> — {auto.motivo}.
+            {efetiva !== auto.classe && efetiva !== 'cancelada' && (
+              <>
+                {' '}
+                <b className="text-pend">Alterada à mão.</b>{' '}
+                <button type="button" className="link small" onClick={() => escolher(auto.classe)}>
+                  Voltar à regra
+                </button>
+              </>
+            )}
           </p>
+        ) : (
+          <p className="small muted">Sem a data de comunicação (veio da planilha): escolha a classificação.</p>
         )}
+        <p className="small muted">
+          Emergência: fim de semana ou feriado · Programada: comunicada com {ANTECEDENCIA_HORAS} h ou mais de antecedência · Não programada: menos de{' '}
+          {ANTECEDENCIA_HORAS} h.
+        </p>
         {a.classe === 'cancelada' && (
           <label className="field">
             Motivo do cancelamento
@@ -290,3 +319,19 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     </Modal>
   );
 }
+
+/** Classificação pela regra; sem data de comunicação só vale a regra do fim de semana/feriado. */
+function autoClasse(data: string, comunicadoEm: string, feriados: Record<string, string>) {
+  if (comunicadoEm) return classificar(data, new Date(comunicadoEm), feriados);
+  const r = classificar(data, new Date(0), feriados);
+  return r?.classe === 'emergencia' ? r : null;
+}
+
+/** ISO → valor de <input type="datetime-local"> no horário do aparelho */
+function paraLocal(iso: string): string {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const deLocal = (v: string) => (v ? new Date(v).toISOString() : '');

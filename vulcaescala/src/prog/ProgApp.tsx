@@ -4,7 +4,7 @@ import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { AuthScreen, Splash } from '../cloud/AuthScreens';
 import { souAdmin } from '../emenda/data';
 import { Ctx, type ProgCtx } from './context';
-import { ouvirAreas, type Pendencia } from './data';
+import { ouvirAreas, ouvirFeriados, type Pendencia } from './data';
 import { AREAS_PADRAO, type Area } from './model';
 import { Painel } from './Painel';
 import { Solicitar } from './Solicitar';
@@ -42,6 +42,7 @@ export function ProgApp() {
   const [logado, setLogado] = useState(false);
   const [login, setLogin] = useState(false);
   const [areas, setAreas] = useState<Area[]>(AREAS_PADRAO);
+  const [feriados, setFeriados] = useState<Record<string, string>>({});
   const [tela, setTela] = useState<Tela>(lerTela);
   const [pend, setPend] = useState<Pendencia>({ pendente: false, offline: false });
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -114,6 +115,7 @@ export function ProgApp() {
   }, [phase]);
 
   useEffect(() => (phase === 'ready' && api ? ouvirAreas(api, setAreas) : undefined), [phase, api]);
+  useEffect(() => (phase === 'ready' && api ? ouvirFeriados(api, setFeriados) : undefined), [phase, api]);
 
   // "Salvando…" só aparece se a gravação demorar
   const timer = useRef<ReturnType<typeof setTimeout>>();
@@ -129,8 +131,8 @@ export function ProgApp() {
   }, [api]);
 
   const ctx = useMemo<ProgCtx | null>(
-    () => (api ? { api, por, uid, isAdmin, areas, entrar: () => setLogin(true), setPendencia } : null),
-    [api, por, uid, isAdmin, areas, setPendencia],
+    () => (api ? { api, por, uid, isAdmin, areas, feriados, entrar: () => setLogin(true), setPendencia } : null),
+    [api, por, uid, isAdmin, areas, feriados, setPendencia],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };

@@ -5,7 +5,8 @@
  * planilha vira uma ATIVIDADE; a classificação (programada / não programada / emergência /
  * cancelada) passa a ser obrigatória e a baixa da OM é controlada por OM, com data e autor.
  */
-import { addDays, fromIsoDate, locateDay, toIsoDate, toUtcDay } from '../domain/isoWeek';
+import { fromIsoDate, toIsoDate, toUtcDay } from '../domain/isoWeek';
+import { feriadoEm } from '../domain/feriados';
 
 /** Data de hoje no relógio do aparelho, "AAAA-MM-DD". */
 export const hojeIso = (agora: Date = new Date()) => toIsoDate(toUtcDay(agora));
@@ -25,18 +26,41 @@ export function nomeClasse(c: Classe): string {
   return CLASSES.find((x) => x.id === c)?.nome ?? 'Não classificada';
 }
 
+/** Antecedência mínima para a atividade contar como programada. */
+export const ANTECEDENCIA_HORAS = 48;
+
+export interface Classificacao {
+  classe: Exclude<Classe, '' | 'cancelada'>;
+  /** explicação curta para a tela */
+  motivo: string;
+}
+
 /**
- * Sugestão automática ao programar: o que entrou na programação ANTES do início da
- * semana (segunda-feira 00:00) é "programada"; o que entrou durante a semana é
- * "não programada"; pedido de emergência é "emergência". O programador pode trocar.
+ * Regra da vulcanização AMT:
+ *  - EMERGÊNCIA: toda atividade realizada em fim de semana ou feriado;
+ *  - PROGRAMADA: comunicada com 48 h ou mais de antecedência;
+ *  - NÃO PROGRAMADA: comunicada com menos de 48 h.
+ * A antecedência é contada da comunicação até 00:00 do dia da atividade (horário local).
+ * `municipais`: feriados municipais cadastrados na escala (os nacionais são calculados).
  */
-export function classeSugerida(dataAtividade: string, registradoEm: Date, emergencia = false): Exclude<Classe, '' | 'cancelada'> {
-  if (emergencia) return 'emergencia';
+export function classificar(dataAtividade: string, comunicadoEm: Date, municipais: Record<string, string> = {}): Classificacao | null {
   const d = fromIsoDate(dataAtividade);
-  if (!d) return 'nao_programada';
-  const { dayIndex } = locateDay(d);
-  const segunda = toIsoDate(addDays(d, -dayIndex));
-  return hojeIso(registradoEm) < segunda ? 'programada' : 'nao_programada';
+  if (!d || Number.isNaN(comunicadoEm.getTime())) return null;
+  const fer = feriadoEm(municipais, dataAtividade);
+  if (fer) return { classe: 'emergencia', motivo: `feriado (${fer})` };
+  const dow = d.getUTCDay();
+  if (dow === 0 || dow === 6) return { classe: 'emergencia', motivo: dow === 6 ? 'sábado' : 'domingo' };
+  const [y, m, dd] = dataAtividade.split('-').map(Number);
+  const inicioDoDia = new Date(y, m - 1, dd, 0, 0, 0, 0);
+  const horas = (inicioDoDia.getTime() - comunicadoEm.getTime()) / 3_600_000;
+  const txt = horas <= 0 ? 'comunicada no próprio dia ou depois' : `comunicada ${fmtAntecedencia(horas)} antes`;
+  return horas >= ANTECEDENCIA_HORAS ? { classe: 'programada', motivo: txt } : { classe: 'nao_programada', motivo: `${txt} (menos de ${ANTECEDENCIA_HORAS} h)` };
+}
+
+function fmtAntecedencia(h: number): string {
+  if (h < 48) return `${Math.floor(h)} h`;
+  const dias = Math.floor(h / 24);
+  return `${dias} dias`;
 }
 
 // ------------------------------------------------------------------ tipos de serviço
@@ -125,6 +149,10 @@ export interface Atividade {
   retrabalho: boolean;
   /** motivo do cancelamento (quando cancelada) */
   motivo: string;
+  /** quando a área comunicou a demanda (ISO); base da regra das 48 h. '' = desconhecido (planilha) */
+  comunicadoEm: string;
+  /** a classificação foi trocada à mão (diferente da regra automática) */
+  classeManual: boolean;
   /** solicitação de origem ('' = lançada direto pelo programador) */
   solicitacaoId: string;
   origem: 'app' | 'planilha';
@@ -160,6 +188,8 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     classe: '',
     retrabalho: false,
     motivo: '',
+    comunicadoEm: agora,
+    classeManual: false,
     solicitacaoId: '',
     origem: 'app',
     ordem: Date.now(),
@@ -193,6 +223,8 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     classe,
     retrabalho: a.retrabalho === true,
     motivo: str(a.motivo, MOTIVO_MAX),
+    comunicadoEm: str(a.comunicadoEm, 40),
+    classeManual: a.classeManual === true,
     solicitacaoId: str(a.solicitacaoId, 60),
     origem: a.origem === 'planilha' ? 'planilha' : 'app',
     ordem: typeof a.ordem === 'number' ? a.ordem : 0,
@@ -306,7 +338,7 @@ export type StatusSolicitacao = 'aberta' | 'programada' | 'recusada' | 'cancelad
 export const URGENCIAS: { id: Urgencia; nome: string; dica: string }[] = [
   { id: 'normal', nome: 'Normal', dica: 'Entra na programação da semana' },
   { id: 'urgente', nome: 'Urgente', dica: 'Precisa ser feito nesta semana' },
-  { id: 'emergencia', nome: 'Emergência', dica: 'Equipamento parado ou risco' },
+  { id: 'emergencia', nome: 'Equipamento parado', dica: 'Equipamento parado ou risco à operação' },
 ];
 
 export interface Solicitacao {

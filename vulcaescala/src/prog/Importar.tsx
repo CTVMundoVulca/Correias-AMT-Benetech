@@ -3,7 +3,7 @@ import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useProg } from './context';
 import { COL_MES, COL_OMS, gravarAtividadesEmLote, gravarOms } from './data';
-import { anoDaOm, completarAtividade, completarOm, mesDe, resumir, tipoPelaDescricao, type Atividade, type OmInfo } from './model';
+import { anoDaOm, completarAtividade, completarOm, mesDe, resumir, tipoPelaDescricao, classificar, type Atividade, type OmInfo } from './model';
 
 interface Pacote {
   atividades: Atividade[];
@@ -12,7 +12,7 @@ interface Pacote {
 }
 
 /** Lê o arquivo gerado a partir da planilha (formato "prog-amt-v1"). */
-export function lerPacote(texto: string): Pacote {
+export function lerPacote(texto: string, feriados: Record<string, string> = {}): Pacote {
   const j = JSON.parse(texto);
   if (!j || j.formato !== 'prog-amt-v1' || !Array.isArray(j.atividades)) throw new Error('Arquivo não é uma exportação da planilha de programação.');
   const atividades = (j.atividades as unknown[])
@@ -22,7 +22,10 @@ export function lerPacote(texto: string): Pacote {
       const tipo = typeof x.tipo === 'string' && x.tipo ? x.tipo : tipoPelaDescricao(String(x.descricao ?? ''));
       return completarAtividade(String(x.id ?? ''), { ...x, tipo });
     })
-    .filter((a): a is Atividade => !!a && !!a.id);
+    .filter((a): a is Atividade => !!a && !!a.id)
+    // regra: fim de semana/feriado = emergência (a planilha não diz quando a demanda foi comunicada,
+    // então programada/não programada só ficam se estavam marcadas na planilha)
+    .map((a) => (a.classe === '' && classificar(a.data, new Date(0), feriados)?.classe === 'emergencia' ? { ...a, classe: 'emergencia' as const } : a));
   const oms = (Array.isArray(j.oms) ? (j.oms as unknown[]) : [])
     .map((v) => completarOm(String((v as { om?: unknown })?.om ?? ''), v))
     .filter((o) => /^\d{6,14}$/.test(o.om) && !!o.primeiraData);
@@ -34,7 +37,7 @@ export function lerPacote(texto: string): Pacote {
  * na nuvem (inclusive as alteradas no app) NÃO são sobrescritas — só entra o que falta.
  */
 export function Importar({ onClose }: { onClose: () => void }) {
-  const { api, por } = useProg();
+  const { api, por, feriados } = useProg();
   const toast = useToast();
   const [pacote, setPacote] = useState<Pacote | null>(null);
   const [erro, setErro] = useState('');
@@ -46,7 +49,7 @@ export function Importar({ onClose }: { onClose: () => void }) {
     setPacote(null);
     if (!f) return;
     try {
-      setPacote(lerPacote(await f.text()));
+      setPacote(lerPacote(await f.text(), feriados));
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Arquivo inválido.');
     }

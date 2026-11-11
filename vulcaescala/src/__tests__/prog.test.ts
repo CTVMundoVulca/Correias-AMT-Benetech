@@ -3,7 +3,7 @@ import {
   AREA_INTERNA,
   alocacaoDoDia,
   atividadeVazia,
-  classeSugerida,
+  classificar,
   completarAtividade,
   diasEntre,
   limparOm,
@@ -18,13 +18,24 @@ import { omDaAtividade } from '../prog/data';
 
 const at = (p: Partial<Atividade>): Atividade => ({ ...atividadeVazia(p.id ?? Math.random().toString(36), p.data ?? '2026-11-11', 'x'), ...p });
 
-describe('classificação sugerida', () => {
-  it('lançada antes da segunda-feira da semana = programada; durante a semana = não programada', () => {
-    // 11/11/2026 é quarta; a semana começa em 09/11
-    expect(classeSugerida('2026-11-11', new Date(2026, 10, 6, 15))).toBe('programada');
-    expect(classeSugerida('2026-11-11', new Date(2026, 10, 8, 23, 30))).toBe('programada'); // domingo à noite (horário local)
-    expect(classeSugerida('2026-11-11', new Date(2026, 10, 9, 7))).toBe('nao_programada');
-    expect(classeSugerida('2026-11-11', new Date(2026, 10, 1), true)).toBe('emergencia');
+describe('classificação (regra da vulcanização AMT)', () => {
+  const c = (data: string, comunicado: Date, mun: Record<string, string> = {}) => classificar(data, comunicado, mun)?.classe;
+  it('fim de semana e feriado = emergência, mesmo comunicada com antecedência', () => {
+    expect(c('2026-11-14', new Date(2026, 9, 1))).toBe('emergencia'); // sábado
+    expect(c('2026-11-15', new Date(2026, 9, 1))).toBe('emergencia'); // domingo (e Proclamação)
+    expect(c('2026-11-20', new Date(2026, 9, 1))).toBe('emergencia'); // Consciência Negra (sexta)
+    expect(c('2026-09-08', new Date(2026, 7, 1), { '2026-09-08': 'Nossa Senhora da Vitória' })).toBe('emergencia'); // municipal
+    expect(classificar('2026-11-20', new Date(2026, 9, 1))?.motivo).toBe('feriado (Consciência Negra)');
+  });
+  it('48 h ou mais antes de 00:00 do dia = programada; menos = não programada', () => {
+    // quinta 12/11/2026: 00:00 de 12/11 menos 48 h = 00:00 de 10/11
+    expect(c('2026-11-12', new Date(2026, 10, 10, 0, 0))).toBe('programada');
+    expect(c('2026-11-12', new Date(2026, 10, 9, 15, 0))).toBe('programada');
+    expect(c('2026-11-12', new Date(2026, 10, 10, 0, 1))).toBe('nao_programada');
+    expect(c('2026-11-12', new Date(2026, 10, 11, 16, 0))).toBe('nao_programada');
+    expect(c('2026-11-12', new Date(2026, 10, 12, 9, 0))).toBe('nao_programada'); // no próprio dia
+    // segunda 16/11: pedido na sexta 13/11 às 14h = 58 h antes → programada
+    expect(c('2026-11-16', new Date(2026, 10, 13, 14, 0))).toBe('programada');
   });
 });
 
