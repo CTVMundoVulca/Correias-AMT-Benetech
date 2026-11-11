@@ -32,3 +32,25 @@ describe('emendaVazia', () => {
     expect(emendaVazia({ ...e, tipoEmenda: 'Quente' })).toBe(false);
   });
 });
+
+import { pontoOrvalho, recalcular } from '../emenda/model';
+
+describe('ponto de orvalho (Magnus, coeficientes OMM 17,62 / 243,12 °C)', () => {
+  it('valores de referência (1 casa decimal, vírgula)', () => {
+    expect(pontoOrvalho('20', '50')).toBe('9,3');
+    expect(pontoOrvalho('25', '60')).toBe('16,7');
+    expect(pontoOrvalho('30', '80')).toBe('26,2');
+    expect(pontoOrvalho('15', '100')).toBe('15,0'); // saturado: orvalho = temperatura
+    expect(pontoOrvalho('27,5', '65')).toBe(pontoOrvalho('27.5', '65')); // aceita vírgula
+  });
+  it('vazio quando falta dado ou o valor é inválido', () => {
+    expect(pontoOrvalho('', '60')).toBe('');
+    expect(pontoOrvalho('25', '')).toBe('');
+    expect(pontoOrvalho('25', '0')).toBe('');
+    expect(pontoOrvalho('25', '120')).toBe('');
+  });
+  it('recalcula só o orvalho ao mudar temperatura/umidade (não mexe em campos ajustados à mão)', () => {
+    const e = { ...novaEmenda('x', '2026-11-11', ''), largura: '1200', vies: '999', tempAmbiente: '25', umidade: '60' };
+    expect(recalcular(e, ['umidade'])).toEqual({ orvalho: '16,7' });
+  });
+});

@@ -237,7 +237,17 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <div className="g2">
           <Txt e={e} set={set} c="tempAmbiente" label="Temp. ambiente °C" mode="decimal" />
           <Txt e={e} set={set} c="umidade" label="Umidade relativa %" mode="decimal" />
-          <Txt e={e} set={set} c="orvalho" label="Temp. ponto de orvalho °C" mode="decimal" />
+          <label className="field">
+            Ponto de orvalho °C (automático)
+            <input
+              className={inp(e.orvalho)}
+              value={e.orvalho}
+              readOnly
+              placeholder="preencha temp. e umidade"
+              title="Calculado pela fórmula de Magnus (OMM) a partir da temperatura ambiente e da umidade relativa"
+              aria-label="Ponto de orvalho calculado"
+            />
+          </label>
           <Txt e={e} set={set} c="tempSuperficie" label="Temp. superfície °C" mode="decimal" />
         </div>
         <Opts e={e} set={set} c="clima" label="Clima" op={['Seco', 'Chuva']} />
@@ -248,6 +258,8 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
           <Txt e={e} set={set} c="demao3" label="3ª demão (hora)" placeholder="N/A" />
           <Txt e={e} set={set} c="horaFechada" label="Fechada (hora)" type="time" />
         </div>
+        <Area e={e} set={set} c="contamAntes" label="Contaminantes antes da aplicação da cola (ex.: poeira, água, óleo)" />
+        <Area e={e} set={set} c="contamDepois" label="Contaminantes depois da aplicação da cola" />
         <Opts e={e} set={set} c="rodilhada" label="Rodilhada?" op={['Sim', 'Não', 'N/A']} />
         <h3 className="sub">Vulcanização</h3>
         <div className="g2">
