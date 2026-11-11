@@ -40,9 +40,28 @@ export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; an
     if (!file) return;
     const ordem = alvo.current;
     setOcupado(ordem);
-    antesDeGravar?.();
     try {
       const data = await comprimirFoto(file);
+      if (input.current) input.current.value = '';
+      // foto em pé: avisa (deitada fica maior no relatório), mas a pessoa decide
+      if (await emPe(data)) {
+        const tirarDeNovo = await confirm({
+          title: 'Esta foto está em pé',
+          message: (
+            <p>
+              Fotos <b>deitadas</b> (celular na horizontal) ficam maiores e mais nítidas no relatório e ocupam menos páginas. Quer
+              tirar de novo com o celular deitado?
+            </p>
+          ),
+          confirmLabel: 'Tirar de novo',
+          cancelLabel: 'Manter esta',
+        });
+        if (tirarDeNovo) {
+          escolher(ordem); // reabre a câmera para o mesmo campo
+          return;
+        }
+      }
+      antesDeGravar?.();
       // sem internet a foto fica no aparelho e é enviada depois
       void gravarFoto(api, emendaId, { id: newId(), ordem, legenda: legendaSugerida(ordem), data, criadoEm: new Date().toISOString() }).catch(() =>
         toast('A nuvem recusou a foto.', 'danger'),
@@ -52,7 +71,6 @@ export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; an
       toast('Não foi possível ler a foto.', 'danger');
     } finally {
       setOcupado(null);
-      if (input.current) input.current.value = '';
     }
   };
 
@@ -80,6 +98,12 @@ export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; an
                     {ocupado === i ? '⏳' : '📷'}
                   </span>
                   <span className="small">Toque para adicionar</span>
+                  <span className="foto-dica">
+                    <span className="celular-deitado" aria-hidden>
+                      📱
+                    </span>{' '}
+                    celular deitado
+                  </span>
                 </button>
               )}
               {f ? (
@@ -149,4 +173,14 @@ function LegendaEditavel({ numero, valor, onSalvar }: { numero: number; valor: s
       />
     </label>
   );
+}
+
+/** A foto saiu em pé (mais alta que larga)? A orientação já vem corrigida pela compressão. */
+function emPe(dataUrl: string): Promise<boolean> {
+  return new Promise((ok) => {
+    const img = new Image();
+    img.onload = () => ok(img.naturalHeight > img.naturalWidth * 1.05);
+    img.onerror = () => ok(false);
+    img.src = dataUrl;
+  });
 }
