@@ -178,7 +178,7 @@ export const LISTAS_PADRAO: Listas = {
   ],
   materiaisManta: ['COBERTURA 0087 CBSC8.0ST', 'COBERTURA 0084 CBSC4.0ST', 'COBERTURA 0086 CBSC6.0ST'],
   fabricantes: ['VIPAFIX', 'BENETECH'],
-  equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO'],
+  equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO', 'DURÔMETRO'],
 };
 
 /** Linhas da seção 4 já com o nome de cada aparelho (o restante a pessoa preenche). */

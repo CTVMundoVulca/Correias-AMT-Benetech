@@ -88,7 +88,7 @@ describe('efetivo em dois grupos (preparação × troca)', () => {
 describe('aparelhos de medição', () => {
   it('relatório novo já vem com os aparelhos da lista (só o nome)', () => {
     const e = novaEmenda('x', '2026-11-11', '');
-    expect(e.equipamentos.map((q) => q.equip)).toEqual(['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO']);
+    expect(e.equipamentos.map((q) => q.equip)).toEqual(['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO', 'DURÔMETRO']);
     expect(novaEmenda('x', '2026-11-11', '', ['PAQUÍMETRO']).equipamentos.map((q) => q.equip)).toEqual(['PAQUÍMETRO']);
   });
   it('aparelhos só com o nome não tiram o relatório de "vazio"; com dados, sim', () => {
