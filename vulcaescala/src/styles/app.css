@@ -465,3 +465,9 @@ input.input[type='time']::-webkit-date-and-time-value { text-align: left; margin
 .atraso-tab li { justify-content: flex-start; font-size: 0.9rem; }
 .atraso-tab li > span:first-child { min-width: 34px; font-weight: 700; }
 .atraso-tab li > span:nth-child(2) { min-width: 88px; }
+
+/* atividades vindas da Programação da Vulcanização */
+.pend-strip.prog-strip { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); }
+.prog-strip ul { margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.prog-strip-item { font-size: 0.88rem; }
+.prog-strip .btn.small { min-height: 34px; padding: 4px 10px; font-size: 0.82rem; }

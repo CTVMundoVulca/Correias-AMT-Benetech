@@ -51,9 +51,11 @@ interface HeaderProps {
   title?: string;
   /** situação da sincronização (quando o app não usa o store da escala) */
   status?: { cls: string; short: string; long: string };
+  /** botões extras no cabeçalho (ex.: Entrar/Sair da Programação) */
+  acoes?: React.ReactNode;
 }
 
-export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcanização', status }: HeaderProps) {
+export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcanização', status, acoes }: HeaderProps) {
   const store = useStoreOptional();
   const cloud = store?.cloud ?? null;
   const vis = store?.visualizacao ?? null;
@@ -96,6 +98,7 @@ export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcaniza�
             <button className="hdr-btn" onClick={toggleTheme} title="Tema claro/escuro" aria-label="Alternar tema claro/escuro">
               {dark ? '☀️' : '🌙'}
             </button>
+            {acoes}
             {cloud && (
               <button className="hdr-btn" onClick={cloud.logout} title="Sair" aria-label="Sair da conta">
                 ⏻

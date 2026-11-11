@@ -1,7 +1,7 @@
 {
   "name": "Apps Benetech — Contrato AMT",
   "short_name": "Benetech AMT",
-  "description": "Ferramentas de campo do contrato AMT: escala de vulcanização, registro de emenda e medidas de correias.",
+  "description": "ferramentas de campo do contrato AMT: escala, programação da vulcanização, registro de emenda e medidas de correias.",
   "lang": "pt-BR",
   "id": "./",
   "start_url": "./",

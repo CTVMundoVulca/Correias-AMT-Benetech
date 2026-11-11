@@ -1,7 +1,7 @@
 // Gera todos os apps do portal AMT.
-//   node scripts/build-all.mjs pages   → ../escala e ../emenda (publicados pelo GitHub Pages)
+//   node scripts/build-all.mjs pages   → ../escala, ../emenda e ../programacao (publicados pelo GitHub Pages)
 //                                         + ../app-update.js e versão do ../service-worker.js (único)
-//   node scripts/build-all.mjs         → dist/escala e dist/emenda
+//   node scripts/build-all.mjs         → dist/escala, dist/emenda e dist/programacao
 // Para cada app: build de arquivo único, copia os arquivos compartilhados
 // (logos, app-update.js) e grava a versão do cache no service worker.
 import { build } from 'vite';
@@ -17,11 +17,11 @@ const mode = process.argv[2] === 'pages' ? 'pages' : 'production';
 const raiz = join(root, '..');
 const shared = join(root, 'public', 'shared');
 
-for (const app of ['escala', 'emenda']) {
+for (const app of ['escala', 'emenda', 'programacao']) {
   process.env.APP = app;
   await build({ root, mode, logLevel: 'warn' });
   const out = mode === 'pages' ? join(raiz, app) : join(root, 'dist', app);
-  if (existsSync(join(out, 'emenda.html'))) renameSync(join(out, 'emenda.html'), join(out, 'index.html'));
+  if (existsSync(join(out, `${app}.html`))) renameSync(join(out, `${app}.html`), join(out, 'index.html'));
   for (const f of readdirSync(shared)) copyFileSync(join(shared, f), join(out, f));
   if (mode === 'pages') {
     // Portal = um app só: manifest e atualização (app-update.js + service worker) ficam na raiz
@@ -34,7 +34,7 @@ for (const app of ['escala', 'emenda']) {
     );
     rmSync(join(out, 'app-update.js'), { force: true });
     console.log(`${app}: ok`);
-  } else console.log(`${app}: ${stamp(out)}`);
+  } else console.log(`${app}: ${existsSync(join(out, 'service-worker.js')) ? stamp(out) : 'ok'}`);
 }
 
 // Service worker ÚNICO na raiz: a versão muda quando qualquer arquivo do app shell muda,

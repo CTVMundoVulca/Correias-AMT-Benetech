@@ -21,17 +21,27 @@ function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-function Title() {
+function Title({ titulo = 'Escala de Vulcanização' }: { titulo?: string }) {
   return (
     <>
       <div className="contract">Contrato AMT</div>
-      <h1>Escala de Vulcanização</h1>
+      <h1>{titulo}</h1>
     </>
   );
 }
 
 /** Login por e-mail e senha — mesmo fluxo do Registro de Horários. */
-export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () => void }) {
+export function AuthScreen({
+  api,
+  onVoltar,
+  titulo,
+  voltarLabel = '‹ Só visualizar a escala',
+}: {
+  api: FirebaseApi;
+  onVoltar?: () => void;
+  titulo?: string;
+  voltarLabel?: string;
+}) {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [msg, setMsg] = useState<{ kind: 'erro' | 'ok'; text: string } | null>(null);
@@ -63,7 +73,7 @@ export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () 
 
   return (
     <Shell>
-      <Title />
+      <Title titulo={titulo} />
       <p className="small muted">Entre com seu e-mail e senha. Edição restrita aos administradores (contas criadas pelo administrador do sistema).</p>
       <form className="stack" onSubmit={login}>
         <input
@@ -98,7 +108,7 @@ export function AuthScreen({ api, onVoltar }: { api: FirebaseApi; onVoltar?: () 
       </button>
       {onVoltar && (
         <button className="link small" onClick={onVoltar} disabled={busy}>
-          ‹ Só visualizar a escala
+          {voltarLabel}
         </button>
       )}
     </Shell>
