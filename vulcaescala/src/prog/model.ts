@@ -28,6 +28,9 @@ export function nomeClasse(c: Classe): string {
 
 /** Antecedência mínima para a atividade contar como programada. */
 export const ANTECEDENCIA_HORAS = 48;
+/** Jornada em que os pedidos são recebidos (dias úteis). A atividade começa às 07:15. */
+export const JORNADA_INICIO = { h: 7, m: 15 };
+export const JORNADA_FIM = { h: 17, m: 15 };
 
 export interface Classificacao {
   classe: Exclude<Classe, '' | 'cancelada'>;
@@ -35,12 +38,40 @@ export interface Classificacao {
   motivo: string;
 }
 
+const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Dia útil = não é sábado, domingo nem feriado (nacional ou municipal). */
+export function diaUtil(iso: string, municipais: Record<string, string> = {}): boolean {
+  const d = fromIsoDate(iso);
+  if (!d) return false;
+  const dow = d.getUTCDay();
+  return dow !== 0 && dow !== 6 && !feriadoEm(municipais, iso);
+}
+
+/**
+ * Quando o pedido conta como recebido: dentro da jornada (07:15–17:15 de dia útil) vale a
+ * própria hora; antes das 07:15 de um dia útil, às 07:15 do mesmo dia; depois das 17:15,
+ * em fim de semana ou feriado, às 07:15 do próximo dia útil.
+ */
+export function recebidoEm(comunicadoEm: Date, municipais: Record<string, string> = {}): Date {
+  const d = new Date(comunicadoEm.getTime());
+  const abre = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate(), JORNADA_INICIO.h, JORNADA_INICIO.m);
+  const fecha = new Date(d.getFullYear(), d.getMonth(), d.getDate(), JORNADA_FIM.h, JORNADA_FIM.m);
+  if (diaUtil(isoLocal(d), municipais)) {
+    if (d < abre(d)) return abre(d);
+    if (d <= fecha) return d;
+  }
+  let x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  for (let i = 0; i < 30 && !diaUtil(isoLocal(x), municipais); i++) x = new Date(x.getFullYear(), x.getMonth(), x.getDate() + 1);
+  return abre(x);
+}
+
 /**
  * Regra da vulcanização AMT:
  *  - EMERGÊNCIA: toda atividade realizada em fim de semana ou feriado;
- *  - PROGRAMADA: comunicada com 48 h ou mais de antecedência;
+ *  - PROGRAMADA: comunicada com 48 h (corridas) ou mais de antecedência;
  *  - NÃO PROGRAMADA: comunicada com menos de 48 h.
- * A antecedência é contada da comunicação até 00:00 do dia da atividade (horário local).
+ * As 48 h vão do recebimento do pedido (ver recebidoEm) até 07:15 do dia da atividade.
  * `municipais`: feriados municipais cadastrados na escala (os nacionais são calculados).
  */
 export function classificar(dataAtividade: string, comunicadoEm: Date, municipais: Record<string, string> = {}): Classificacao | null {
@@ -51,16 +82,26 @@ export function classificar(dataAtividade: string, comunicadoEm: Date, municipai
   const dow = d.getUTCDay();
   if (dow === 0 || dow === 6) return { classe: 'emergencia', motivo: dow === 6 ? 'sábado' : 'domingo' };
   const [y, m, dd] = dataAtividade.split('-').map(Number);
-  const inicioDoDia = new Date(y, m - 1, dd, 0, 0, 0, 0);
-  const horas = (inicioDoDia.getTime() - comunicadoEm.getTime()) / 3_600_000;
-  const txt = horas <= 0 ? 'comunicada no próprio dia ou depois' : `comunicada ${fmtAntecedencia(horas)} antes`;
+  const inicio = new Date(y, m - 1, dd, JORNADA_INICIO.h, JORNADA_INICIO.m, 0, 0);
+  const rec = recebidoEm(comunicadoEm, municipais);
+  const ajustado = rec.getTime() !== comunicadoEm.getTime();
+  const horas = (inicio.getTime() - rec.getTime()) / 3_600_000;
+  const quando = ajustado
+    ? `pedido fora da jornada, recebido ${rec.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} 07:15`
+    : 'pedido dentro da jornada';
+  const txt = horas <= 0 ? `${quando}, no próprio dia ou depois` : `${quando}, ${fmtAntecedencia(horas)} antes das 07:15 do dia`;
   return horas >= ANTECEDENCIA_HORAS ? { classe: 'programada', motivo: txt } : { classe: 'nao_programada', motivo: `${txt} (menos de ${ANTECEDENCIA_HORAS} h)` };
 }
 
 function fmtAntecedencia(h: number): string {
-  if (h < 48) return `${Math.floor(h)} h`;
-  const dias = Math.floor(h / 24);
-  return `${dias} dias`;
+  if (h >= 72) {
+    const dias = Math.floor(h / 24);
+    const resto = Math.floor(h - dias * 24);
+    return resto ? `${dias} dias e ${resto} h` : `${dias} dias`;
+  }
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return mm ? `${hh} h ${mm} min` : `${hh} h`;
 }
 
 // ------------------------------------------------------------------ tipos de serviço

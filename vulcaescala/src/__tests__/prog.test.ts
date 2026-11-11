@@ -4,6 +4,7 @@ import {
   alocacaoDoDia,
   atividadeVazia,
   classificar,
+  recebidoEm,
   completarAtividade,
   diasEntre,
   limparOm,
@@ -27,15 +28,29 @@ describe('classificação (regra da vulcanização AMT)', () => {
     expect(c('2026-09-08', new Date(2026, 7, 1), { '2026-09-08': 'Nossa Senhora da Vitória' })).toBe('emergencia'); // municipal
     expect(classificar('2026-11-20', new Date(2026, 9, 1))?.motivo).toBe('feriado (Consciência Negra)');
   });
-  it('48 h ou mais antes de 00:00 do dia = programada; menos = não programada', () => {
-    // quinta 12/11/2026: 00:00 de 12/11 menos 48 h = 00:00 de 10/11
-    expect(c('2026-11-12', new Date(2026, 10, 10, 0, 0))).toBe('programada');
+  it('48 h corridas do recebimento do pedido até 07:15 do dia da atividade', () => {
+    // quinta 12/11/2026 07:15 − 48 h = terça 10/11 07:15
+    expect(c('2026-11-12', new Date(2026, 10, 10, 7, 15))).toBe('programada');
+    expect(c('2026-11-12', new Date(2026, 10, 10, 7, 16))).toBe('nao_programada');
     expect(c('2026-11-12', new Date(2026, 10, 9, 15, 0))).toBe('programada');
-    expect(c('2026-11-12', new Date(2026, 10, 10, 0, 1))).toBe('nao_programada');
-    expect(c('2026-11-12', new Date(2026, 10, 11, 16, 0))).toBe('nao_programada');
     expect(c('2026-11-12', new Date(2026, 10, 12, 9, 0))).toBe('nao_programada'); // no próprio dia
-    // segunda 16/11: pedido na sexta 13/11 às 14h = 58 h antes → programada
-    expect(c('2026-11-16', new Date(2026, 10, 13, 14, 0))).toBe('programada');
+    // antes das 07:15 da terça conta como 07:15 da terça → ainda 48 h
+    expect(c('2026-11-12', new Date(2026, 10, 10, 6, 0))).toBe('programada');
+    // segunda à noite (depois das 17:15) conta como terça 07:15 → 48 h
+    expect(c('2026-11-12', new Date(2026, 10, 9, 20, 0))).toBe('programada');
+    // terça 17:30 → recebido quarta 07:15 → 24 h
+    expect(c('2026-11-12', new Date(2026, 10, 10, 17, 30))).toBe('nao_programada');
+  });
+  it('pedido no fim de semana conta a partir de 07:15 do próximo dia útil', () => {
+    // sexta 06/11 16:00 para segunda 09/11: 63 h 15 min → programada
+    expect(c('2026-11-09', new Date(2026, 10, 6, 16, 0))).toBe('programada');
+    // sábado 07/11 para terça 10/11: recebido segunda 09/11 07:15 → 24 h → não programada
+    expect(c('2026-11-10', new Date(2026, 10, 7, 10, 0))).toBe('nao_programada');
+    // sábado 07/11 para quarta 11/11: recebido segunda 07:15 → 48 h → programada
+    expect(c('2026-11-11', new Date(2026, 10, 7, 10, 0))).toBe('programada');
+    // quinta 19/11 18:00, sexta 20/11 é feriado → recebido segunda 23/11 07:15; atividade terça 24/11 → não programada
+    expect(c('2026-11-24', new Date(2026, 10, 19, 18, 0))).toBe('nao_programada');
+    expect(recebidoEm(new Date(2026, 10, 19, 18, 0)).toString()).toBe(new Date(2026, 10, 23, 7, 15).toString());
   });
 });
 

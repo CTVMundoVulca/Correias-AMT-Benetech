@@ -285,8 +285,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
           <p className="small muted">Sem a data de comunicação (veio da planilha): escolha a classificação.</p>
         )}
         <p className="small muted">
-          Emergência: fim de semana ou feriado · Programada: comunicada com {ANTECEDENCIA_HORAS} h ou mais de antecedência · Não programada: menos de{' '}
-          {ANTECEDENCIA_HORAS} h.
+          Emergência: fim de semana ou feriado · Programada: pedido recebido {ANTECEDENCIA_HORAS} h ou mais antes das 07:15 do dia · Não programada:
+          menos de {ANTECEDENCIA_HORAS} h. Pedidos fora da jornada (07:15–17:15, dias úteis) contam a partir das 07:15 do próximo dia útil.
         </p>
         {a.classe === 'cancelada' && (
           <label className="field">
