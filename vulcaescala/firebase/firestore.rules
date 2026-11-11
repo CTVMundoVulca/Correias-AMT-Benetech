@@ -211,10 +211,11 @@ service cloud.firestore {
     match /emenda_config/listas {
       allow read: if signedIn();
       allow write: if signedIn()
-        && request.resource.data.keys().hasOnly(['materiaisEmenda', 'materiaisManta', 'fabricantes'])
+        && request.resource.data.keys().hasOnly(['materiaisEmenda', 'materiaisManta', 'fabricantes', 'equipamentos'])
         && request.resource.data.materiaisEmenda.size() <= 100
         && request.resource.data.materiaisManta.size() <= 100
-        && request.resource.data.fabricantes.size() <= 30;
+        && request.resource.data.fabricantes.size() <= 30
+        && request.resource.data.get('equipamentos', []).size() <= 30;
     }
 
     // Qualquer outra coleção: bloqueada.

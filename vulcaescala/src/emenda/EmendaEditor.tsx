@@ -21,6 +21,7 @@ import {
 import { SignaturePad } from './SignaturePad';
 import { FotosSection } from './FotosSection';
 import { EfetivoDialog } from './EfetivoDialog';
+import { ListasDialog } from './ListasDialog';
 
 type SetFn = (campos: Partial<Emenda>) => void;
 
@@ -39,7 +40,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
   const excluirEmenda = useExcluirEmenda();
   const [remoto, setRemoto] = useState<Emenda | null | undefined>(undefined);
   // relatório novo ainda não gravado: modelo local (com a data escolhida)
-  const [modelo] = useState(() => (novo ? novaEmenda(id, novo, por) : null));
+  const [modelo] = useState(() => (novo ? novaEmenda(id, novo, por, ctx.listas.equipamentos) : null));
   const criado = useRef(!novo);
   const [draft, setDraft] = useState<Partial<Emenda>>({});
   const fila = useRef<Partial<Emenda>>({});
@@ -571,6 +572,8 @@ function MateriaisSection({ lista, e, set }: { lista: 'materiaisEmenda' | 'mater
 }
 
 function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
+  const { listas } = useEmenda();
+  const [gerenciar, setGerenciar] = useState(false);
   const upd = (i: number, p: Partial<EquipItem>) => {
     const n = [...e.equipamentos];
     n[i] = { ...n[i], ...p };
@@ -581,9 +584,15 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
       {e.equipamentos.map((q, i) => (
         <div key={i} className="item-card">
           <div className="g2">
-            <label className="field">
+            <label className="field linha-inteira">
               Equipamento
-              <input className={inp(q.equip)} value={q.equip} onChange={(ev) => upd(i, { equip: ev.target.value })} />
+              <select className={inp(q.equip)} value={q.equip} onChange={(ev) => upd(i, { equip: ev.target.value })}>
+                <option value="">Selecione</option>
+                {q.equip && !listas.equipamentos.includes(q.equip) && <option>{q.equip}</option>}
+                {listas.equipamentos.map((o) => (
+                  <option key={o}>{o}</option>
+                ))}
+              </select>
             </label>
             <label className="field">
               Marca / modelo
@@ -627,6 +636,10 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
       >
         + Adicionar equipamento
       </button>
+      <button className="btn small" onClick={() => setGerenciar(true)}>
+        Gerenciar aparelhos
+      </button>
+      {gerenciar && <ListasDialog inicial="equipamentos" onClose={() => setGerenciar(false)} />}
     </>
   );
 }

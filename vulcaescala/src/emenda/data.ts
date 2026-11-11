@@ -127,6 +127,7 @@ export function ouvirListas(api: FirebaseApi, cb: (l: Listas) => void): Unsub {
         materiaisEmenda: Array.isArray(d.materiaisEmenda) && d.materiaisEmenda.length ? d.materiaisEmenda : LISTAS_PADRAO.materiaisEmenda,
         materiaisManta: Array.isArray(d.materiaisManta) && d.materiaisManta.length ? d.materiaisManta : LISTAS_PADRAO.materiaisManta,
         fabricantes: Array.isArray(d.fabricantes) && d.fabricantes.length ? d.fabricantes : LISTAS_PADRAO.fabricantes,
+        equipamentos: Array.isArray(d.equipamentos) && d.equipamentos.length ? d.equipamentos : LISTAS_PADRAO.equipamentos,
       });
     },
     () => cb(LISTAS_PADRAO),

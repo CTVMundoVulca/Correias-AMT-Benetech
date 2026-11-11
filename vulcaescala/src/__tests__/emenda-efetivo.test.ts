@@ -84,3 +84,19 @@ describe('efetivo em dois grupos (preparação × troca)', () => {
     expect(emendaVazia({ ...e, efetivoPreparo: [{ workerId: '', nome: 'BRUNO', matricula: '2' }] })).toBe(false);
   });
 });
+
+describe('aparelhos de medição', () => {
+  it('relatório novo já vem com os aparelhos da lista (só o nome)', () => {
+    const e = novaEmenda('x', '2026-11-11', '');
+    expect(e.equipamentos.map((q) => q.equip)).toEqual(['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO']);
+    expect(novaEmenda('x', '2026-11-11', '', ['PAQUÍMETRO']).equipamentos.map((q) => q.equip)).toEqual(['PAQUÍMETRO']);
+  });
+  it('aparelhos só com o nome não tiram o relatório de "vazio"; com dados, sim', () => {
+    const e = novaEmenda('x', '2026-11-11', '', ['OUTRO']);
+    expect(emendaVazia(e)).toBe(true);
+    expect(emendaVazia({ ...e, equipamentos: [{ ...e.equipamentos[0], codigo: 'T-01' }] })).toBe(false);
+  });
+  it('relatório antigo sem o campo não ganha linhas automáticas', () => {
+    expect(completarEmenda({ id: 'x', data: '2026-11-01' } as never).equipamentos).toEqual([]);
+  });
+});
