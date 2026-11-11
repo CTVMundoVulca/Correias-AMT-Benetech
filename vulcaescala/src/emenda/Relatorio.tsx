@@ -110,6 +110,8 @@ export function Relatorio({ id }: { id: string }) {
         <KV k="2ª demão" v={e.demao2} />
         <KV k="3ª demão" v={e.demao3} />
         <KV k="Fechada" v={e.horaFechada} />
+        <KV k="Contaminantes antes da cola" v={e.contamAntes} full />
+        <KV k="Contaminantes depois da cola" v={e.contamDepois} full />
         <KV k="Rodilhada?" v={e.rodilhada} />
         <KV k="Temperatura vulc. °C" v={e.tempVulc} />
         <KV k="Tempo vulc. (min)" v={e.tempoVulc} />

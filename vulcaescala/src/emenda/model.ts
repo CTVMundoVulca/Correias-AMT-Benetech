@@ -109,6 +109,9 @@ export interface Emenda {
   demao1: string;
   demao2: string;
   demao3: string;
+  /** contaminantes que caíram na emenda antes / depois da aplicação da cola */
+  contamAntes: string;
+  contamDepois: string;
   horaFechada: string;
   rodilhada: SimNao;
   tempVulc: string;
@@ -229,6 +232,8 @@ export function novaEmenda(id: string, hoje: string, por: string): Emenda {
     demao1: '',
     demao2: '',
     demao3: '',
+    contamAntes: '',
+    contamDepois: '',
     horaFechada: '',
     rodilhada: '',
     tempVulc: 'N/A',
@@ -280,6 +285,23 @@ const num = (s: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/**
+ * Ponto de orvalho (°C) pela fórmula de Magnus com os coeficientes de Sonntag (1990),
+ * recomendada pela OMM: b = 17,62 e c = 243,12 °C, válida de −45 a 60 °C (erro < 0,1 °C).
+ *   γ = ln(UR/100) + b·T/(c + T)      Td = c·γ / (b − γ)
+ * Devolve "" se temperatura/umidade não forem números válidos (UR entre 1 e 100 %).
+ */
+export function pontoOrvalho(temp: string, umidade: string): string {
+  const t = parseFloat(String(temp).replace(',', '.'));
+  const ur = parseFloat(String(umidade).replace(',', '.'));
+  if (!Number.isFinite(t) || !Number.isFinite(ur) || ur <= 0 || ur > 100 || t < -45 || t > 60) return '';
+  const b = 17.62;
+  const c = 243.12;
+  const g = Math.log(ur / 100) + (b * t) / (c + t);
+  const td = (c * g) / (b - g);
+  return td.toFixed(1).replace('.', ',');
+}
+
 /** "HH:MM" + minutos → "HH:MM" (mesma lógica do app do Suzano, sem passar de 24h). */
 export function somaHora(hhmm: string, minutos: number): string {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
@@ -297,8 +319,10 @@ export const CAMPOS_GATILHO: (keyof Emenda)[] = ['tipoCorreia', 'tipoEmenda', 'l
  * editar qualquer um deles depois.
  */
 export function recalcular(e: Emenda, alterados: (keyof Emenda)[]): Partial<Emenda> {
-  if (!alterados.some((c) => CAMPOS_GATILHO.includes(c))) return {};
-  const out: Partial<Emenda> = {};
+  // ponto de orvalho: gatilho próprio (temperatura ou umidade) — não mexe nos outros campos
+  const orv: Partial<Emenda> = alterados.some((c) => c === 'tempAmbiente' || c === 'umidade') ? { orvalho: pontoOrvalho(e.tempAmbiente, e.umidade) } : {};
+  if (!alterados.some((c) => CAMPOS_GATILHO.includes(c))) return orv;
+  const out: Partial<Emenda> = { ...orv };
   const tc = e.tipoCorreia;
   const te = e.tipoEmenda;
   const larg = num(e.largura);
