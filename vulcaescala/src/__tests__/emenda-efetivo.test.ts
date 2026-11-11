@@ -78,7 +78,6 @@ describe('efetivo em dois grupos (preparação × troca)', () => {
     const e = completarEmenda(antigo);
     expect(e.efetivo).toHaveLength(1);
     expect(e.efetivoPreparo).toEqual([]);
-    expect(e.dataPreparo).toBe('');
   });
   it('preencher só a preparação já não é relatório vazio', () => {
     const e = novaEmenda('x', '2026-11-11', '');

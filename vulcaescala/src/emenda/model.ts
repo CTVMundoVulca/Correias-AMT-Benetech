@@ -78,8 +78,6 @@ export interface Emenda {
   efetivo: EfetivoItem[];
   /** efetivo que PREPAROU a correia antes (abertura das emendas) — pode ser outra equipe */
   efetivoPreparo: EfetivoItem[];
-  /** data da preparação (AAAA-MM-DD), quando foi em outro dia */
-  dataPreparo: string;
   materiaisEmenda: MaterialItem[];
   materiaisManta: MaterialItem[];
   equipamentos: EquipItem[];
@@ -206,7 +204,6 @@ export function novaEmenda(id: string, hoje: string, por: string): Emenda {
     om: '',
     efetivo: [],
     efetivoPreparo: [],
-    dataPreparo: '',
     materiaisEmenda: [],
     materiaisManta: [],
     equipamentos: [],

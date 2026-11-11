@@ -438,18 +438,17 @@ function SelectColaborador({ nome, onPick, excluir = [] }: { nome: string; onPic
 
 /**
  * Efetivo em dois grupos (contrato ArcelorMittal: a correia é preparada antes e nem sempre
- * pela mesma equipe que faz a troca): 2.1 preparação (abertura das emendas) e
- * 2.2 troca (execução da emenda). A mesma pessoa pode estar nos dois.
+ * pela mesma equipe que faz a troca): Efetivo Preparação (abertura das emendas) e
+ * Efetivo Troca (execução da emenda). A mesma pessoa pode estar nos dois.
  */
 function EfetivoSection({ e, set }: { e: Emenda; set: SetFn }) {
   const { efetivo } = useEmenda();
   const [gerenciar, setGerenciar] = useState(false);
   return (
     <>
-      <h3 className="sub">2.1 Preparação da correia (abertura das emendas)</h3>
-      <Txt e={e} set={set} c="dataPreparo" label="Data da preparação" type="date" />
+      <h3 className="sub">Efetivo Preparação</h3>
       <ListaEfetivo e={e} set={set} campo="efetivoPreparo" />
-      <h3 className="sub">2.2 Troca da correia (execução da emenda)</h3>
+      <h3 className="sub">Efetivo Troca</h3>
       <ListaEfetivo e={e} set={set} campo="efetivo" />
       <button className="btn small" onClick={() => setGerenciar(true)}>
         Gerenciar efetivo
@@ -494,7 +493,7 @@ function ListaEfetivo({ e, set, campo }: { e: Emenda; set: SetFn; campo: 'efetiv
         </div>
       ))}
       <button className="btn small" onClick={() => set({ [campo]: [...itens, { workerId: '', nome: '', matricula: '' }] } as Partial<Emenda>)}>
-        + Adicionar pessoa na {grupo}
+        + Adicionar pessoa
       </button>
     </>
   );
