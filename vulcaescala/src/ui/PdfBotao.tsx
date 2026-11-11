@@ -9,7 +9,7 @@ interface Props {
   /** título do arquivo (sem .pdf) */
   titulo: string;
   paisagem?: boolean;
-  /** inclui o rodapé CTV no fim do PDF */
+  /** inclui a linha de autoria no fim do PDF */
   rodape?: boolean;
   className?: string;
 }
@@ -32,7 +32,7 @@ export function PdfBotao({ alvo, titulo, paisagem, rodape = true, className = 'b
       const f = await gerarPdf(el, {
         nome: nomeArquivo(titulo),
         paisagem,
-        extras: rodape ? [document.getElementById('ctv-copyright')] : [],
+        extras: rodape ? [linhaAutoria()] : [],
       });
       setArquivo(f);
     } catch (e) {
@@ -78,4 +78,12 @@ export function PdfBotao({ alvo, titulo, paisagem, rodape = true, className = 'b
       )}
     </>
   );
+}
+
+/** Rodapé do PDF: só uma linha discreta de autoria (sem logo). */
+function linhaAutoria(): HTMLElement {
+  const d = document.createElement('div');
+  d.className = 'pdf-autoria';
+  d.textContent = 'Desenvolvido por CTV Consultoria Técnica em Vulcanização';
+  return d;
 }
