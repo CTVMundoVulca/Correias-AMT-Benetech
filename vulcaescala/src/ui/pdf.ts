@@ -71,7 +71,11 @@ function quebras(host: HTMLElement, pageH: number): number[] {
     const bottom = r.bottom - base;
     const cs = getComputedStyle(el);
     if ((cs.breakBefore === 'page' || cs.pageBreakBefore === 'always') && top > 1) forcadas.push(top);
-    if (r.height <= pageH * 0.35) atomos.push([top, bottom]);
+    // não cortar: blocos pequenos, e sempre fotos, legendas, linhas de tabela, campos e assinaturas
+    // (desde que caibam numa página); seções médias também ficam inteiras quando possível
+    const inteiro = el.matches('img, figure, tr, .kv, .rel-sig, .rel-lib, .pdf-inteiro');
+    if (r.height <= pageH * 0.35 || (inteiro && r.height <= pageH * 0.95) || (el.matches('.rel-bloco') && r.height <= pageH * 0.5))
+      atomos.push([top, bottom]);
   });
   forcadas.sort((a, b) => a - b);
   const br = [0];
