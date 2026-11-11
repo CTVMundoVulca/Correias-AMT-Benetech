@@ -54,3 +54,18 @@ describe('ponto de orvalho (Magnus, coeficientes OMM 17,62 / 243,12 °C)', () =>
     expect(recalcular(e, ['umidade'])).toEqual({ orvalho: '16,7' });
   });
 });
+
+import { margemOrvalho } from '../emenda/model';
+
+describe('superfície × ponto de orvalho (mínimo 3 °C)', () => {
+  it('abaixo de 3 °C: alerta; 3 °C ou mais: ok', () => {
+    expect(margemOrvalho('22', '20,3')).toMatchObject({ diff: 1.7, ok: false });
+    expect(margemOrvalho('23,3', '20,3')).toMatchObject({ diff: 3, ok: true });
+    expect(margemOrvalho('30', '20,3')?.texto).toBe('9,7 °C acima do orvalho ✓');
+    expect(margemOrvalho('18', '20,3')).toMatchObject({ ok: false }); // superfície abaixo do orvalho
+  });
+  it('sem superfície ou sem orvalho: sem aviso', () => {
+    expect(margemOrvalho('', '20,3')).toBeNull();
+    expect(margemOrvalho('25', '')).toBeNull();
+  });
+});

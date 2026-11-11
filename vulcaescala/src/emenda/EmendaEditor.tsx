@@ -6,6 +6,8 @@ import { gravarCampos, ouvirEmenda } from './data';
 import {
   fmtData,
   liberacaoVazia,
+  margemOrvalho,
+  MARGEM_ORVALHO,
   novaEmenda,
   recalcular,
   type Emenda,
@@ -250,6 +252,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
           </label>
           <Txt e={e} set={set} c="tempSuperficie" label="Temp. superfície °C" mode="decimal" />
         </div>
+        <AvisoOrvalho e={e} />
         <Opts e={e} set={set} c="clima" label="Clima" op={['Seco', 'Chuva']} />
         <h3 className="sub">Aplicação da cola</h3>
         <div className="g2">
@@ -630,5 +633,22 @@ function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico
       <span className="field">Assinatura</span>
       <SignaturePad value={lib.assinatura} label={c === 'libTecnico' ? 'técnico de área' : 'supervisor de área'} onChange={(assinatura) => upd({ assinatura })} />
     </>
+  );
+}
+
+/** Aviso: superfície precisa estar pelo menos 3 °C acima do ponto de orvalho (risco de condensação). */
+function AvisoOrvalho({ e }: { e: Emenda }) {
+  const m = margemOrvalho(e.tempSuperficie, e.orvalho);
+  if (!m) return null;
+  return m.ok ? (
+    <div className="banner ok small" role="status">
+      ✓ Superfície {m.texto.replace(' ✓', '')} (mínimo {MARGEM_ORVALHO} °C).
+    </div>
+  ) : (
+    <div className="banner danger small" role="alert">
+      <b>⚠ Risco de condensação:</b> a superfície está só {m.diff.toFixed(1).replace('.', ',')} °C acima do ponto de orvalho
+      (mínimo {MARGEM_ORVALHO} °C). Umidade pode condensar na emenda e prejudicar a aderência da cola. Registre a
+      justificativa nas observações.
+    </div>
   );
 }
