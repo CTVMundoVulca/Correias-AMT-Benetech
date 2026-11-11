@@ -11,8 +11,6 @@ function Shell({ children }: { children: ReactNode }) {
           {children}
         </div>
         <div className="auth-foot">
-          <img src="logo-ctv.webp" alt="CTV — Confiabilidade não é acaso. É método." className="ctv-logo" width={640} height={220} />
-          <br />
           Desenvolvido por CTV Consultoria Técnica em Vulcanização · CNPJ 65.601.481/0001-36 · © 2024-2026 — Todos os
           direitos reservados
           <br />
