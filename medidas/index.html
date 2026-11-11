@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#001a33">
 <link rel="manifest" href="../manifest.json">
 <link rel="apple-touch-icon" href="../escala/apple-touch-icon.png">
-<title>CTV · Correias AMT-BENE-PC33</title>
+<title>Correias AMT · AMT-BENE-PC33</title>
 <style>
 :root{
   --navy:#1B3A5C;--navy-d:#122840;--orange:#E8751A;--orange-s:#FDEBDC;
@@ -20,7 +20,7 @@ button{font-family:inherit;cursor:pointer}
 input,select,textarea{font-family:inherit;font-size:16px}
 header{background:var(--navy);color:#fff;padding:14px 16px 0;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(18,40,64,.25)}
 .brand{display:flex;align-items:baseline;gap:10px}
-.brand .logo{font-weight:800;font-size:21px;letter-spacing:.5px}
+.brand .logo{font-weight:800;font-size:21px;letter-spacing:.5px;white-space:nowrap}
 .brand .logo span{color:var(--orange)}
 .brand small{opacity:.7;font-size:11px;letter-spacing:.5px;text-transform:uppercase}
 .menubtn{margin-left:auto;background:#43a6ea;color:#001a33;border:0;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:6px;white-space:nowrap}
@@ -169,7 +169,7 @@ main{padding:8px 16px 90px;max-width:760px;margin:0 auto}
 </head>
 <body>
 <header>
-   <div class="brand"><div class="logo">CTV<span>·</span>Correias</div><small>AMT-BENE-PC33</small>
+   <div class="brand"><div class="logo">Correias <span>AMT</span></div><small>AMT-BENE-PC33</small>
     <a class="menubtn" href="../" title="Voltar ao menu de apps AMT" aria-label="Menu de apps AMT">🏠<span class="txt"> Menu</span></a>
     <button class="lockbtn" id="lockBtn" onclick="toggleLock()">🔒 Consulta</button></div>
   <div class="searchrow"><input id="q" type="search" placeholder="Buscar TAG (ex: BC-301, TC-12, SR-1...)" oninput="render()"></div>
@@ -191,7 +191,7 @@ main{padding:8px 16px 90px;max-width:760px;margin:0 auto}
     <div class="section"><h3>Senha de edição</h3><p style="margin-bottom:12px">Controle organizacional.</p><button class="btn ghost" onclick="trocarSenha()">Alterar senha</button></div>
     <div class="section"><h3>Limpar dados locais</h3><p style="margin-bottom:12px">Remove todos os registros deste navegador. Dados da planilha preservados.</p><button class="btn ghost" style="color:var(--red);border-color:var(--red)" onclick="resetTudo()">Limpar todos os registros</button></div>
     <div class="section"><h3>Sobre</h3><p id="statsBox" style="line-height:1.7"></p></div>
-    <p class="disclaimer">Dados extraídos da planilha MEDIDAS DAS CORREIAS TRANSPORTADORAS AMT-BENE-PC33. CTV Companhia Técnica em Vulcanização Ltda.</p>
+    <p class="disclaimer">Dados extraídos da planilha MEDIDAS DAS CORREIAS TRANSPORTADORAS AMT-BENE-PC33. Desenvolvido por CTV Consultoria Técnica em Vulcanização.</p>
   </div>
 </div>
 <div class="modal" id="pwModal"><div class="modalbox"><h3>Modo edição</h3><p>Senha de responsável.</p><input type="password" id="pwInput" placeholder="Senha" onkeydown="if(event.key==='Enter')confirmarSenha()"><div class="btnrow" style="margin-top:0"><button class="btn primary" onclick="confirmarSenha()">Liberar</button><button class="btn ghost" onclick="fecharModal()">Cancelar</button></div></div></div>
