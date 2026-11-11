@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, useEmenda } from './context';
 import { ouvirEmenda, ouvirFotos } from './data';
-import { fmtData, type Emenda, type Foto, type Liberacao } from './model';
+import { fmtData, margemOrvalho, type Emenda, type Foto, type Liberacao } from './model';
 
 /**
  * Relatório da emenda em PDF, gerado no próprio aparelho (funciona também no iPhone pela
@@ -105,6 +105,7 @@ export function Relatorio({ id }: { id: string }) {
         <KV k="Umidade relativa %" v={e.umidade} />
         <KV k="Ponto de orvalho °C" v={e.orvalho} />
         <KV k="Temp. superfície °C" v={e.tempSuperficie} />
+        <KV k="Superfície × orvalho (mín. 3 °C)" v={margemOrvalho(e.tempSuperficie, e.orvalho)?.texto ?? ''} />
         <KV k="Clima" v={e.clima} />
         <KV k="1ª demão" v={e.demao1} />
         <KV k="2ª demão" v={e.demao2} />

@@ -302,6 +302,23 @@ export function pontoOrvalho(temp: string, umidade: string): string {
   return td.toFixed(1).replace('.', ',');
 }
 
+/** Margem mínima entre a temperatura da superfície e o ponto de orvalho (°C), referência ISO 8502-4. */
+export const MARGEM_ORVALHO = 3;
+
+/**
+ * Superfície × ponto de orvalho: diferença (°C) e se atende à margem mínima de 3 °C
+ * (abaixo disso há risco de condensação na emenda). null = falta algum dos dois valores.
+ */
+export function margemOrvalho(tempSuperficie: string, orvalho: string): { diff: number; ok: boolean; texto: string } | null {
+  const ts = parseFloat(String(tempSuperficie).replace(',', '.'));
+  const td = parseFloat(String(orvalho).replace(',', '.'));
+  if (!Number.isFinite(ts) || !Number.isFinite(td)) return null;
+  const diff = Math.round((ts - td) * 10) / 10;
+  const ok = diff >= MARGEM_ORVALHO;
+  const v = diff.toFixed(1).replace('.', ',');
+  return { diff, ok, texto: ok ? `${v} °C acima do orvalho ✓` : `${v} °C — abaixo do mínimo de ${MARGEM_ORVALHO} °C ⚠` };
+}
+
 /** "HH:MM" + minutos → "HH:MM" (mesma lógica do app do Suzano, sem passar de 24h). */
 export function somaHora(hhmm: string, minutos: number): string {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
