@@ -9,13 +9,16 @@ const ABAS: { id: keyof Listas; label: string }[] = [
   { id: 'materiaisEmenda', label: 'Materiais da emenda' },
   { id: 'materiaisManta', label: 'Materiais da manta' },
   { id: 'fabricantes', label: 'Fabricantes' },
+  { id: 'equipamentos', label: 'Aparelhos de medição' },
 ];
 
-/** Gerenciar as listas usadas nas seções 3 e 3.1 (compartilhadas por todos os aparelhos). */
-export function ListasDialog({ onClose }: { onClose: () => void }) {
+/** Gerenciar as listas do relatório: materiais (3 e 3.1), fabricantes e aparelhos de medição (4). */
+export function ListasDialog({ onClose, inicial = 'materiaisEmenda' }: { onClose: () => void; inicial?: keyof Listas }) {
   const { api, listas } = useEmenda();
   const toast = useToast();
-  const [aba, setAba] = useState<keyof Listas>('materiaisEmenda');
+  const [aba, setAba] = useState<keyof Listas>(inicial);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [texto, setTexto] = useState('');
   const [novo, setNovo] = useState('');
 
   const salvar = (l: Listas, msg: string) =>
@@ -31,6 +34,14 @@ export function ListasDialog({ onClose }: { onClose: () => void }) {
     void salvar({ ...listas, [aba]: [...listas[aba], v] }, 'Adicionado');
     setNovo('');
   };
+  const renomear = (e: FormEvent) => {
+    e.preventDefault();
+    const v = texto.replace(/\s+/g, ' ').trim().toUpperCase();
+    if (!v || !editando) return;
+    if (v !== editando && listas[aba].includes(v)) return toast('Já está na lista.', 'warn');
+    void salvar({ ...listas, [aba]: listas[aba].map((x) => (x === editando ? v : x)) }, 'Atualizado');
+    setEditando(null);
+  };
   const remove = (v: string) => {
     if (listas[aba].length <= 1) return toast('A lista precisa ter pelo menos um item.', 'warn');
     void salvar({ ...listas, [aba]: listas[aba].filter((x) => x !== v) }, 'Removido');
@@ -38,8 +49,8 @@ export function ListasDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="Materiais e fabricantes"
-      subtitle="Listas usadas no relatório"
+      title="Listas do relatório"
+      subtitle="Materiais, fabricantes e aparelhos de medição"
       onClose={onClose}
       footer={
         <button className="btn primary" onClick={onClose}>
@@ -49,7 +60,7 @@ export function ListasDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="segmented" role="tablist">
         {ABAS.map((a) => (
-          <button key={a.id} role="tab" aria-selected={aba === a.id} className={'seg' + (aba === a.id ? ' on' : '')} onClick={() => setAba(a.id)}>
+          <button key={a.id} role="tab" aria-selected={aba === a.id} className={'seg' + (aba === a.id ? ' on' : '')} onClick={() => (setAba(a.id), setEditando(null))}>
             {a.label}
           </button>
         ))}
@@ -61,14 +72,38 @@ export function ListasDialog({ onClose }: { onClose: () => void }) {
         </button>
       </form>
       <ul className="plain-list funcao-list">
-        {listas[aba].map((v) => (
-          <li key={v}>
-            <span>{v}</span>
-            <button className="btn small ghost-danger" onClick={() => remove(v)} aria-label={`Remover ${v}`}>
-              Remover
-            </button>
-          </li>
-        ))}
+        {listas[aba].map((v) =>
+          editando === v ? (
+            <li key={v}>
+              <form className="row nowrap grow" onSubmit={renomear}>
+                <input className="input grow" value={texto} autoFocus onChange={(e) => setTexto(e.target.value)} aria-label={`Editar ${v}`} />
+                <button className="btn small" type="button" onClick={() => setEditando(null)}>
+                  Cancelar
+                </button>
+                <button className="btn small primary" type="submit" disabled={!texto.trim()}>
+                  Salvar
+                </button>
+              </form>
+            </li>
+          ) : (
+            <li key={v}>
+              <span className="grow">{v}</span>
+              <button
+                className="btn small"
+                onClick={() => {
+                  setEditando(v);
+                  setTexto(v);
+                }}
+                aria-label={`Editar ${v}`}
+              >
+                Editar
+              </button>
+              <button className="btn small ghost-danger" onClick={() => remove(v)} aria-label={`Remover ${v}`}>
+                Remover
+              </button>
+            </li>
+          ),
+        )}
       </ul>
     </Modal>
   );

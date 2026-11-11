@@ -64,6 +64,9 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(anon().doc('emenda_config/efetivo').set({ lista: [{ nome: 'FULANO', doc: '123' }] }));
     await assertSucceeds(anon().doc('emenda_config/efetivo').get());
     await assertSucceeds(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'] }));
+    await assertSucceeds(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO'] }));
+    await assertFails(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], equipamentos: Array.from({ length: 31 }, (_, i) => 'E' + i) }));
+    await assertFails(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], outra: [] }));
   });
 
   it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda de outros', async () => {

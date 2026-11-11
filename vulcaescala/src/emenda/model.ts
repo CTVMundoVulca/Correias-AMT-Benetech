@@ -159,6 +159,8 @@ export interface Listas {
   materiaisEmenda: string[];
   materiaisManta: string[];
   fabricantes: string[];
+  /** aparelhos de medição (seção 4): já vêm preenchidos no relatório novo */
+  equipamentos: string[];
 }
 
 /** Listas iniciais (mesmas do app do Suzano); editáveis em "Gerenciar". */
@@ -176,7 +178,12 @@ export const LISTAS_PADRAO: Listas = {
   ],
   materiaisManta: ['COBERTURA 0087 CBSC8.0ST', 'COBERTURA 0084 CBSC4.0ST', 'COBERTURA 0086 CBSC6.0ST'],
   fabricantes: ['VIPAFIX', 'BENETECH'],
+  equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO', 'DURÔMETRO'],
 };
+
+/** Linhas da seção 4 já com o nome de cada aparelho (o restante a pessoa preenche). */
+export const equipamentosIniciais = (nomes: string[] = LISTAS_PADRAO.equipamentos): EquipItem[] =>
+  nomes.map((equip) => ({ equip, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }));
 
 /**
  * Campos de foto guiados (mesma sequência do app do Suzano): cada campo mostra embaixo
@@ -191,7 +198,7 @@ export function legendaSugerida(ordem: number): string {
 
 export const liberacaoVazia = (): Liberacao => ({ workerId: '', nome: '', matricula: '', data: '', assinatura: '' });
 
-export function novaEmenda(id: string, hoje: string, por: string): Emenda {
+export function novaEmenda(id: string, hoje: string, por: string, aparelhos: string[] = LISTAS_PADRAO.equipamentos): Emenda {
   const now = new Date().toISOString();
   const e: Emenda = {
     id,
@@ -206,7 +213,7 @@ export function novaEmenda(id: string, hoje: string, por: string): Emenda {
     efetivoPreparo: [],
     materiaisEmenda: [],
     materiaisManta: [],
-    equipamentos: [],
+    equipamentos: equipamentosIniciais(aparelhos),
     tipoCorreia: 'Lona',
     tipoEmenda: 'Frio',
     especificacao: '',
@@ -273,12 +280,17 @@ export function emendaVazia(e: Emenda): boolean {
   const META = new Set(['id', 'criadoEm', 'criadoUid', 'atualizadoEm', 'atualizadoPor', 'data']);
   const base = novaEmenda(e.id, e.data, '') as unknown as Record<string, unknown>;
   const r = e as unknown as Record<string, unknown>;
-  return Object.keys(base).every((k) => META.has(k) || JSON.stringify(r[k] ?? base[k]) === JSON.stringify(base[k]));
+  // aparelhos só com o nome (vieram preenchidos no relatório novo) não contam como dado
+  const soNomes = (l: unknown) => Array.isArray(l) && (l as EquipItem[]).every((q) => !q.marca && !q.codigo && !q.certificado && !q.dataCal && !q.validadeCal);
+  return Object.keys(base).every(
+    (k) => META.has(k) || (k === 'equipamentos' ? soNomes(r[k] ?? []) : JSON.stringify(r[k] ?? base[k]) === JSON.stringify(base[k])),
+  );
 }
 
 /** Preenche um registro antigo/incompleto com os valores padrão (nunca perde campos). */
 export function completarEmenda(raw: Partial<Emenda> & { id: string }): Emenda {
-  const base = novaEmenda(raw.id, raw.data ?? '', raw.atualizadoPor ?? '');
+  // registro antigo sem o campo de aparelhos não ganha linhas automáticas
+  const base = novaEmenda(raw.id, raw.data ?? '', raw.atualizadoPor ?? '', []);
   return { ...base, ...raw, libTecnico: { ...base.libTecnico, ...raw.libTecnico }, libSupervisor: { ...base.libSupervisor, ...raw.libSupervisor } };
 }
 
