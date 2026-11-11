@@ -52,6 +52,11 @@ export function Relatorio({ id }: { id: string }) {
       </Bloco>
 
       <Bloco t="2. Efetivo" full>
+        <h3 className="rel-sub">
+          2.1 Preparação da correia (abertura das emendas){e.dataPreparo ? ` — ${fmtData(e.dataPreparo)}` : ''}
+        </h3>
+        <Tabela cab={['Nome', 'Matrícula/CPF']} linhas={(e.efetivoPreparo ?? []).map((p) => [p.nome, p.matricula])} />
+        <h3 className="rel-sub">2.2 Troca da correia (execução da emenda)</h3>
         <Tabela cab={['Nome', 'Matrícula/CPF']} linhas={e.efetivo.map((p) => [p.nome, p.matricula])} />
       </Bloco>
 

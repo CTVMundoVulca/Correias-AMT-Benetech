@@ -436,13 +436,37 @@ function SelectColaborador({ nome, onPick, excluir = [] }: { nome: string; onPic
   );
 }
 
+/**
+ * Efetivo em dois grupos (contrato ArcelorMittal: a correia é preparada antes e nem sempre
+ * pela mesma equipe que faz a troca): 2.1 preparação (abertura das emendas) e
+ * 2.2 troca (execução da emenda). A mesma pessoa pode estar nos dois.
+ */
 function EfetivoSection({ e, set }: { e: Emenda; set: SetFn }) {
   const { efetivo } = useEmenda();
   const [gerenciar, setGerenciar] = useState(false);
-  const usados = e.efetivo.map((x) => x.nome).filter(Boolean);
   return (
     <>
-      {e.efetivo.map((p, i) => (
+      <h3 className="sub">2.1 Preparação da correia (abertura das emendas)</h3>
+      <Txt e={e} set={set} c="dataPreparo" label="Data da preparação" type="date" />
+      <ListaEfetivo e={e} set={set} campo="efetivoPreparo" />
+      <h3 className="sub">2.2 Troca da correia (execução da emenda)</h3>
+      <ListaEfetivo e={e} set={set} campo="efetivo" />
+      <button className="btn small" onClick={() => setGerenciar(true)}>
+        Gerenciar efetivo
+      </button>
+      {efetivo.length === 0 && <p className="small muted">A lista de colaboradores está vazia. Toque em “Gerenciar efetivo” para cadastrar.</p>}
+      {gerenciar && <EfetivoDialog onClose={() => setGerenciar(false)} />}
+    </>
+  );
+}
+
+function ListaEfetivo({ e, set, campo }: { e: Emenda; set: SetFn; campo: 'efetivo' | 'efetivoPreparo' }) {
+  const itens = e[campo] ?? [];
+  const usados = itens.map((x) => x.nome).filter(Boolean);
+  const grupo = campo === 'efetivo' ? 'troca' : 'preparação';
+  return (
+    <>
+      {itens.map((p, i) => (
         <div key={i} className="item-row">
           <label className="field grow">
             Nome
@@ -450,9 +474,9 @@ function EfetivoSection({ e, set }: { e: Emenda; set: SetFn }) {
               nome={p.nome}
               excluir={usados}
               onPick={(f) => {
-                const lista = [...e.efetivo];
+                const lista = [...itens];
                 lista[i] = { workerId: '', nome: f?.nome ?? '', matricula: f?.doc ?? '' };
-                set({ efetivo: lista });
+                set({ [campo]: lista } as Partial<Emenda>);
               }}
             />
           </label>
@@ -460,21 +484,18 @@ function EfetivoSection({ e, set }: { e: Emenda; set: SetFn }) {
             Matrícula/CPF
             <input className={inp(mascararDoc(p.matricula))} value={mascararDoc(p.matricula)} readOnly />
           </label>
-          <button className="icon-btn" aria-label={`Remover ${p.nome || 'pessoa'}`} onClick={() => set({ efetivo: e.efetivo.filter((_, j) => j !== i) })}>
+          <button
+            className="icon-btn"
+            aria-label={`Remover ${p.nome || 'pessoa'} da ${grupo}`}
+            onClick={() => set({ [campo]: itens.filter((_, j) => j !== i) } as Partial<Emenda>)}
+          >
             ×
           </button>
         </div>
       ))}
-      <div className="row">
-        <button className="btn small" onClick={() => set({ efetivo: [...e.efetivo, { workerId: '', nome: '', matricula: '' }] })}>
-          + Adicionar pessoa
-        </button>
-        <button className="btn small" onClick={() => setGerenciar(true)}>
-          Gerenciar efetivo
-        </button>
-      </div>
-      {efetivo.length === 0 && <p className="small muted">A lista de colaboradores está vazia. Toque em “Gerenciar efetivo” para cadastrar.</p>}
-      {gerenciar && <EfetivoDialog onClose={() => setGerenciar(false)} />}
+      <button className="btn small" onClick={() => set({ [campo]: [...itens, { workerId: '', nome: '', matricula: '' }] } as Partial<Emenda>)}>
+        + Adicionar pessoa na {grupo}
+      </button>
     </>
   );
 }
