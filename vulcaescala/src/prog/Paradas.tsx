@@ -7,7 +7,8 @@ import { useParadas, useProg } from './context';
 import { excluirParada, gravarParada } from './data';
 import { dataBr } from './Solicitar';
 import { corDaArea } from './Painel';
-import { MONTHS, WEEKDAYS_SHORT, fromIsoDate, locateDay } from '../domain/isoWeek';
+import { Fragment } from 'react';
+import { MONTHS, WEEKDAYS, WEEKDAYS_SHORT, formatDate, fromIsoDate, locateDay, monthWeeks, toIsoDate } from '../domain/isoWeek';
 import { feriadoEm } from '../domain/feriados';
 import { DESCRICAO_MAX, EQUIP_MAX, TIPOS_PARADA, hojeIso, limparTexto, maiusculas, type Parada } from './model';
 
@@ -16,6 +17,7 @@ export function Paradas() {
   const { isAdmin, por } = useProg();
   const lista = useParadas();
   const [verPassadas, setVerPassadas] = useState(false);
+  const [vista, setVista] = useState<'cal' | 'linha'>('cal');
   const [edicao, setEdicao] = useState<{ p: Parada; nova: boolean } | null>(null);
   const hoje = hojeIso();
   const vis = lista
@@ -58,7 +60,15 @@ export function Paradas() {
         </div>
       </section>
       <section className="card pad">
-        <MapaParadas paradas={lista} />
+        <div className="segmented vista-paradas">
+          <button className={'seg' + (vista === 'cal' ? ' on' : '')} onClick={() => setVista('cal')}>
+            📅 Calendário
+          </button>
+          <button className={'seg' + (vista === 'linha' ? ' on' : '')} onClick={() => setVista('linha')}>
+            ▬ Linha do tempo
+          </button>
+        </div>
+        {vista === 'cal' ? <CalendarioParadas paradas={lista} /> : <MapaParadas paradas={lista} />}
       </section>
       {vis.length === 0 ? (
         <p className="muted">{verPassadas ? 'Nenhuma parada encerrada.' : 'Nenhuma parada programada.'}</p>
@@ -275,6 +285,133 @@ export function MapaParadas({ paradas }: { paradas: Parada[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** Sigla curta da área para o calendário no celular (PÁTIO DE MINÉRIO → PM, ALTO FORNO 1 → AF1). */
+export function siglaArea(area: string): string {
+  const p = area.split(/\s+/).filter((w) => w && !['DE', 'DA', 'DO', 'DOS', 'DAS', 'E'].includes(w));
+  if (p.length <= 1) return (p[0] ?? '—').slice(0, 4);
+  return p.map((w) => (/^\d+$/.test(w) ? w : w[0])).join('');
+}
+
+/** Calendário mensal de paradas: dá a previsão por data e dia da semana. */
+export function CalendarioParadas({ paradas }: { paradas: Parada[] }) {
+  const { feriados } = useProg();
+  const hoje = hojeIso();
+  const [mes, setMes] = useState(() => ({ y: Number(hoje.slice(0, 4)), m: Number(hoje.slice(5, 7)) - 1 }));
+  const [sel, setSel] = useState(hoje);
+  const semanas = monthWeeks(mes.y, mes.m);
+  const mudar = (n: number) => setMes(({ y, m }) => ({ y: y + Math.floor((m + n) / 12), m: (((m + n) % 12) + 12) % 12 }));
+  const doDia = (d: string) =>
+    paradas
+      .filter((p) => p.inicio <= d && d <= p.fim)
+      .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.area.localeCompare(b.area));
+  const doSel = doDia(sel);
+  const ini = toIsoDate(semanas[0].days[0]);
+  const fim = toIsoDate(semanas[semanas.length - 1].days[6]);
+  const noMes = paradas.filter((p) => p.fim >= ini && p.inicio <= fim).length;
+
+  return (
+    <div className="cal-paradas">
+      <div className="row between nowrap">
+        <button className="btn small" onClick={() => mudar(-1)} aria-label="Mês anterior">
+          ‹
+        </button>
+        <h3 className="center">
+          {MONTHS[mes.m]} <span className="num muted">{mes.y}</span>
+          <div className="small muted">{noMes ? `${noMes} parada(s) no mês` : 'Sem paradas no mês'}</div>
+        </h3>
+        <button className="btn small" onClick={() => mudar(1)} aria-label="Próximo mês">
+          ›
+        </button>
+      </div>
+      <div className="cpar-grade" role="grid" aria-label={`Paradas de ${MONTHS[mes.m]}`}>
+        <span className="cpar-cab cpar-sem">Sem</span>
+        {WEEKDAYS_SHORT.map((d, i) => (
+          <span key={d} className={'cpar-cab' + (i >= 5 ? ' fds' : '')}>
+            {d}
+          </span>
+        ))}
+        {semanas.map((w) => (
+          <Fragment key={w.weekKey}>
+            <span className="cpar-sem num">{w.week}</span>
+            {w.days.map((dd, i) => {
+              const d = toIsoDate(dd);
+              const fer = feriadoEm(feriados, d);
+              const ps = doDia(d);
+              return (
+                <button
+                  key={d}
+                  className={
+                    'cpar-dia' +
+                    (dd.getUTCMonth() !== mes.m ? ' fora' : '') +
+                    (i >= 5 || fer ? ' fds' : '') +
+                    (d === hoje ? ' hoje' : '') +
+                    (d === sel ? ' sel' : '')
+                  }
+                  onClick={() => setSel(d)}
+                  aria-label={`${WEEKDAYS[i]} ${formatDate(dd)}${fer ? `, feriado ${fer}` : ''}: ${ps.length ? ps.map((p) => `${TIPOS_PARADA.find((t) => t.id === p.tipo)?.nome} ${p.area}`).join(', ') : 'sem paradas'}`}
+                >
+                  <span className="cpar-num">
+                    {dd.getUTCDate()}
+                    {fer && <span className="cpar-fer">{fer}</span>}
+                  </span>
+                  {ps.slice(0, 3).map((p) => (
+                    <span
+                      key={p.id}
+                      className={'cpar-chip parada-' + p.tipo + (p.inicio < d && i > 0 ? ' cont-esq' : '') + (p.fim > d && i < 6 ? ' cont-dir' : '')}
+                      title={`${TIPOS_PARADA.find((t) => t.id === p.tipo)?.nome} · ${p.area}`}
+                    >
+                      <span className="cpar-ico" aria-hidden>
+                        {TIPOS_PARADA.find((t) => t.id === p.tipo)?.icone}
+                      </span>
+                      <span className="cpar-nome">{p.area}</span>
+                      <span className="cpar-sigla">{siglaArea(p.area)}</span>
+                    </span>
+                  ))}
+                  {ps.length > 3 && <span className="cpar-mais">+{ps.length - 3}</span>}
+                </button>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+      <ul className="legenda-areas">
+        {TIPOS_PARADA.map((t) => (
+          <li key={t.id}>
+            <span className={'sw-parada parada-' + t.id}>{t.icone}</span> {t.nome}
+          </li>
+        ))}
+        <li className="muted">Barra emendada = parada de vários dias</li>
+      </ul>
+      <div className="cpar-detalhe">
+        <h3>
+          {WEEKDAYS[locateDay(fromIsoDate(sel)!).dayIndex]}, {formatDate(fromIsoDate(sel)!)}
+          {feriadoEm(feriados, sel) && <span className="muted small"> · 🎌 {feriadoEm(feriados, sel)}</span>}
+        </h3>
+        {doSel.length === 0 ? (
+          <p className="livre">✓ Nenhuma parada neste dia.</p>
+        ) : (
+          doSel.map((p) => {
+            const t = TIPOS_PARADA.find((x) => x.id === p.tipo)!;
+            return (
+              <div key={p.id} className={'parada-faixa parada-' + p.tipo}>
+                <b>
+                  {t.icone} {t.nome}
+                </b>{' '}
+                · {p.area}
+                {p.equipamento && ` · ${p.equipamento}`}
+                <div className="small">
+                  {p.inicio === p.fim ? 'Só neste dia' : `${dataBr(p.inicio)} a ${dataBr(p.fim)}`}
+                  {p.descricao && ` — ${p.descricao}`}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

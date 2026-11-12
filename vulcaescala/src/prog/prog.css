@@ -362,3 +362,44 @@
   .prog-main.larga { padding-bottom: 16px; }
   .prog-main.larga, .app-header-inner { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
 }
+
+/* calendário de paradas */
+.vista-paradas { margin-bottom: 10px; }
+.cal-paradas { display: flex; flex-direction: column; gap: 10px; }
+.cpar-grade { display: grid; grid-template-columns: 26px repeat(7, minmax(0, 1fr)); gap: 3px; }
+.cpar-cab { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--ink-2); }
+.cpar-cab.fds { color: var(--red-ink); }
+.cpar-sem { display: grid; place-items: center; font-size: 0.66rem; font-weight: 700; color: var(--ink-2); font-family: var(--mono); }
+.cpar-dia { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 64px; padding: 4px 3px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.cpar-dia:hover { border-color: var(--accent); }
+.cpar-dia:focus-visible { outline: 2px solid var(--accent); }
+.cpar-dia.fds { background: var(--surface-2); }
+.cpar-dia.fds .cpar-num { color: var(--red-ink); }
+.cpar-dia.fora { opacity: 0.4; }
+.cpar-dia.sel { border: 2px solid var(--accent); }
+.cpar-dia.hoje .cpar-num > :first-child, .cpar-dia.hoje .cpar-num { font-weight: 800; }
+.cpar-dia.hoje { box-shadow: inset 0 3px 0 var(--accent); }
+.cpar-num { font-size: 0.82rem; font-weight: 600; display: flex; flex-direction: column; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.cpar-fer { font-size: 0.55rem; font-weight: 600; color: var(--red-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpar-chip { display: flex; align-items: center; gap: 2px; font-size: 0.6rem; font-weight: 700; padding: 1px 3px; border-radius: 4px; background: var(--par-bg); color: var(--par-ink); border: 1px solid var(--par-ink); overflow: hidden; white-space: nowrap; }
+.cpar-nome { display: none; overflow: hidden; text-overflow: ellipsis; }
+.cpar-sigla { overflow: hidden; }
+.cpar-mais { font-size: 0.6rem; color: var(--ink-2); }
+.cpar-detalhe { display: flex; flex-direction: column; gap: 4px; }
+@media (min-width: 700px) {
+  .cpar-dia { min-height: 84px; padding: 5px 6px; }
+  .cpar-chip { font-size: 0.7rem; padding: 2px 5px; }
+  .cpar-nome { display: inline; }
+  .cpar-sigla { display: none; }
+}
+/* parada de vários dias: a etiqueta "emenda" com a do dia vizinho (sem setas) */
+.cpar-dia { overflow: visible; }
+.cpar-chip.cont-esq { border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -6px; padding-left: 6px; }
+.cpar-chip.cont-dir { border-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -6px; }
+.cpar-chip { justify-content: flex-start; }
+@media (max-width: 699px) {
+  .cpar-ico { display: none; }
+  .cpar-chip { justify-content: center; font-size: 0.62rem; letter-spacing: 0.2px; }
+}
+/* mesmo espaço para o nome do feriado em todos os dias: as barras ficam alinhadas */
+.cpar-num { min-height: 1.95em; }
