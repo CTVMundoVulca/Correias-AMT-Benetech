@@ -243,3 +243,52 @@ export function esperas(atrasos: Atraso[]) {
     porAtividade: soma((a) => a.atividadeNome || '—').slice(0, 8),
   };
 }
+
+// ------------------------------------------------------------------ carga × capacidade (próximos dias)
+
+export interface CargaDia {
+  data: string;
+  /** pessoas já programadas (sem canceladas) */
+  programado: number;
+  /** efetivo ativo − ausências lançadas na escala */
+  capacidade: number;
+  livres: number;
+  /** programado ÷ capacidade (null sem capacidade) */
+  ocupacao: number | null;
+  nivel: 'folga' | 'limite' | 'lotado';
+  /** a escala do dia ainda não tem ausências lançadas (capacidade = efetivo inteiro) */
+  semEscala: boolean;
+}
+
+/** Próximos `n` dias úteis a partir de `hoje` (inclui hoje se for útil). */
+export function proximosDiasUteis(hoje: string, n: number, feriados: Record<string, string>): string[] {
+  const out: string[] = [];
+  let [y, m, d] = hoje.split('-').map(Number);
+  for (let i = 0; out.length < n && i < 60; i++) {
+    const dt = new Date(Date.UTC(y, m - 1, d + i));
+    const iso = dt.toISOString().slice(0, 10);
+    if (diaUtil(iso, feriados)) out.push(iso);
+  }
+  return out;
+}
+
+/** Limite (85%) a partir do qual o dia é tratado como "perto do limite". */
+export const LIMITE_OCUPACAO = 0.85;
+
+export function cargaCapacidade(dias: string[], lista: Atividade[], efetivo: number, ausPorDia: Map<string, number>): CargaDia[] {
+  return dias.map((data) => {
+    const programado = lista.filter((a) => a.data === data && a.classe !== 'cancelada').reduce((s, a) => s + a.pessoas, 0);
+    const aus = ausPorDia.get(data);
+    const capacidade = Math.max(0, efetivo - (aus ?? 0));
+    const ocupacao = capacidade ? programado / capacidade : null;
+    return {
+      data,
+      programado,
+      capacidade,
+      livres: Math.max(0, capacidade - programado),
+      ocupacao,
+      nivel: ocupacao === null || ocupacao > 1 ? 'lotado' : ocupacao >= LIMITE_OCUPACAO ? 'limite' : 'folga',
+      semEscala: aus === undefined,
+    };
+  });
+}

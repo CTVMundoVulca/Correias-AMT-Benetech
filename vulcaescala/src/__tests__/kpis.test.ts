@@ -129,3 +129,22 @@ describe('efetivo e esperas', () => {
     expect(e.porMotivo[0]).toEqual({ chave: 'Bloqueio', horas: 1.5 });
   });
 });
+
+import { cargaCapacidade, proximosDiasUteis } from '../prog/kpis';
+
+describe('carga × capacidade', () => {
+  it('próximos dias úteis pulam fim de semana e feriado', () => {
+    // 12/11/2026 qui; 13 sex; 14–15 fds; 16 seg; 20 sex = Consciência Negra
+    expect(proximosDiasUteis('2026-11-12', 6, {})).toEqual(['2026-11-12', '2026-11-13', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19']);
+    expect(proximosDiasUteis('2026-11-19', 2, {})).toEqual(['2026-11-19', '2026-11-23']);
+  });
+  it('folga, limite e lotado; capacidade desconta ausências', () => {
+    const l = [at({ data: '2026-11-12', pessoas: 10 }), at({ data: '2026-11-13', pessoas: 18 }), at({ data: '2026-11-16', pessoas: 25 }), at({ data: '2026-11-16', pessoas: 9, classe: 'cancelada' })];
+    const r = cargaCapacidade(['2026-11-12', '2026-11-13', '2026-11-16'], l, 22, new Map([['2026-11-13', 2]]));
+    expect(r.map((x) => [x.programado, x.capacidade, x.livres, x.nivel, x.semEscala])).toEqual([
+      [10, 22, 12, 'folga', true],
+      [18, 20, 2, 'limite', false],
+      [25, 22, 0, 'lotado', true],
+    ]);
+  });
+});

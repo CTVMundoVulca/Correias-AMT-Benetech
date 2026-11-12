@@ -479,3 +479,27 @@
 .om-item .badge { white-space: normal; max-width: 100%; }
 .recolher-barra .grow { flex: 1 1 100%; }
 @media (min-width: 700px) { .recolher-barra .grow { flex: 1 1 auto; } }
+
+/* carga × capacidade (faixa no topo da Central) */
+.carga { display: flex; flex-direction: column; gap: 8px; }
+.carga .bloco-topo h3 { font-size: 0.98rem; margin: 0; }
+.carga-faixa { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.carga-col { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 8px; }
+.carga-col:hover { background: var(--surface-2); }
+.carga-col:focus-visible { outline: 2px solid var(--accent); }
+.carga-num { font-size: 1.05rem; line-height: 1; }
+.carga-rot { font-size: 0.62rem; color: var(--ink-2); line-height: 1; }
+.carga-coluna { position: relative; width: 60%; max-width: 34px; height: 64px; margin-top: 2px; display: block; }
+.carga-cap { position: absolute; left: 0; right: 0; bottom: 0; border: 1.5px dashed var(--line-strong); border-radius: 4px 4px 0 0; }
+.carga-prog { position: absolute; left: 3px; right: 3px; bottom: 0; border-radius: 4px 4px 0 0; }
+.carga-col.folga .carga-prog, .sw-carga.folga { background: var(--ok-ink); }
+.carga-col.limite .carga-prog, .sw-carga.limite { background: var(--pend-line); }
+.carga-col.lotado .carga-prog, .sw-carga.lotado { background: var(--red-ink); }
+.carga-col.folga .carga-num b { color: var(--ok-ink); }
+.carga-col.limite .carga-num b { color: var(--pend-ink); }
+.carga-col.lotado .carga-num b { color: var(--red-ink); }
+.carga-data { display: flex; flex-direction: column; align-items: center; font-size: 0.66rem; line-height: 1.15; color: var(--ink-2); }
+.carga-data b { color: var(--ink); font-size: 0.72rem; }
+.sw-carga { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: 1px; }
+.carga-leg { font-size: 0.72rem; }
+@media (min-width: 760px) { .carga-coluna { height: 80px; } .carga-num { font-size: 1.2rem; } }

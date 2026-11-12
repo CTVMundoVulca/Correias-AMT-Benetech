@@ -5,6 +5,8 @@ import type { PubConfig } from '../cloud/publico';
 import { useAtividades, useParadas, useProg } from './context';
 import { ouvirSolicitacoes } from './data';
 import { efetivoDoDia, ouvirEscalaDoDia } from './efetivo';
+import { CargaCapacidade } from './CargaCapacidade';
+import { proximosDiasUteis } from './kpis';
 import { CalendarioMes, MapaSemana, corDaArea, diasDaSemana, gradeDoMes, mesDeIso, segundaDe, type Mes } from './Painel';
 import { dataBr } from './Solicitar';
 import { AREA_INTERNA, TIPOS_PARADA, diaUtil, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Solicitacao } from './model';
@@ -39,7 +41,8 @@ export function Central() {
   const segunda = segundaDe(dia);
   const semana = diasDaSemana(segunda);
   const ini = [grade[0], semana[0], `${mesAnt}-01`].sort()[0];
-  const fim = [grade[grade.length - 1], semana[6], hoje].sort().reverse()[0];
+  const proximos = proximosDiasUteis(hoje, 10, feriados);
+  const fim = [grade[grade.length - 1], semana[6], hoje, proximos[proximos.length - 1] ?? hoje].sort().reverse()[0];
   const lista = useAtividades(mesesEntre(ini, fim));
   const paradas = useParadas();
 
@@ -81,6 +84,11 @@ export function Central() {
           <Kpi ico="🙋" cor="k-neutro" titulo="Disponíveis" valor={ef ? ef.disponiveis : '…'} />
         </div>
       </div>
+
+      {/* carga × capacidade: em que dias ainda há folga para pedir serviço */}
+      <section className="painel-bloco b-carga">
+        <CargaCapacidade dias={proximos} lista={lista} efetivo={escala ? escala.efetivo.filter((w) => w.ativo).length : null} onDia={escolher} />
+      </section>
 
       <div className="central-grid">
         {/* fila de demandas */}
