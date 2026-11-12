@@ -54,12 +54,15 @@ export function CargaCapacidade({
   dias,
   lista,
   efetivo,
+  selecionado,
   onDia,
 }: {
   dias: string[];
   lista: Atividade[] | null;
   /** efetivo da escala (cópia pública); null = carregando */
   efetivo: PubConfig['efetivo'] | null;
+  /** dia em destaque (o detalhe mostrado logo abaixo) */
+  selecionado?: string;
   onDia: (d: string) => void;
 }) {
   const esc = useEscalaDias(dias, efetivo);
@@ -100,7 +103,8 @@ export function CargaCapacidade({
               return (
                 <li key={c.data} className={novaSemana ? 'carga-nova-sem' : ''}>
                   <button
-                    className={'carga-col ' + c.nivel}
+                    className={'carga-col ' + c.nivel + (c.data === selecionado ? ' sel' : '')}
+                    aria-pressed={c.data === selecionado}
                     onClick={() => onDia(c.data)}
                     title={`${c.programado} pessoas programadas · contrato ${c.capacidade} disponíveis${c.apoio ? ` + ${c.apoio} de apoio` : ''}`}
                     aria-label={`${WEEKDAYS_SHORT[locateDay(d).dayIndex]} ${c.data.slice(8)}/${c.data.slice(5, 7)}: ${c.programado} programadas de ${c.capacidade + c.apoio}, ${c.livres} livres`}
@@ -137,7 +141,7 @@ export function CargaCapacidade({
             <li>┆ capacidade (efetivo do contrato − ausências, + apoio escalado)</li>
           </ul>
           <p className="small muted">
-            Escolha uma data com folga para pedir serviço: a chance de atendimento é maior.
+            Toque num dia para ver abaixo onde está o efetivo e quem pediu cada serviço. Datas com folga têm mais chance de atendimento.
             {carga.some((c) => c.semEscala) && ' Dias sem escala lançada usam o efetivo completo (ausências ainda não informadas).'}
           </p>
         </>

@@ -99,6 +99,19 @@ if (window.__DEMO_DADOS__) {
   const { weekKey, dayIndex } = locateDay(toUtcDay(d));
   semear(`escala_publica/${weekKey}_${dayIndex}`, { activities, absences: [{ workerId: 'c22', tipo: 'ausencia' }] });
 
+  // EXEMPLO: duas atividades de hoje vieram de solicitações feitas pelo app (mostra "Pedido por")
+  const deHoje = p.atividades.filter((a) => a.data === hoje && a.classe !== 'cancelada' && a.area).slice(0, 2);
+  deHoje.forEach((a, i) => {
+    const sid = `exemplo-prog-${i}`;
+    semear(`prog_mes/${a.data.slice(0, 7)}`, { itens: { [a.id]: { ...a, solicitacaoId: sid } } });
+    semear(`prog_solicitacoes/${sid}`, {
+      ...base, id: sid, area: a.area, equipamento: a.equipamento, descricao: a.descricao, urgencia: 'normal', dataDesejada: a.data,
+      solicitante: i === 0 ? 'Supervisor da área (exemplo)' : 'Programador da área (exemplo)', contato: i === 0 ? 'ramal 1234' : '(27) 99999-0000',
+      criadoEm: new Date(agora.getTime() - 4 * 86_400_000).toISOString(), status: 'programada', atividadeId: a.id, dataProgramada: a.data,
+      atualizadoEm: agora.toISOString(), atualizadoPor: 'exemplo',
+    });
+  });
+
   // EXEMPLOS para os indicadores: apontamento dos últimos 30 dias, escala, atrasos e emendas
   const motivos = ['Equipamento não liberado (bloqueio)', 'Falta de material', 'Chuva / condição climática'];
   const desde30 = iso(new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 30));
