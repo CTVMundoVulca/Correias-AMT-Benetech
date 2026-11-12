@@ -4,6 +4,7 @@ import { addDays, formatDate, fromIsoDate, toIsoDate } from '../domain/isoWeek';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useProg } from './context';
+import { CampoArea } from './CampoArea';
 import { gravarSolicitacao, ouvirSolicitacoes } from './data';
 import {
   AREA_MAX,
@@ -51,7 +52,7 @@ export const dataBr = (iso: string) => (fromIsoDate(iso) ? formatDate(fromIsoDat
 
 /** Pedido de serviço feito pela área (qualquer pessoa com o link). */
 export function Solicitar() {
-  const { api, uid, areas } = useProg();
+  const { api, uid } = useProg();
   const toast = useToast();
   const confirm = useConfirm();
   const salvo = lembrarSolicitante();
@@ -130,16 +131,7 @@ export function Solicitar() {
         <p className="small muted">
           Antes de pedir para um dia específico, veja no <a href="#/painel">Painel</a> em quais áreas o efetivo já está.
         </p>
-        <label className="field">
-          Área solicitante
-          <select className="input" value={area} onChange={(e) => setArea(e.target.value)}>
-            <option value="">Escolha…</option>
-            {areas.map((a) => (
-              <option key={a.nome}>{a.nome}</option>
-            ))}
-            {area && !areas.some((a) => a.nome === area) && <option>{area}</option>}
-          </select>
-        </label>
+        <CampoArea rotulo="Área solicitante" value={area} onChange={setArea} />
         <div className="two-cols">
           <label className="field">
             Equipamento / TAG

@@ -4,6 +4,7 @@ import { PdfBotao } from '../ui/PdfBotao';
 import { Indicadores } from './Indicadores';
 import { GraficoBarras, GraficoColunas, LegendaSeries, SERIES, type Serie } from './graficos';
 import { useAtividades, useOms, useProg } from './context';
+import { CampoArea } from './CampoArea';
 import {
   AREA_INTERNA,
   contarOms,
@@ -100,15 +101,7 @@ export function Dashboard() {
             </label>
           </div>
         )}
-        <label className="field">
-          Área
-          <select className="input" value={area} onChange={(e) => setArea(e.target.value)}>
-            <option value="">Todas as áreas</option>
-            {opcoesArea.map((a) => (
-              <option key={a}>{a}</option>
-            ))}
-          </select>
-        </label>
+        <CampoArea value={area} onChange={setArea} opcoes={opcoesArea} vazio="Todas as áreas" />
         <div className="row between">
           <button className="btn small" onClick={() => setTabela((t) => !t)}>
             {tabela ? 'Ver gráficos' : 'Ver em tabela'}

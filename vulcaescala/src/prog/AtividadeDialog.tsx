@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useProg } from './context';
+import { CampoArea } from './CampoArea';
 import { excluirAtividade, gravarAtividade, gravarOms, gravarSolicitacao, omDaAtividade } from './data';
 import {
   AREA_INTERNA,
@@ -163,16 +164,7 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
             Data
             <input className="input" type="date" value={a.data} onChange={(e) => set('data', e.target.value)} />
           </label>
-          <label className="field">
-            Área
-            <select className="input" value={a.area} onChange={(e) => set('area', e.target.value)}>
-              <option value="">Escolha…</option>
-              {opcoesArea.map((n) => (
-                <option key={n}>{n}</option>
-              ))}
-              {a.area && !opcoesArea.includes(a.area) && <option>{a.area}</option>}
-            </select>
-          </label>
+          <CampoArea value={a.area} onChange={(v) => set('area', v)} opcoes={opcoesArea} />
         </div>
         <div className="two-cols">
           <label className="field">

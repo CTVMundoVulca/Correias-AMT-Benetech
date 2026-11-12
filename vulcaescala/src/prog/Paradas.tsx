@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useParadas, useProg } from './context';
+import { CampoArea } from './CampoArea';
 import { excluirParada, gravarParada, gravarPedidoParada, ouvirPedidosParada } from './data';
 import { dataBr, guardarSolicitante, lembrarSolicitante } from './Solicitar';
 import { corDaArea } from './Painel';
@@ -109,7 +110,7 @@ const STATUS_PEDIDO: Record<StatusPedidoParada, { nome: string; cls: string }> =
 
 /** PAINEL: todos veem o calendário de paradas confirmadas e as áreas informam as suas. */
 export function ParadasPainel() {
-  const { api, uid, areas } = useProg();
+  const { api, uid } = useProg();
   const toast = useToast();
   const confirm = useConfirm();
   const lista = useParadas();
@@ -184,16 +185,7 @@ export function ParadasPainel() {
             </button>
           ))}
         </div>
-        <label className="field">
-          Área
-          <select className="input" value={area} onChange={(e) => setArea(e.target.value)}>
-            <option value="">Escolha…</option>
-            {areas.map((a) => (
-              <option key={a.nome}>{a.nome}</option>
-            ))}
-            {area && !areas.some((a) => a.nome === area) && <option>{area}</option>}
-          </select>
-        </label>
+        <CampoArea value={area} onChange={setArea} />
         <label className="field">
           Equipamento (opcional)
           <input className="input" value={equipamento} maxLength={EQUIP_MAX} onChange={(e) => setEquipamento(e.target.value)} />
@@ -399,7 +391,7 @@ export function ParadasGestao() {
 }
 
 function ParadaDialog({ atual, nova, onClose, onSalvo }: { atual: Parada; nova: boolean; onClose: () => void; onSalvo?: (p: Parada) => void }) {
-  const { api, por, areas } = useProg();
+  const { api, por } = useProg();
   const toast = useToast();
   const confirm = useConfirm();
   const [p, setP] = useState(atual);
@@ -452,16 +444,7 @@ function ParadaDialog({ atual, nova, onClose, onSalvo }: { atual: Parada; nova: 
             </button>
           ))}
         </div>
-        <label className="field">
-          Área
-          <select className="input" value={p.area} onChange={(e) => set('area', e.target.value)}>
-            <option value="">Escolha…</option>
-            {areas.map((a) => (
-              <option key={a.nome}>{a.nome}</option>
-            ))}
-            {p.area && !areas.some((a) => a.nome === p.area) && <option>{p.area}</option>}
-          </select>
-        </label>
+        <CampoArea value={p.area} onChange={(v) => set('area', v)} />
         <label className="field">
           Equipamento (opcional)
           <input className="input" value={p.equipamento} maxLength={EQUIP_MAX} onChange={(e) => set('equipamento', e.target.value)} />
