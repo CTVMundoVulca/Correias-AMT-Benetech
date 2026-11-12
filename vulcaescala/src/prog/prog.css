@@ -503,3 +503,12 @@
 .sw-carga { display: inline-block; width: 12px; height: 8px; border-radius: 2px; vertical-align: 1px; }
 .carga-leg { font-size: 0.72rem; }
 @media (min-width: 760px) { .carga-coluna { height: 80px; } .carga-num { font-size: 1.2rem; } }
+/* carga: mês como título, semana acima das colunas, dia embaixo */
+.carga-mes { font-weight: 700; font-size: 0.9rem; text-align: center; margin-bottom: -2px; }
+.carga-semanas { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.carga-sem { text-align: center; font-size: 0.66rem; font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); border-radius: 6px; padding: 2px 0; white-space: nowrap; overflow: hidden; }
+.carga-faixa li.carga-nova-sem { border-left: 1px dashed var(--line-strong); }
+.carga-data { gap: 1px; }
+.carga-data b { font-size: 0.7rem; }
+.carga-dia-n { font-size: 0.82rem; font-weight: 700; color: var(--ink); }
+.carga-novo-mes { font-size: 0.58rem; font-weight: 700; color: var(--accent-strong); text-transform: uppercase; }

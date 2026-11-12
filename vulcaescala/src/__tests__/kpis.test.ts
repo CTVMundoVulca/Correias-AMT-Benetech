@@ -148,3 +148,18 @@ describe('carga × capacidade', () => {
     ]);
   });
 });
+
+import { semanasDe, tituloMeses } from '../prog/CargaCapacidade';
+
+describe('cabeçalho da carga × capacidade', () => {
+  it('mês no título e dias agrupados por semana', () => {
+    const d = ['2026-11-26', '2026-11-27', '2026-11-30', '2026-12-01'];
+    expect(tituloMeses(d)).toBe('Novembro – Dezembro 2026');
+    expect(tituloMeses(['2026-11-12', '2026-11-13'])).toBe('Novembro 2026');
+    expect(tituloMeses(['2026-12-31', '2027-01-04'])).toBe('Dezembro 2026 – Janeiro 2027');
+    expect(semanasDe(d)).toEqual([
+      { semana: 48, n: 2 },
+      { semana: 49, n: 2 },
+    ]);
+  });
+});

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { COL_PUB_DIAS } from '../cloud/publico';
-import { WEEKDAYS_SHORT, fromIsoDate, locateDay } from '../domain/isoWeek';
+import { MONTHS, MONTHS_SHORT, WEEKDAYS_SHORT, fromIsoDate, isoWeekOf, locateDay } from '../domain/isoWeek';
 import { useProg } from './context';
 import { cargaCapacidade, LIMITE_OCUPACAO } from './kpis';
 import type { Atividade } from './model';
@@ -62,18 +62,29 @@ export function CargaCapacidade({
         <h3>📊 Carga × capacidade — próximos 10 dias úteis</h3>
         <span className="small muted">pessoas livres por dia</span>
       </div>
+      <div className="carga-mes">{tituloMeses(dias)}</div>
       {carga === null ? (
         <p className="muted small">Carregando…</p>
       ) : efetivo === 0 ? (
         <p className="muted small">O efetivo da escala ainda não foi cadastrado: sem base para a capacidade.</p>
       ) : (
         <>
+          <div className="carga-semanas" aria-hidden>
+            {semanasDe(dias).map((g) => (
+              <span key={g.semana} className="carga-sem" style={{ gridColumn: `span ${g.n}` }}>
+                Sem. {g.semana}
+              </span>
+            ))}
+          </div>
           <ul className="carga-faixa">
             {carga.map((c) => {
               const d = fromIsoDate(c.data)!;
               const alt = (v: number) => `${Math.min(100, (v / max) * 100)}%`;
+              const i = carga.indexOf(c);
+              const novaSemana = i > 0 && locateDay(fromIsoDate(carga[i - 1].data)!).weekKey !== locateDay(d).weekKey;
+              const novoMes = i > 0 && carga[i - 1].data.slice(5, 7) !== c.data.slice(5, 7);
               return (
-                <li key={c.data}>
+                <li key={c.data} className={novaSemana ? 'carga-nova-sem' : ''}>
                   <button
                     className={'carga-col ' + c.nivel}
                     onClick={() => onDia(c.data)}
@@ -90,7 +101,8 @@ export function CargaCapacidade({
                     </span>
                     <span className="carga-data">
                       <b>{WEEKDAYS_SHORT[locateDay(d).dayIndex]}</b>
-                      <span className="num">{c.data.slice(8)}/{c.data.slice(5, 7)}</span>
+                      <span className="num carga-dia-n">{Number(c.data.slice(8))}</span>
+                      {novoMes && <span className="carga-novo-mes">{MONTHS_SHORT[Number(c.data.slice(5, 7)) - 1]}</span>}
                     </span>
                   </button>
                 </li>
@@ -117,4 +129,27 @@ export function CargaCapacidade({
       )}
     </div>
   );
+}
+
+/** "Novembro 2026" ou "Novembro – Dezembro 2026" (ou com os dois anos na virada do ano). */
+export function tituloMeses(dias: string[]): string {
+  if (!dias.length) return '';
+  const a = dias[0];
+  const b = dias[dias.length - 1];
+  const nome = (d: string) => MONTHS[Number(d.slice(5, 7)) - 1];
+  if (a.slice(0, 7) === b.slice(0, 7)) return `${nome(a)} ${a.slice(0, 4)}`;
+  if (a.slice(0, 4) === b.slice(0, 4)) return `${nome(a)} – ${nome(b)} ${a.slice(0, 4)}`;
+  return `${nome(a)} ${a.slice(0, 4)} – ${nome(b)} ${b.slice(0, 4)}`;
+}
+
+/** Dias agrupados pela semana ISO (para a faixa "Sem. 46 | Sem. 47"). */
+export function semanasDe(dias: string[]): { semana: number; n: number }[] {
+  const out: { semana: number; n: number }[] = [];
+  for (const d of dias) {
+    const w = isoWeekOf(fromIsoDate(d)!).week;
+    const ult = out[out.length - 1];
+    if (ult && ult.semana === w) ult.n++;
+    else out.push({ semana: w, n: 1 });
+  }
+  return out;
 }
