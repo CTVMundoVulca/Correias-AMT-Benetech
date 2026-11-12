@@ -33,6 +33,8 @@ const PAINEL: TelaDef[] = [
   { id: 'solicitar', label: 'Solicitar', ico: '➕' },
   { id: 'dashboard', label: 'Relatórios', ico: '📊' },
 ];
+/** Link exclusivo das áreas do cliente (ArcelorMittal): só o que interessa a quem pede serviço. */
+const TELAS_AREAS = ['central', 'painel', 'paradas', 'solicitar'];
 /** BACK-END: Gestão (login + papel). */
 const GESTAO: TelaDef[] = [
   { id: 'programar', label: 'Programação', ico: '🗓', papeis: ['programar'] },
@@ -55,7 +57,7 @@ function lerRota(): { gestao: boolean; tela: string } {
  *  GESTÃO (back-end, botão "Gestão" + login): programador, supervisor e administrador,
  *  cada um com o que o seu papel permite (as regras do Firestore conferem de novo).
  */
-export function ProgApp() {
+export function ProgApp({ linkAreas = false }: { linkAreas?: boolean } = {}) {
   const [api, setApi] = useState<FirebaseApi | null>(null);
   const [phase, setPhase] = useState<Phase>('sdk');
   const [por, setPor] = useState('anônimo');
@@ -66,7 +68,9 @@ export function ProgApp() {
   const [login, setLogin] = useState(false);
   const [areas, setAreas] = useState<Area[]>(AREAS_PADRAO);
   const [feriados, setFeriados] = useState<Record<string, string>>({});
-  const [rota, setRota] = useState(lerRota);
+  const [rota0, setRota] = useState(lerRota);
+  // link das áreas: nunca entra na Gestão
+  const rota = linkAreas ? { ...rota0, gestao: false } : rota0;
   const [pend, setPend] = useState<Pendencia>({ pendente: false, offline: false });
   const [online, setOnline] = useState(() => navigator.onLine);
 
@@ -180,8 +184,8 @@ export function ProgApp() {
   }, [api]);
 
   const ctx = useMemo<ProgCtx | null>(
-    () => (api ? { api, por, uid, pode, gestao: rota.gestao, areas, feriados, entrar: () => setLogin(true), setPendencia } : null),
-    [api, por, uid, pode, rota.gestao, areas, feriados, setPendencia],
+    () => (api ? { api, por, uid, pode, gestao: rota.gestao, linkAreas, areas, feriados, entrar: () => setLogin(true), setPendencia } : null),
+    [api, por, uid, pode, rota.gestao, linkAreas, areas, feriados, setPendencia],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };
@@ -224,7 +228,7 @@ export function ProgApp() {
       ? { cls: 'saving', short: 'Salvando…', long: 'Enviando alterações para a nuvem…' }
       : { cls: 'ok', short: 'Sincronizado', long: 'Sincronizado: todos veem a mesma programação.' };
 
-  const telas = rota.gestao ? GESTAO.filter((t) => t.papeis?.some((p) => pode[p])) : PAINEL;
+  const telas = rota.gestao ? GESTAO.filter((t) => t.papeis?.some((p) => pode[p])) : linkAreas ? PAINEL.filter((t) => TELAS_AREAS.includes(t.id)) : PAINEL;
   const atual = telas.find((t) => t.id === rota.tela)?.id ?? telas[0]?.id ?? '';
   const ir = (id: string) => (window.location.hash = rota.gestao ? `#/g/${id}` : `#/${id}`);
   const temGestao = pode.programar || pode.retorno || pode.administrar;
@@ -233,8 +237,9 @@ export function ProgApp() {
   return (
     <Ctx.Provider value={ctx}>
       <Header
-        kicker={rota.gestao ? 'Gestão · Vulcanização AMT' : 'Painel · Vulcanização AMT'}
-        title="Programação"
+        kicker={rota.gestao ? 'Gestão · Vulcanização AMT' : linkAreas ? 'Vulcanização · Contrato AMT' : 'Painel · Vulcanização AMT'}
+        title={linkAreas ? 'Programação e solicitações' : 'Programação'}
+        semPortal={linkAreas}
         status={status}
         acoes={
           <>
@@ -243,7 +248,7 @@ export function ProgApp() {
                 🔔{totalSino > 0 && <span className="sino-n num">{totalSino}</span>}
               </a>
             )}
-            {rota.gestao ? (
+            {linkAreas ? null : rota.gestao ? (
               <a className="hdr-btn modo" href="#/central" title="Voltar ao Painel (visão das áreas)">
                 👁 Painel
               </a>
@@ -278,9 +283,11 @@ export function ProgApp() {
               {rota.gestao && t.id === 'paradas' && aguardando.paradas > 0 && <span className="badge pend num">{aguardando.paradas}</span>}
             </button>
           ))}
-          <a className="lat-item lat-troca" href={rota.gestao ? '#/central' : '#/g'}>
-            <span aria-hidden>{rota.gestao ? '👁' : '⚙'}</span> {rota.gestao ? 'Voltar ao Painel' : 'Gestão'}
-          </a>
+          {!linkAreas && (
+            <a className="lat-item lat-troca" href={rota.gestao ? '#/central' : '#/g'}>
+              <span aria-hidden>{rota.gestao ? '👁' : '⚙'}</span> {rota.gestao ? 'Voltar ao Painel' : 'Gestão'}
+            </a>
+          )}
           {email && <div className="lat-user small">👤 {email}</div>}
         </aside>
         <main className={atual === 'central' && !rota.gestao ? 'prog-main larga' : 'prog-main container'}>

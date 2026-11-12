@@ -16,6 +16,8 @@ import '../prog.css';
 declare global {
   interface Window {
     __DEMO_DADOS__?: unknown;
+    /** teste do link exclusivo das áreas do cliente */
+    __DEMO_AREAS__?: boolean;
   }
 }
 
@@ -132,7 +134,7 @@ createRoot(document.getElementById('root')!).render(
     </div>
     <ToastProvider>
       <ConfirmProvider>
-        <ProgApp />
+        <ProgApp linkAreas={!!window.__DEMO_AREAS__} />
       </ConfirmProvider>
     </ToastProvider>
   </StrictMode>,

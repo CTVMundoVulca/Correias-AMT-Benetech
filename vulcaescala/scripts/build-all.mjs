@@ -17,7 +17,7 @@ const mode = process.argv[2] === 'pages' ? 'pages' : 'production';
 const raiz = join(root, '..');
 const shared = join(root, 'public', 'shared');
 
-for (const app of ['escala', 'emenda', 'programacao']) {
+for (const app of ['escala', 'emenda', 'programacao', 'areas']) {
   process.env.APP = app;
   await build({ root, mode, logLevel: 'warn' });
   const out = mode === 'pages' ? join(raiz, app) : join(root, 'dist', app);
@@ -29,7 +29,8 @@ for (const app of ['escala', 'emenda', 'programacao']) {
     writeFileSync(
       html,
       readFileSync(html, 'utf8')
-        .replace('<link rel="manifest" href="manifest.json"', '<link rel="manifest" href="../manifest.json"')
+        // o link das áreas tem manifesto próprio (instala direto na página delas, sem o portal)
+        .replace('<link rel="manifest" href="manifest.json"', app === 'areas' ? '<link rel="manifest" href="manifest.json"' : '<link rel="manifest" href="../manifest.json"')
         .replace('<script src="app-update.js"></script>', '<script src="../app-update.js"></script>'),
     );
     rmSync(join(out, 'app-update.js'), { force: true });

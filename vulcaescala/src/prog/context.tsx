@@ -12,6 +12,8 @@ export interface ProgCtx {
   pode: Permissoes;
   /** está na área de Gestão (back-end) e não no Painel público */
   gestao: boolean;
+  /** link exclusivo das áreas do cliente: só Central, Dia a dia, Paradas e Solicitar */
+  linkAreas: boolean;
   areas: Area[];
   /** feriados municipais (Vitória) da escala; os nacionais são calculados */
   feriados: Record<string, string>;

@@ -1,0 +1,17 @@
+{
+  "name": "Vulcanização AMT — Programação e solicitações",
+  "short_name": "Vulcanização AMT",
+  "description": "Onde está o efetivo da vulcanização, carga × capacidade, paradas e solicitação de serviço — contrato AMT.",
+  "lang": "pt-BR",
+  "id": "./?app=areas",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#001a33",
+  "theme_color": "#001a33",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

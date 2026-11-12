@@ -5,7 +5,7 @@
    (abre offline); demais arquivos = cache-first.
    CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs),
    a partir do conteúdo de todos os arquivos do APP_SHELL. */
-const CACHE_VERSION = 'amt-b29ab5440706';
+const CACHE_VERSION = 'amt-ed1a4176b4af';
 
 const APP_SHELL = [
   './',
@@ -29,6 +29,11 @@ const APP_SHELL = [
   './programacao/',
   './programacao/index.html',
   './programacao/logo-benetech.png',
+  // link exclusivo das áreas do cliente
+  './areas/',
+  './areas/index.html',
+  './areas/manifest.json',
+  './areas/logo-benetech.png',
   // geração de PDF no aparelho (mesmas bibliotecas dos Apps CTV Campo)
   './vendor/html2canvas.min.js',
   './vendor/jspdf.umd.min.js',
@@ -65,7 +70,7 @@ self.addEventListener('activate', (event) => {
 
 /* página inicial de cada módulo, para abrir offline */
 function paginaDoModulo(url) {
-  for (const m of ['escala', 'emenda', 'programacao', 'medidas']) if (url.pathname.includes('/' + m + '/')) return './' + m + '/index.html';
+  for (const m of ['escala', 'emenda', 'programacao', 'areas', 'medidas']) if (url.pathname.includes('/' + m + '/')) return './' + m + '/index.html';
   return './index.html';
 }
 

@@ -31,7 +31,7 @@ const URG: Record<Solicitacao['urgencia'], { nome: string; cls: string }> = {
 
 /** Central: visão geral da programação, demandas, efetivo do dia, paradas e semana. */
 export function Central() {
-  const { api, feriados } = useProg();
+  const { api, feriados, linkAreas } = useProg();
   const hoje = hojeIso();
   const mesAtual = hoje.slice(0, 7);
   const mesAnt = somaMes(mesAtual, -1);
@@ -177,9 +177,11 @@ export function Central() {
                 </span>
               )}
             </h3>
-            <a className="link small" href="../escala/">
+            {!linkAreas && (
+              <a className="link small" href="../escala/">
               Abrir escala →
             </a>
+            )}
           </div>
           {!ef ? (
             <p className="muted small">Carregando a escala…</p>
@@ -280,7 +282,7 @@ export function Central() {
         </section>
       </div>
 
-      <AcoesRapidas />
+      <AcoesRapidas linkAreas={linkAreas} />
     </div>
   );
 }
@@ -372,13 +374,17 @@ function Anel({ valor }: { valor: number | null }) {
   );
 }
 
-export function AcoesRapidas() {
+export function AcoesRapidas({ linkAreas = false }: { linkAreas?: boolean }) {
   const acoes = [
     { href: '#/solicitar', ico: '➕', nome: 'Nova solicitação', destaque: true },
     { href: '#/paradas', ico: '⛔', nome: 'Informar parada' },
     { href: '#/painel', ico: '📍', nome: 'Dia a dia' },
-    { href: '#/dashboard', ico: '📊', nome: 'Relatórios' },
-    { href: '#/g', ico: '⚙', nome: 'Gestão' },
+    ...(linkAreas
+      ? []
+      : [
+          { href: '#/dashboard', ico: '📊', nome: 'Relatórios' },
+          { href: '#/g', ico: '⚙', nome: 'Gestão' },
+        ]),
   ];
   return (
     <nav className="acoes-rapidas" aria-label="Ações rápidas">

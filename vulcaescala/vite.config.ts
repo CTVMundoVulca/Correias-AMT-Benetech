@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 // Vários apps no mesmo projeto (portal AMT). Cada um vira um HTML único
 // (CSS/JS embutidos), como os demais apps CTV. APP=escala | emenda | programacao
-const APP = ['emenda', 'programacao', 'prog-teste'].includes(process.env.APP ?? '') ? process.env.APP! : 'escala';
+const APP = ['emenda', 'programacao', 'areas', 'prog-teste'].includes(process.env.APP ?? '') ? process.env.APP! : 'escala';
 const ENTRY = APP === 'escala' ? 'index.html' : `${APP}.html`;
 // modo teste da Programação: troca o Firebase por uma imitação na memória (nada vai para a nuvem)
 const TESTE = APP === 'prog-teste';
