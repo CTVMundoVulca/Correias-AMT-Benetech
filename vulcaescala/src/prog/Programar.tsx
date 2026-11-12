@@ -9,6 +9,7 @@ import { AtividadeDialog } from './AtividadeDialog';
 import { AreasDialog } from './AreasDialog';
 import { Importar } from './Importar';
 import { RecusarDialog } from './RecusarDialog';
+import { ApontarDialog } from './ApontarDialog';
 import { LinhaAtividade, curtoDia, diasDaSemana, rotuloDia, segundaDe } from './Painel';
 import { dataBr } from './Solicitar';
 import { URGENCIAS, atividadeVazia, hojeIso, maiusculas, mesesEntre, ordenarAtividades, resumir, tipoPelaDescricao, type Atividade, type Solicitacao } from './model';
@@ -25,6 +26,7 @@ export function Programar() {
   const oms = useOms();
   const [abertas, setAbertas] = useState<Solicitacao[]>([]);
   const [edicao, setEdicao] = useState<Edicao | null>(null);
+  const [apontar, setApontar] = useState<string | null>(null);
   const [areasAberto, setAreasAberto] = useState(false);
   const [importar, setImportar] = useState(false);
   const [recusando, setRecusando] = useState<Solicitacao | null>(null);
@@ -135,6 +137,7 @@ export function Programar() {
         {dias.map((d) => {
           const doDia = daSemana.filter((a) => a.data === d);
           const pessoas = doDia.reduce((s, a) => s + (a.classe === 'cancelada' ? 0 : a.pessoas), 0);
+          const aApontar = d <= hojeIso() ? doDia.filter((a) => a.classe !== 'cancelada' && !a.execucao).length : 0;
           return (
             <section key={d} className={'card pad prog-dia' + (d === hojeIso() ? ' today' : '')}>
               <div className="row between">
@@ -153,6 +156,11 @@ export function Programar() {
                     <LinhaAtividade key={a.id} a={a} mostrarArea onClick={() => setEdicao({ a, nova: false })} />
                   ))}
                 </ul>
+              )}
+              {d <= hojeIso() && doDia.some((a) => a.classe !== 'cancelada') && (
+                <button className={'btn small apontar-btn' + (aApontar ? ' pendente' : '')} onClick={() => setApontar(d)}>
+                  {aApontar ? `✓ Apontar execução (${aApontar} pendente${aApontar === 1 ? '' : 's'})` : '✓ Execução apontada'}
+                </button>
               )}
               <button className="btn small add-ativ" onClick={() => nova(d)}>
                 + Atividade
@@ -174,6 +182,7 @@ export function Programar() {
       )}
       {areasAberto && <AreasDialog onClose={() => setAreasAberto(false)} />}
       {importar && <Importar onClose={() => setImportar(false)} />}
+      {apontar && <ApontarDialog data={apontar} atividades={daSemana.filter((a) => a.data === apontar)} onClose={() => setApontar(null)} />}
       {recusando && (
         <RecusarDialog
           titulo="Recusar solicitação"

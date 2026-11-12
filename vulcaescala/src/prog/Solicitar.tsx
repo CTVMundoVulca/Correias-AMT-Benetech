@@ -61,6 +61,8 @@ export function Solicitar() {
   const [descricao, setDescricao] = useState('');
   const [urgencia, setUrgencia] = useState<Solicitacao['urgencia']>('normal');
   const [dataDesejada, setDataDesejada] = useState(() => toIsoDate(addDays(fromIsoDate(hojeIso())!, 7)));
+  const [estPessoas, setEstPessoas] = useState('');
+  const [estDias, setEstDias] = useState('');
   const [solicitante, setSolicitante] = useState(salvo.solicitante);
   const [contato, setContato] = useState(salvo.contato);
   const [lista, setLista] = useState<Solicitacao[] | null>(null);
@@ -81,6 +83,7 @@ export function Solicitar() {
       descricao: maiusculas(descricao, DESCRICAO_SOLIC_MAX),
       urgencia,
       dataDesejada,
+      estimativa: Math.max(0, Math.min(500, (Number(estPessoas) || 0) * (Number(estDias) || 0))),
       solicitante: limparTexto(solicitante, SOLICITANTE_MAX),
       contato: limparTexto(contato, CONTATO_MAX),
       criadoUid: uid,
@@ -104,6 +107,8 @@ export function Solicitar() {
     setOm('');
     setDescricao('');
     setUrgencia('normal');
+    setEstPessoas('');
+    setEstDias('');
     setFiltro('minhas');
   };
 
@@ -170,6 +175,17 @@ export function Solicitar() {
           Data desejada
           <input className="input" type="date" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
         </label>
+        <span className="field">Estimativa (opcional): quantas pessoas da vulcanização e por quantos dias</span>
+        <div className="two-cols">
+          <label className="field">
+            Pessoas
+            <input className="input num" type="number" min={0} max={40} inputMode="numeric" value={estPessoas} placeholder="Ex.: 4" onChange={(e) => setEstPessoas(e.target.value)} />
+          </label>
+          <label className="field">
+            Dias
+            <input className="input num" type="number" min={0} max={30} step="0.5" inputMode="decimal" value={estDias} placeholder="Ex.: 2" onChange={(e) => setEstDias(e.target.value)} />
+          </label>
+        </div>
         <div className="two-cols">
           <label className="field">
             Seu nome

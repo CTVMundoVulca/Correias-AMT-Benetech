@@ -111,6 +111,8 @@ describe('Solicitações das áreas', () => {
     await assertFails(anon().doc('prog_solicitacoes/s3').set({ ...solic, id: 's3', status: 'programada' }));
     await assertFails(anon().doc('prog_solicitacoes/s4').set({ ...solic, id: 's4', om: 'OM-123' }));
     await assertFails(anon().doc('prog_solicitacoes/s5').set({ ...solic, id: 's5', descricao: '' }));
+    await assertSucceeds(anon().doc('prog_solicitacoes/s7').set({ ...solic, id: 's7', estimativa: 8 }));
+    await assertFails(anon().doc('prog_solicitacoes/s8').set({ ...solic, id: 's8', estimativa: 9999 }));
     await assertFails(semLogin().doc('prog_solicitacoes/s6').set({ ...solic, id: 's6' }));
   });
 

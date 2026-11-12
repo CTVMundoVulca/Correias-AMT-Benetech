@@ -169,6 +169,28 @@ export const CONTATO_MAX = 80;
 
 export type Equipe = 'dia' | 'turno';
 
+export type Execucao = '' | 'executada' | 'nao_executada' | 'reprogramada';
+
+/** Motivos padronizados (lista) — para o KPI agrupar sem depender de texto livre. */
+export const MOTIVOS_NAO_EXECUCAO = [
+  'Equipamento não liberado (bloqueio)',
+  'Falta de material',
+  'Falta de recurso (munck, guindaste, andaime)',
+  'Chuva / condição climática',
+  'Efetivo deslocado para emergência',
+  'Prioridade da área mudou',
+  'Serviço não concluído no dia',
+];
+export const MOTIVOS_CANCELAMENTO = [
+  'Área cancelou / não precisa mais',
+  'Equipamento não liberado (bloqueio)',
+  'Falta de material',
+  'Falta de recurso (munck, guindaste, andaime)',
+  'Chuva / condição climática',
+  'Serviço feito por outra equipe',
+  'Pedido duplicado',
+];
+
 export interface Atividade {
   id: string;
   /** "AAAA-MM-DD" */
@@ -194,6 +216,15 @@ export interface Atividade {
   comunicadoEm: string;
   /** a classificação foi trocada à mão (diferente da regra automática) */
   classeManual: boolean;
+  /** apontamento depois do dia: executada, não executada (com motivo) ou reprogramada ('' = sem apontamento) */
+  execucao: Execucao;
+  execMotivo: string;
+  execEm: string;
+  execPor: string;
+  /** data em que a atividade foi programada pela primeira vez (reprogramações não mudam) */
+  dataOriginal: string;
+  /** quantas vezes foi reprogramada */
+  reprogramacoes: number;
   /** solicitação de origem ('' = lançada direto pelo programador) */
   solicitacaoId: string;
   origem: 'app' | 'planilha';
@@ -231,6 +262,12 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     motivo: '',
     comunicadoEm: agora,
     classeManual: false,
+    execucao: '',
+    execMotivo: '',
+    execEm: '',
+    execPor: '',
+    dataOriginal: data,
+    reprogramacoes: 0,
     solicitacaoId: '',
     origem: 'app',
     ordem: Date.now(),
@@ -266,6 +303,12 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     motivo: str(a.motivo, MOTIVO_MAX),
     comunicadoEm: str(a.comunicadoEm, 40),
     classeManual: a.classeManual === true,
+    execucao: (['executada', 'nao_executada', 'reprogramada'] as const).find((x) => x === a.execucao) ?? '',
+    execMotivo: str(a.execMotivo, MOTIVO_MAX),
+    execEm: str(a.execEm, 40),
+    execPor: str(a.execPor, 120),
+    dataOriginal: /^\d{4}-\d{2}-\d{2}$/.test(str(a.dataOriginal, 10)) ? str(a.dataOriginal, 10) : data,
+    reprogramacoes: typeof a.reprogramacoes === 'number' && a.reprogramacoes > 0 ? Math.min(99, Math.round(a.reprogramacoes)) : 0,
     solicitacaoId: str(a.solicitacaoId, 60),
     origem: a.origem === 'planilha' ? 'planilha' : 'app',
     ordem: typeof a.ordem === 'number' ? a.ordem : 0,
@@ -391,6 +434,8 @@ export interface Solicitacao {
   urgencia: Urgencia;
   /** data desejada "AAAA-MM-DD" */
   dataDesejada: string;
+  /** estimativa da área/programação: pessoas × dias (para o backlog em semanas); 0 = não informada */
+  estimativa: number;
   solicitante: string;
   contato: string;
   /** sessão (aparelho) que pediu — pode cancelar enquanto estiver aberta */
@@ -419,6 +464,7 @@ export function completarSolicitacao(id: string, v: unknown): Solicitacao {
     descricao: str(s.descricao, DESCRICAO_SOLIC_MAX),
     urgencia: s.urgencia === 'urgente' || s.urgencia === 'emergencia' ? s.urgencia : 'normal',
     dataDesejada: str(s.dataDesejada, 10),
+    estimativa: typeof s.estimativa === 'number' && s.estimativa > 0 ? Math.min(500, s.estimativa) : 0,
     solicitante: str(s.solicitante, SOLICITANTE_MAX),
     contato: str(s.contato, CONTATO_MAX),
     criadoUid: str(s.criadoUid, 128),

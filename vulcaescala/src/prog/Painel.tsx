@@ -419,6 +419,10 @@ export function LinhaAtividade({ a, onClick, mostrarArea }: { a: Atividade; onCl
         <span className={'classe ' + (a.classe || 'sem')}>{nomeClasse(a.classe)}</span>
         {a.retrabalho && <span className="classe retra">Retrabalho</span>}
         {a.classe === 'cancelada' && a.motivo && <span>Motivo: {a.motivo}</span>}
+        {a.execucao === 'executada' && <span className="exec ok">✓ Executada</span>}
+        {a.execucao === 'nao_executada' && <span className="exec nao">✕ Não executada{a.execMotivo ? ` — ${a.execMotivo}` : ''}</span>}
+        {a.execucao === 'reprogramada' && <span className="exec reprog">↷ Reprogramada{a.execMotivo ? ` — ${a.execMotivo}` : ''}</span>}
+        {a.reprogramacoes > 0 && a.execucao !== 'reprogramada' && <span className="exec reprog">↷ veio de {a.dataOriginal.split('-').reverse().join('/')}</span>}
       </div>
       {a.recursos && <div className="small muted">Recursos: {a.recursos}</div>}
     </>

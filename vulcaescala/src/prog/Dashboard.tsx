@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { MONTHS, MONTHS_SHORT } from '../domain/isoWeek';
 import { PdfBotao } from '../ui/PdfBotao';
+import { Indicadores } from './Indicadores';
 import { useAtividades, useOms, useProg } from './context';
 import {
   AREA_INTERNA,
@@ -144,6 +145,9 @@ export function Dashboard() {
               </p>
             )}
 
+            <Indicadores lista={lista} ini={ini} fim={fim} area={area} oms={oms} />
+
+            <h3 className="secao-dash">📊 Distribuição das atividades</h3>
             <Legenda />
 
             {tabela ? (

@@ -95,12 +95,38 @@ if (window.__DEMO_DADOS__) {
   const d = new Date();
   const { weekKey, dayIndex } = locateDay(toUtcDay(d));
   semear(`escala_publica/${weekKey}_${dayIndex}`, { activities, absences: [{ workerId: 'c22', tipo: 'ausencia' }] });
+
+  // EXEMPLOS para os indicadores: apontamento dos últimos 30 dias, escala, atrasos e emendas
+  const motivos = ['Equipamento não liberado (bloqueio)', 'Falta de material', 'Chuva / condição climática'];
+  const desde30 = iso(new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 30));
+  const porMes: Record<string, Record<string, unknown>> = {};
+  p.atividades
+    .filter((a) => a.data >= desde30 && a.data < hoje && a.classe !== 'cancelada')
+    .forEach((a, i) => {
+      const r = i % 10;
+      const ex = r < 8 ? { execucao: 'executada', execMotivo: '' } : { execucao: r === 8 ? 'nao_executada' : 'reprogramada', execMotivo: motivos[i % 3] };
+      (porMes[a.data.slice(0, 7)] ??= {})[a.id] = { ...a, ...ex, execEm: agora.toISOString(), execPor: 'exemplo' };
+    });
+  for (const [m, itens] of Object.entries(porMes)) semear(`prog_mes/${m}`, { itens });
+  for (let k = 1; k <= 60; k++) {
+    const dt = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - k);
+    const { weekKey: wk, dayIndex: di } = locateDay(toUtcDay(dt));
+    if (di >= 5) continue;
+    semear(`escala_publica/${wk}_${di}`, { activities: [], absences: Array.from({ length: k % 3 }, (_, j) => ({ workerId: `c${20 - j}`, tipo: 'ausencia' })) });
+    if (k % 4 === 0)
+      semear(`escala_atrasos/ex${k}`, {
+        id: `ex${k}`, semana: wk, diaId: `${wk}_${di}`, atividadeId: 'x', atividadeNome: k % 8 === 0 ? 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO' : 'REPARO C-3 — COQUERIA',
+        inicio: '07:30', fim: k % 8 === 0 ? '09:15' : '08:20', motivo: ['Bloqueio', 'Recurso', 'Limpeza'][k % 3], descricao: 'EXEMPLO', criadoUid: '', criadoEm: '', atualizadoEm: '', por: 'exemplo',
+      });
+  }
+  const em = (id: string, tag: string, dias: number) => semear(`emendas/${id}`, { id, tag, data: dIso(-dias), numero: '1' });
+  em('em1', 'L-21', 200); em('em2', 'L-21', 120); em('em3', 'L 21', 40); em('em4', 'B-9R', 150); em('em5', 'B-9R', 10); em('em6', 'C-3', 90);
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <div className="modo-teste">
-      🧪 MODO TESTE — nada vai para a nuvem; recarregar volta ao início. Gestão: entre com programador@teste.com, supervisor@teste.com ou
+      🧪 MODO TESTE — nada vai para a nuvem; recarregar volta ao início. Apontamentos, escala, atrasos e emendas dos últimos dias são EXEMPLOS. Gestão: entre com programador@teste.com, supervisor@teste.com ou
       admin@teste.com (qualquer senha).
     </div>
     <ToastProvider>

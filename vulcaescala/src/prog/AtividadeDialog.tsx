@@ -12,6 +12,7 @@ import {
   EQUIP_MAX,
   HORARIO_MAX,
   MOTIVO_MAX,
+  MOTIVOS_CANCELAMENTO,
   PESSOAS_MAX,
   RECURSOS_MAX,
   TIPOS,
@@ -85,7 +86,9 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     if (!x.classe) return toast('Informe quando a demanda foi comunicada ou escolha a classificação.', 'warn');
     if (x.classe === 'cancelada' && !x.motivo) return toast('Informe o motivo do cancelamento.', 'warn');
     if (x.om && x.om.length < 6) return toast('Número da OM incompleto.', 'warn');
-    gravar(x, nova ? undefined : mesDe(atual.data));
+    // mudou a data depois de programada = reprogramação (entra no KPI de estabilidade)
+    const reprog = !nova && x.data !== atual.data;
+    gravar(reprog ? { ...x, reprogramacoes: x.reprogramacoes + 1, dataOriginal: atual.dataOriginal || atual.data } : x, nova ? undefined : mesDe(atual.data));
     if (solicitacao && nova)
       gravarSolicitacao(api, {
         ...solicitacao,
@@ -289,10 +292,23 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
           menos de {ANTECEDENCIA_HORAS} h. Pedidos fora da jornada (07:15–17:15, dias úteis) contam a partir das 07:15 do próximo dia útil.
         </p>
         {a.classe === 'cancelada' && (
-          <label className="field">
-            Motivo do cancelamento
-            <input className="input" value={a.motivo} maxLength={MOTIVO_MAX} onChange={(e) => set('motivo', e.target.value)} />
-          </label>
+          <div className="stack">
+            <span className="field">Motivo do cancelamento</span>
+            <div className="opts">
+              {MOTIVOS_CANCELAMENTO.map((m) => (
+                <button key={m} type="button" className={'opt' + (a.motivo === m ? ' on' : '')} onClick={() => set('motivo', m)}>
+                  {m}
+                </button>
+              ))}
+            </div>
+            <input
+              className="input"
+              value={MOTIVOS_CANCELAMENTO.includes(a.motivo) ? '' : a.motivo}
+              maxLength={MOTIVO_MAX}
+              placeholder="Outro motivo (escreva)"
+              onChange={(e) => set('motivo', e.target.value)}
+            />
+          </div>
         )}
         <label className="check">
           <input type="checkbox" checked={a.retrabalho} onChange={(e) => set('retrabalho', e.target.checked)} /> Retrabalho (serviço refeito)

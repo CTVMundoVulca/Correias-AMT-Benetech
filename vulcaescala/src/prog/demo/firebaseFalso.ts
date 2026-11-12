@@ -51,8 +51,8 @@ const snapDoc = (r: Ref) => {
   const d = store.get(r.path);
   return { id: r.id, ref: r, exists: () => !!d, data: () => clonar(d), metadata: meta };
 };
-const passa = (d: Dados, f: Filtro) => {
-  const v = d[f.campo];
+const passa = (d: Dados, f: Filtro, id = '') => {
+  const v = f.campo === '__id__' ? id : d[f.campo];
   if (f.op === '==') return v === f.valor;
   if (f.op === '>=') return String(v ?? '') >= String(f.valor);
   if (f.op === '<=') return String(v ?? '') <= String(f.valor);
@@ -61,7 +61,7 @@ const passa = (d: Dados, f: Filtro) => {
 const snapConsulta = (q: Consulta) => {
   const docs = [...store.entries()]
     .filter(([p]) => p.startsWith(q.col.path + '/') && !p.slice(q.col.path.length + 1).includes('/'))
-    .filter(([, d]) => q.filtros.every((f) => passa(d, f)))
+    .filter(([p, d]) => q.filtros.every((f) => passa(d, f, p.split('/').pop())))
     .map(([p]) => snapDoc({ tipo: 'doc', path: p, id: p.split('/').pop()! }));
   return { docs, metadata: meta };
 };
@@ -95,6 +95,7 @@ const fsMod = {
   where: (campo: string, op: string, valor: unknown): Filtro => ({ campo, op, valor }),
   query: (col: Col, ...filtros: Filtro[]): Consulta => ({ tipo: 'query', col, filtros }),
   deleteField: () => APAGAR,
+  documentId: () => '__id__',
   onSnapshot: (alvo: Ref | Consulta, a: unknown, b?: unknown) => {
     const cb = (typeof a === 'function' ? a : b) as (s: unknown) => void;
     const o: Ouvinte = { alvo, cb };

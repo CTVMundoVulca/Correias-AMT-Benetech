@@ -414,3 +414,29 @@
 .equipe-lista li { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .equipe-email { font-family: var(--mono); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 420px) { .hdr-btn.modo { padding: 0 7px; font-size: 0.72rem; } }
+
+/* apontamento de execução */
+.apontar-btn { width: 100%; margin-bottom: 6px; }
+.apontar-btn.pendente { border-color: var(--pend-line); background: var(--pend-bg); color: var(--pend-ink); font-weight: 700; }
+.apontar-lista { display: flex; flex-direction: column; gap: 10px; }
+.apontar { border-left: 4px solid var(--line-strong); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.apontar.executada { border-left-color: var(--ok-ink); }
+.apontar.nao_executada { border-left-color: var(--red-ink); }
+.apontar.reprogramada { border-left-color: var(--pend-line); }
+.apontar-motivo { padding-top: 6px; border-top: 1px dashed var(--line); }
+.exec { font-weight: 700; }
+.exec.ok { color: var(--ok-ink); }
+.exec.nao { color: var(--red-ink); }
+.exec.reprog { color: var(--pend-ink); }
+
+/* indicadores de gestão */
+.indicadores h3 { font-size: 1rem; }
+.indicadores h4 { font-size: 0.85rem; margin: 6px 0 0; color: var(--ink-2); }
+.indicadores .kpis { margin-bottom: 0; }
+.kpi .kpi-sub { display: block; font-size: 0.72rem; color: var(--ink-2); margin-top: 2px; }
+.ref { display: inline-block; margin-top: 4px; font-size: 0.72rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
+.ref-ok { background: var(--ok-bg); color: var(--ok-ink); }
+.ref-baixo { background: var(--pend-bg); color: var(--pend-ink); }
+.dois-blocos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 760px) { .dois-blocos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.secao-dash { margin: 8px 0 0; font-size: 1rem; }
