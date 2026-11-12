@@ -554,3 +554,56 @@ export function limparTexto(s: string, max: number): string {
 export const maiusculas = (s: string, max: number) => limparTexto(s, max).toLocaleUpperCase('pt-BR');
 
 export const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+
+// ------------------------------------------------------------------ paradas
+
+export type TipoParada = 'geral' | 'parcial' | 'critica';
+
+export const TIPOS_PARADA: { id: TipoParada; nome: string; icone: string }[] = [
+  { id: 'geral', nome: 'Parada geral', icone: '⛔' },
+  { id: 'parcial', nome: 'Parada parcial', icone: '🔧' },
+  { id: 'critica', nome: 'Intervenção crítica', icone: '⚠' },
+];
+
+/** Parada de área/equipamento (de um dia ou de vários). */
+export interface Parada {
+  id: string;
+  tipo: TipoParada;
+  area: string;
+  equipamento: string;
+  descricao: string;
+  /** "AAAA-MM-DD" (inclusive) */
+  inicio: string;
+  fim: string;
+  criadoEm: string;
+  criadoPor: string;
+  atualizadoEm: string;
+  atualizadoPor: string;
+}
+
+export function completarParada(id: string, v: unknown): Parada | null {
+  const p = (v ?? {}) as Partial<Parada>;
+  const inicio = str(p.inicio, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return null;
+  const fim0 = str(p.fim, 10);
+  const fim = /^\d{4}-\d{2}-\d{2}$/.test(fim0) && fim0 >= inicio ? fim0 : inicio;
+  return {
+    id,
+    tipo: p.tipo === 'parcial' || p.tipo === 'critica' ? p.tipo : 'geral',
+    area: str(p.area, AREA_MAX),
+    equipamento: str(p.equipamento, EQUIP_MAX),
+    descricao: str(p.descricao, DESCRICAO_MAX),
+    inicio,
+    fim,
+    criadoEm: str(p.criadoEm, 40),
+    criadoPor: str(p.criadoPor, 120),
+    atualizadoEm: str(p.atualizadoEm, 40),
+    atualizadoPor: str(p.atualizadoPor, 120),
+  };
+}
+
+/** Paradas que pegam o dia; a mais grave primeiro (geral > crítica > parcial). */
+export function paradasNoDia(lista: Parada[], data: string): Parada[] {
+  const peso: Record<TipoParada, number> = { geral: 0, critica: 1, parcial: 2 };
+  return lista.filter((p) => p.inicio <= data && data <= p.fim).sort((a, b) => peso[a.tipo] - peso[b.tipo] || a.area.localeCompare(b.area));
+}

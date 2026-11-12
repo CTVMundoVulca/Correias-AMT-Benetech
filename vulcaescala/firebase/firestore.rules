@@ -240,6 +240,16 @@ service cloud.firestore {
         && request.resource.data.oms.size() <= 5000;
     }
 
+    // Calendário de paradas (geral, parcial, intervenção crítica), um documento por ano
+    match /prog_paradas/{ano} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+        && ano.matches('^[0-9]{4}$')
+        && request.resource.data.keys().hasOnly(['paradas', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.paradas is map
+        && request.resource.data.paradas.size() <= 2000;
+    }
+
     // Áreas solicitantes e o contato de cada uma
     match /prog_config/areas {
       allow read: if signedIn();

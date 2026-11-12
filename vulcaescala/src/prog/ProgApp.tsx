@@ -11,21 +11,26 @@ import { Solicitar } from './Solicitar';
 import { Programar } from './Programar';
 import { Oms } from './Oms';
 import { Dashboard } from './Dashboard';
+import { Central } from './Central';
+import { Paradas } from './Paradas';
+import { ouvirAbertas } from './data';
 
 type Phase = 'sdk' | 'fail' | 'auth-off' | 'ready';
-type Tela = 'painel' | 'solicitar' | 'programar' | 'oms' | 'dashboard';
+type Tela = 'central' | 'painel' | 'solicitar' | 'programar' | 'paradas' | 'oms' | 'dashboard';
 
-const TELAS: { id: Tela; label: string; admin?: boolean }[] = [
-  { id: 'painel', label: 'Painel' },
-  { id: 'solicitar', label: 'Solicitar' },
-  { id: 'programar', label: 'Programar', admin: true },
-  { id: 'oms', label: 'OMs' },
-  { id: 'dashboard', label: 'Dashboard' },
+const TELAS: { id: Tela; label: string; ico: string; admin?: boolean }[] = [
+  { id: 'central', label: 'Central', ico: '🏠' },
+  { id: 'painel', label: 'Dia a dia', ico: '📍' },
+  { id: 'solicitar', label: 'Solicitar', ico: '➕' },
+  { id: 'programar', label: 'Programar', ico: '🗓', admin: true },
+  { id: 'paradas', label: 'Paradas', ico: '⛔' },
+  { id: 'oms', label: 'OMs', ico: '🧾' },
+  { id: 'dashboard', label: 'Relatórios', ico: '📊' },
 ];
 
 function lerTela(): Tela {
   const m = /^#\/(\w+)/.exec(window.location.hash);
-  return (TELAS.find((t) => t.id === m?.[1])?.id ?? 'painel') as Tela;
+  return (TELAS.find((t) => t.id === m?.[1])?.id ?? 'central') as Tela;
 }
 
 /**
@@ -115,6 +120,9 @@ export function ProgApp() {
   }, [phase]);
 
   useEffect(() => (phase === 'ready' && api ? ouvirAreas(api, setAreas) : undefined), [phase, api]);
+  // sino: solicitações aguardando programação (só administradores)
+  const [aguardando, setAguardando] = useState(0);
+  useEffect(() => (phase === 'ready' && api && isAdmin ? ouvirAbertas(api, (l) => setAguardando(l.length)) : setAguardando(0)), [phase, api, isAdmin]);
   useEffect(() => (phase === 'ready' && api ? ouvirFeriados(api, setFeriados) : undefined), [phase, api]);
 
   // "Salvando…" só aparece se a gravação demorar
@@ -165,51 +173,65 @@ export function ProgApp() {
       : { cls: 'ok', short: 'Sincronizado', long: 'Sincronizado: todos veem a mesma programação.' };
 
   const telas = TELAS.filter((t) => !t.admin || isAdmin);
-  const atual = telas.some((t) => t.id === tela) ? tela : 'painel';
+  const atual = telas.some((t) => t.id === tela) ? tela : 'central';
+  const ir = (t: Tela) => (window.location.hash = `#/${t}`);
 
   return (
     <Ctx.Provider value={ctx}>
       <Header
-        kicker="Vulcanização · AMT"
+        kicker="Efetivo · Vulcanização AMT"
         title="Programação"
         status={status}
         acoes={
-          logado ? (
-            <button className="hdr-btn" onClick={sair} title={`Sair (${por})`} aria-label="Sair da conta">
-              ⏻
-            </button>
-          ) : (
-            <button className="hdr-btn entrar" onClick={() => setLogin(true)} title="Entrar (administradores)" aria-label="Entrar (administradores)">
-              Entrar
-            </button>
-          )
+          <>
+            {isAdmin && (
+              <a className="hdr-btn sino" href="#/programar" title={`${aguardando} solicitação(ões) aguardando programação`} aria-label={`${aguardando} solicitações aguardando`}>
+                🔔{aguardando > 0 && <span className="sino-n num">{aguardando}</span>}
+              </a>
+            )}
+            {logado ? (
+              <button className="hdr-btn" onClick={sair} title={`Sair (${por})`} aria-label="Sair da conta">
+                ⏻
+              </button>
+            ) : (
+              <button className="hdr-btn entrar" onClick={() => setLogin(true)} title="Entrar (administradores)" aria-label="Entrar (administradores)">
+                Entrar
+              </button>
+            )}
+          </>
         }
       >
-        <nav className="tabs" aria-label="Seções">
+        <nav className="tabs prog-tabs" aria-label="Seções">
           {telas.map((t) => (
-            <button
-              key={t.id}
-              className={'tab' + (atual === t.id ? ' on' : '')}
-              aria-current={atual === t.id ? 'page' : undefined}
-              onClick={() => (window.location.hash = `#/${t.id}`)}
-            >
+            <button key={t.id} className={'tab' + (atual === t.id ? ' on' : '')} aria-current={atual === t.id ? 'page' : undefined} onClick={() => ir(t.id)}>
               {t.label}
             </button>
           ))}
         </nav>
       </Header>
-      <main className="container">
-        {logado && !isAdmin && (
-          <div className="banner warn">
-            {por} não é administrador da programação: você pode ver e solicitar, mas não programar.
-          </div>
-        )}
-        {atual === 'painel' && <Painel />}
-        {atual === 'solicitar' && <Solicitar />}
-        {atual === 'programar' && <Programar />}
-        {atual === 'oms' && <Oms />}
-        {atual === 'dashboard' && <Dashboard />}
-      </main>
+      <div className={'prog-layout' + (atual === 'central' ? ' tela-central' : '')}>
+        <aside className="prog-lateral" aria-label="Menu">
+          {telas.map((t) => (
+            <button key={t.id} className={'lat-item' + (atual === t.id ? ' on' : '')} aria-current={atual === t.id ? 'page' : undefined} onClick={() => ir(t.id)}>
+              <span aria-hidden>{t.ico}</span> {t.label}
+              {t.id === 'programar' && aguardando > 0 && <span className="badge pend num">{aguardando}</span>}
+            </button>
+          ))}
+          {logado && <div className="lat-user small">👤 {por}</div>}
+        </aside>
+        <main className={atual === 'central' ? 'prog-main larga' : 'prog-main container'}>
+          {logado && !isAdmin && (
+            <div className="banner warn">{por} não é administrador da programação: você pode ver e solicitar, mas não programar.</div>
+          )}
+          {atual === 'central' && <Central />}
+          {atual === 'painel' && <Painel />}
+          {atual === 'solicitar' && <Solicitar />}
+          {atual === 'programar' && <Programar />}
+          {atual === 'paradas' && <Paradas />}
+          {atual === 'oms' && <Oms />}
+          {atual === 'dashboard' && <Dashboard />}
+        </main>
+      </div>
     </Ctx.Provider>
   );
 }

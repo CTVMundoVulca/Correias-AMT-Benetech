@@ -1,8 +1,8 @@
 import { Fragment, useMemo, useState } from 'react';
 import { MONTHS, WEEKDAYS, WEEKDAYS_SHORT, addDays, formatDate, fromIsoDate, isoWeekOf, locateDay, monthWeeks, toIsoDate } from '../domain/isoWeek';
 import { feriadoEm } from '../domain/feriados';
-import { useAtividades, useProg } from './context';
-import { AREA_INTERNA, alocacaoDoDia, hojeIso, mesesEntre, nomeClasse, type Atividade } from './model';
+import { useAtividades, useParadas, useProg } from './context';
+import { AREA_INTERNA, TIPOS_PARADA, alocacaoDoDia, hojeIso, mesesEntre, nomeClasse, paradasNoDia, type Atividade, type Parada } from './model';
 
 /** Segunda-feira (AAAA-MM-DD) da semana da data. */
 export function segundaDe(data: string): string {
@@ -32,13 +32,13 @@ const CORES_AREA: [RegExp, string][] = [
 ];
 export const corDaArea = (area: string) => CORES_AREA.find(([r]) => r.test(area))?.[1] ?? 'a0';
 
-interface Fatia {
+export interface Fatia {
   area: string;
   pessoas: number;
   ativs: number;
 }
 /** Áreas do dia (sem canceladas), mais pessoas primeiro. */
-function fatiasDoDia(lista: Atividade[]): Fatia[] {
+export function fatiasDoDia(lista: Atividade[]): Fatia[] {
   const m = new Map<string, Fatia>();
   for (const a of lista) {
     if (a.classe === 'cancelada') continue;
@@ -51,8 +51,8 @@ function fatiasDoDia(lista: Atividade[]): Fatia[] {
   return [...m.values()].sort((a, b) => b.pessoas - a.pessoas || b.ativs - a.ativs);
 }
 
-/** Barra empilhada por área; sem nº de pessoas, cada atividade vale 1 (só para dar forma). */
-function BarraAreas({ fatias, alta }: { fatias: Fatia[]; alta?: boolean }) {
+/** Barra empilhada por área; sem nº de pessoas, cada atividade pesa metade (só para dar forma). */
+export function BarraAreas({ fatias, alta }: { fatias: Fatia[]; alta?: boolean }) {
   if (!fatias.length) return <span className={'barra-areas vazia' + (alta ? ' alta' : '')} />;
   const peso = (f: Fatia) => f.pessoas || f.ativs * 0.5;
   return (
@@ -64,137 +64,241 @@ function BarraAreas({ fatias, alta }: { fatias: Fatia[]; alta?: boolean }) {
   );
 }
 
+const porDiaDe = (lista: Atividade[] | null) => {
+  const m = new Map<string, Atividade[]>();
+  for (const a of lista ?? []) m.set(a.data, [...(m.get(a.data) ?? []), a]);
+  return m;
+};
+
 const DOW = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+export type Mes = { y: number; m: number };
+export const mesDeIso = (d: string): Mes => ({ y: Number(d.slice(0, 4)), m: Number(d.slice(5, 7)) - 1 });
+/** Dias (AAAA-MM-DD) que aparecem na grade do mês. */
+export const gradeDoMes = (mes: Mes) => monthWeeks(mes.y, mes.m).flatMap((w) => w.days.map(toIsoDate));
 
-/**
- * "Onde está a vulcanização": calendário do mês com as áreas de cada dia em cores; tocar no
- * dia mostra onde o efetivo está e com quem falar para pedir liberação de pessoas.
- */
-export function Painel() {
-  const { areas, feriados } = useProg();
-  const [dia, setDia] = useState(hojeIso);
-  const [mes, setMes] = useState(() => ({ y: Number(hojeIso().slice(0, 4)), m: Number(hojeIso().slice(5, 7)) - 1 }));
+/** Calendário do mês: barrinha colorida das áreas em cada dia, paradas e feriados. */
+export function CalendarioMes({
+  mes,
+  setMes,
+  dia,
+  onDia,
+  lista,
+  paradas,
+  semana,
+}: {
+  mes: Mes;
+  setMes: (m: Mes) => void;
+  dia: string;
+  onDia: (d: string) => void;
+  lista: Atividade[] | null;
+  paradas: Parada[];
+  /** segunda-feira da semana em destaque */
+  semana?: string;
+}) {
+  const { feriados } = useProg();
+  const porDia = useMemo(() => porDiaDe(lista), [lista]);
   const semanas = monthWeeks(mes.y, mes.m);
-  const grade = semanas.flatMap((w) => w.days.map(toIsoDate));
-  const semana = diasDaSemana(segundaDe(dia));
-  const ini = [grade[0], semana[0]].sort()[0];
-  const fim = [grade[grade.length - 1], semana[6]].sort()[1];
-  const lista = useAtividades(mesesEntre(ini, fim));
-  const contato = useMemo(() => new Map(areas.map((a) => [a.nome, a.contato])), [areas]);
-
-  const porDia = useMemo(() => {
-    const m = new Map<string, Atividade[]>();
-    for (const a of lista ?? []) m.set(a.data, [...(m.get(a.data) ?? []), a]);
-    return m;
-  }, [lista]);
-  const fatias = (d: string) => fatiasDoDia(porDia.get(d) ?? []);
-  const r = useMemo(() => alocacaoDoDia(lista ?? [], dia), [lista, dia]);
-  const doDia = fatias(dia);
   const hoje = hojeIso();
+  const mudar = (n: number) => setMes({ y: mes.y + Math.floor((mes.m + n) / 12), m: (((mes.m + n) % 12) + 12) % 12 });
 
-  const escolher = (d: string) => {
-    setDia(d);
-    setMes({ y: Number(d.slice(0, 4)), m: Number(d.slice(5, 7)) - 1 });
-  };
-  const mudarMes = (n: number) => setMes(({ y, m }) => ({ y: y + Math.floor((m + n) / 12), m: (((m + n) % 12) + 12) % 12 }));
-
-  // áreas que aparecem no mês (legenda)
   const legenda = useMemo(() => {
     const vistas = new Map<string, string>();
-    for (const d of grade) for (const f of fatias(d)) if (!vistas.has(corDaArea(f.area))) vistas.set(corDaArea(f.area), corDaArea(f.area) === 'a0' ? 'Outras áreas' : f.area.replace(/ \d$/, ''));
+    for (const w of semanas)
+      for (const dd of w.days)
+        for (const f of fatiasDoDia(porDia.get(toIsoDate(dd)) ?? [])) {
+          const c = corDaArea(f.area);
+          if (!vistas.has(c)) vistas.set(c, c === 'a0' ? 'Outras áreas' : f.area.replace(/ \d$/, ''));
+        }
     return [...vistas.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [porDia, mes.y, mes.m]);
+  const paradasDoMes = useMemo(() => {
+    const g = gradeDoMes(mes);
+    return paradas.filter((p) => p.fim >= g[0] && p.inicio <= g[g.length - 1]);
+  }, [paradas, mes]);
+  const tiposNoMes = new Set(paradasDoMes.map((p) => p.tipo));
 
-  // mapa de calor da semana: área × dia
+  return (
+    <div className="cal-prog">
+      <div className="row between nowrap">
+        <button className="btn small" onClick={() => mudar(-1)} aria-label="Mês anterior">
+          ‹
+        </button>
+        <h2 className="center">
+          {MONTHS[mes.m]} <span className="num muted">{mes.y}</span>
+        </h2>
+        <button className="btn small" onClick={() => mudar(1)} aria-label="Próximo mês">
+          ›
+        </button>
+      </div>
+      <div className="calp-grid" role="grid" aria-label={`Calendário de ${MONTHS[mes.m]}`}>
+        <span className="calp-head calp-wk">Sem</span>
+        {DOW.map((d, i) => (
+          <span key={i} className={'calp-head' + (i >= 5 ? ' fds' : '')}>
+            {d}
+          </span>
+        ))}
+        {semanas.map((w) => (
+          <Fragment key={w.weekKey}>
+            <button className={'calp-wk' + (semana === toIsoDate(w.days[0]) ? ' on' : '')} onClick={() => onDia(toIsoDate(w.days[0]))} aria-label={`Semana ${w.week}`}>
+              {w.week}
+            </button>
+            {w.days.map((dd, i) => {
+              const d = toIsoDate(dd);
+              const fer = feriadoEm(feriados, d);
+              const fs = fatiasDoDia(porDia.get(d) ?? []);
+              const pes = fs.reduce((s, f) => s + f.pessoas, 0);
+              const par = paradasNoDia(paradasDoMes, d)[0];
+              return (
+                <button
+                  key={d}
+                  className={
+                    'calp-dia' +
+                    (dd.getUTCMonth() !== mes.m ? ' fora' : '') +
+                    (i >= 5 || fer ? ' fds' : '') +
+                    (par ? ' parada-' + par.tipo : '') +
+                    (d === dia ? ' sel' : '') +
+                    (d === hoje ? ' hoje' : '')
+                  }
+                  onClick={() => onDia(d)}
+                  title={`${rotuloDia(d)}${fer ? ` · ${fer}` : ''}${par ? ` · ${TIPOS_PARADA.find((t) => t.id === par.tipo)?.nome}: ${par.area}` : ''}${fs.length ? ` · ${fs.map((f) => `${f.area} ${f.pessoas}`).join(', ')}` : ''}`}
+                  aria-label={`${rotuloDia(d)}${fer ? `, feriado ${fer}` : ''}${par ? `, ${TIPOS_PARADA.find((t) => t.id === par.tipo)?.nome}` : ''}, ${pes} pessoas em ${fs.length} áreas`}
+                >
+                  <span className="calp-num">{dd.getUTCDate()}</span>
+                  {fer && <span className="calp-fer" aria-hidden />}
+                  {par && (
+                    <span className="calp-par" aria-hidden>
+                      {TIPOS_PARADA.find((t) => t.id === par.tipo)?.icone}
+                    </span>
+                  )}
+                  <BarraAreas fatias={fs} />
+                  <span className="calp-pes num">{pes || (fs.length ? '·' : '')}</span>
+                </button>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+      <ul className="legenda-areas calp-rodape">
+        {legenda.map(([c, nome]) => (
+          <li key={c}>
+            <span className={'sw-area ' + c} /> {nome}
+          </li>
+        ))}
+        {TIPOS_PARADA.filter((t) => tiposNoMes.has(t.id)).map((t) => (
+          <li key={t.id}>
+            <span className={'sw-parada parada-' + t.id}>{t.icone}</span> {t.nome}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Mapa de calor da semana: área × dia, cor mais forte = mais pessoas. */
+export function MapaSemana({ segunda, dia, onDia, lista }: { segunda: string; dia?: string; onDia: (d: string) => void; lista: Atividade[] | null }) {
+  const semana = diasDaSemana(segunda);
+  const porDia = useMemo(() => porDiaDe(lista), [lista]);
   const calor = useMemo(() => {
     const m = new Map<string, number[]>();
     semana.forEach((d, i) => {
-      for (const f of fatias(d)) {
+      for (const f of fatiasDoDia(porDia.get(d) ?? [])) {
         const l = m.get(f.area) ?? Array(7).fill(0);
-        l[i] += f.pessoas;
+        l[i] += f.pessoas || 0;
         m.set(f.area, l);
       }
     });
     return [...m.entries()].sort((a, b) => b[1].reduce((s, x) => s + x, 0) - a[1].reduce((s, x) => s + x, 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [porDia, semana[0]]);
-  const maxCalor = Math.max(1, ...calor.flatMap(([, l]) => l));
+  }, [porDia, segunda]);
+  const max = Math.max(1, ...calor.flatMap(([, l]) => l));
+  const ativas = (area: string, d: string) => (porDia.get(d) ?? []).some((a) => a.classe !== 'cancelada' && (a.area || AREA_INTERNA) === area);
+
+  return (
+    <>
+      <h3>
+        Semana {isoWeekOf(fromIsoDate(segunda)!).week} <span className="muted small">— pessoas por área</span>
+      </h3>
+      {calor.length === 0 ? (
+        <p className="muted small">Nada programado nesta semana.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="calor">
+            <thead>
+              <tr>
+                <th />
+                {semana.map((d, i) => (
+                  <th key={d} className={d === dia ? 'sel' : ''}>
+                    <button className="link" onClick={() => onDia(d)}>
+                      {WEEKDAYS_SHORT[i]}
+                      <br />
+                      <span className="num">{d.slice(8)}</span>
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {calor.map(([area, l]) => (
+                <tr key={area}>
+                  <th className="calor-area" title={area}>
+                    <span className={'sw-area ' + corDaArea(area)} /> {area}
+                  </th>
+                  {l.map((n, i) => {
+                    const tem = n > 0 || ativas(area, semana[i]);
+                    return (
+                      <td key={i} className={corDaArea(area) + (semana[i] === dia ? ' sel' : '')} title={tem ? `${area}: ${n || 'nº não informado'}` : undefined}>
+                        <span className="calor-cel" style={{ opacity: tem ? 0.25 + 0.75 * ((n || max * 0.2) / max) : 0 }} />
+                        <span className="calor-n num">{n || (tem ? '·' : '')}</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * "Dia a dia": calendário do mês com as áreas de cada dia em cores; tocar no dia mostra onde
+ * o efetivo está, as paradas e com quem falar para pedir liberação de pessoas.
+ */
+export function Painel() {
+  const { areas, feriados } = useProg();
+  const [dia, setDia] = useState(hojeIso);
+  const [mes, setMes] = useState<Mes>(() => mesDeIso(hojeIso()));
+  const grade = gradeDoMes(mes);
+  const segunda = segundaDe(dia);
+  const semana = diasDaSemana(segunda);
+  const lista = useAtividades(mesesEntre([grade[0], semana[0]].sort()[0], [grade[grade.length - 1], semana[6]].sort()[1]));
+  const paradas = useParadas();
+  const contato = useMemo(() => new Map(areas.map((a) => [a.nome, a.contato])), [areas]);
+  const r = useMemo(() => alocacaoDoDia(lista ?? [], dia), [lista, dia]);
+  const doDia = fatiasDoDia((lista ?? []).filter((a) => a.data === dia));
+  const parDia = paradasNoDia(paradas, dia);
+  const hoje = hojeIso();
+  const escolher = (d: string) => {
+    setDia(d);
+    setMes(mesDeIso(d));
+  };
 
   return (
     <div className="stack prog">
-      {/* ---------- calendário ---------- */}
-      <section className="card pad cal-prog">
-        <div className="row between nowrap">
-          <button className="btn small" onClick={() => mudarMes(-1)} aria-label="Mês anterior">
-            ‹
-          </button>
-          <h2 className="center">
-            {MONTHS[mes.m]} <span className="num muted">{mes.y}</span>
-          </h2>
-          <button className="btn small" onClick={() => mudarMes(1)} aria-label="Próximo mês">
-            ›
-          </button>
-        </div>
-        <div className="calp-grid" role="grid" aria-label={`Calendário de ${MONTHS[mes.m]}`}>
-          <span className="calp-head calp-wk">Sem</span>
-          {DOW.map((d, i) => (
-            <span key={i} className={'calp-head' + (i >= 5 ? ' fds' : '')}>
-              {d}
-            </span>
-          ))}
-          {semanas.map((w) => (
-            <Fragment key={w.weekKey}>
-              <button className={'calp-wk' + (semana[0] === toIsoDate(w.days[0]) ? ' on' : '')} onClick={() => escolher(toIsoDate(w.days[0]))} aria-label={`Semana ${w.week}`}>
-                {w.week}
-              </button>
-              {w.days.map((dd, i) => {
-                const d = toIsoDate(dd);
-                const fer = feriadoEm(feriados, d);
-                const fs = fatias(d);
-                const pes = fs.reduce((s, f) => s + f.pessoas, 0);
-                const fora = dd.getUTCMonth() !== mes.m;
-                return (
-                  <button
-                    key={d}
-                    className={
-                      'calp-dia' +
-                      (fora ? ' fora' : '') +
-                      (i >= 5 || fer ? ' fds' : '') +
-                      (d === dia ? ' sel' : '') +
-                      (d === hoje ? ' hoje' : '')
-                    }
-                    onClick={() => escolher(d)}
-                    title={`${rotuloDia(d)}${fer ? ` · ${fer}` : ''}${fs.length ? ` · ${fs.map((f) => `${f.area} ${f.pessoas}`).join(', ')}` : ''}`}
-                    aria-label={`${rotuloDia(d)}${fer ? `, feriado ${fer}` : ''}, ${pes} pessoas em ${fs.length} áreas`}
-                  >
-                    <span className="calp-num">{dd.getUTCDate()}</span>
-                    {fer && <span className="calp-fer" aria-hidden />}
-                    <BarraAreas fatias={fs} />
-                    <span className="calp-pes num">{pes || (fs.length ? '·' : '')}</span>
-                  </button>
-                );
-              })}
-            </Fragment>
-          ))}
-        </div>
-        <div className="row between calp-rodape">
-          <ul className="legenda-areas">
-            {legenda.map(([c, nome]) => (
-              <li key={c}>
-                <span className={'sw-area ' + c} /> {nome}
-              </li>
-            ))}
-          </ul>
-          {dia !== hoje && (
+      <section className="card pad">
+        <CalendarioMes mes={mes} setMes={setMes} dia={dia} onDia={escolher} lista={lista} paradas={paradas} semana={segunda} />
+        {dia !== hoje && (
+          <div className="row center-row">
             <button className="btn small" onClick={() => escolher(hoje)}>
-              Hoje
+              Voltar para hoje
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
-      {/* ---------- o dia ---------- */}
       <section className="card pad dia-resumo">
         <div className="row between nowrap">
           <div>
@@ -208,6 +312,16 @@ export function Painel() {
             <span>pessoas</span>
           </div>
         </div>
+        {parDia.map((p) => (
+          <div key={p.id} className={'parada-faixa parada-' + p.tipo}>
+            <b>
+              {TIPOS_PARADA.find((t) => t.id === p.tipo)?.icone} {TIPOS_PARADA.find((t) => t.id === p.tipo)?.nome}
+            </b>{' '}
+            · {p.area}
+            {p.equipamento && ` · ${p.equipamento}`}
+            {p.descricao && <span className="small"> — {p.descricao}</span>}
+          </div>
+        ))}
         {lista !== null && doDia.length === 0 && <p className="livre">✓ Efetivo livre — nada programado para este dia.</p>}
         {doDia.length > 0 && (
           <>
@@ -224,31 +338,7 @@ export function Painel() {
       </section>
 
       {r.areas.map((g) => (
-        <section key={g.area} className={'card area-cartao ' + corDaArea(g.area)}>
-          <div className="row between nowrap area-topo">
-            <h3>{g.area}</h3>
-            <span className="area-pes" title="pessoas da vulcanização">
-              👷 <b className="num">{g.pessoas || '—'}</b>
-            </span>
-          </div>
-          {contato.get(g.area) && <p className="small area-contato">📞 Liberação: {contato.get(g.area)}</p>}
-          <ul className="plain-list cartao-ativs">
-            {g.atividades.map((a) => (
-              <li key={a.id} className="cartao-ativ">
-                <span className="tag-equip">{a.equipamento || '—'}</span>
-                <span className="cartao-desc">{a.descricao}</span>
-                <span className="cartao-meta">
-                  {a.pessoas > 0 && <span>👷{a.pessoas}</span>}
-                  {a.equipe === 'turno' && <span title="Equipe de turno">🌙</span>}
-                  {a.horario && <span>🕐 {a.horario}</span>}
-                  {a.classe === 'emergencia' && <span className="pill emerg">⚡ Emergência</span>}
-                  {a.classe === 'nao_programada' && <span className="pill naoprog">⏱ Não programada</span>}
-                  {a.retrabalho && <span className="pill retra">↺ Retrabalho</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <CartaoArea key={g.area} area={g.area} pessoas={g.pessoas} atividades={g.atividades} contato={contato.get(g.area)} />
       ))}
 
       {r.canceladas.length > 0 && (
@@ -267,51 +357,45 @@ export function Painel() {
       )}
 
       {r.areas.length > 0 && (
-        <p className="small muted center">Precisa da vulcanização neste dia? Combine a liberação com as áreas acima e registre em <a href="#/solicitar">Solicitar</a>.</p>
+        <p className="small muted center">
+          Precisa da vulcanização neste dia? Combine a liberação com as áreas acima e registre em <a href="#/solicitar">Solicitar</a>.
+        </p>
       )}
 
-      {/* ---------- semana (mapa de calor) ---------- */}
       <section className="card pad">
-        <h3>Semana {isoWeekOf(fromIsoDate(semana[0])!).week} — pessoas por área</h3>
-        {calor.length === 0 ? (
-          <p className="muted small">Nada programado nesta semana.</p>
-        ) : (
-          <div className="table-wrap">
-            <table className="calor">
-              <thead>
-                <tr>
-                  <th />
-                  {semana.map((d, i) => (
-                    <th key={d} className={d === dia ? 'sel' : ''}>
-                      <button className="link" onClick={() => escolher(d)}>
-                        {WEEKDAYS_SHORT[i]}
-                        <br />
-                        <span className="num">{d.slice(8)}</span>
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {calor.map(([area, l]) => (
-                  <tr key={area}>
-                    <th className="calor-area" title={area}>
-                      <span className={'sw-area ' + corDaArea(area)} /> {area}
-                    </th>
-                    {l.map((n, i) => (
-                      <td key={i} className={corDaArea(area) + (semana[i] === dia ? ' sel' : '')}>
-                        <span className="calor-cel" style={{ opacity: n ? 0.25 + 0.75 * (n / maxCalor) : 0 }} />
-                        <span className="calor-n num">{n || ''}</span>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <MapaSemana segunda={segunda} dia={dia} onDia={escolher} lista={lista} />
       </section>
     </div>
+  );
+}
+
+export function CartaoArea({ area, pessoas, atividades, contato }: { area: string; pessoas: number; atividades: Atividade[]; contato?: string }) {
+  return (
+    <section className={'card area-cartao ' + corDaArea(area)}>
+      <div className="row between nowrap area-topo">
+        <h3>{area}</h3>
+        <span className="area-pes" title="pessoas da vulcanização">
+          👷 <b className="num">{pessoas || '—'}</b>
+        </span>
+      </div>
+      {contato && <p className="small area-contato">📞 Liberação: {contato}</p>}
+      <ul className="plain-list cartao-ativs">
+        {atividades.map((a) => (
+          <li key={a.id} className="cartao-ativ">
+            <span className="tag-equip">{a.equipamento || '—'}</span>
+            <span className="cartao-desc">{a.descricao}</span>
+            <span className="cartao-meta">
+              {a.pessoas > 0 && <span>👷{a.pessoas}</span>}
+              {a.equipe === 'turno' && <span title="Equipe de turno">🌙</span>}
+              {a.horario && <span>🕐 {a.horario}</span>}
+              {a.classe === 'emergencia' && <span className="pill emerg">⚡ Emergência</span>}
+              {a.classe === 'nao_programada' && <span className="pill naoprog">⏱ Não programada</span>}
+              {a.retrabalho && <span className="pill retra">↺ Retrabalho</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

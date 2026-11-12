@@ -5,6 +5,8 @@ import {
   completarAtividade,
   completarOm,
   completarSolicitacao,
+  completarParada,
+  type Parada,
   mesDe,
   type Area,
   type Atividade,
@@ -277,4 +279,48 @@ export function ouvirFeriados(api: FirebaseApi, cb: (m: Record<string, string>) 
     },
     () => cb({}),
   );
+}
+
+// ------------------------------------------------------------------ paradas
+
+export const COL_PARADAS = 'prog_paradas';
+
+/** Paradas dos anos pedidos (um documento por ano, pelo ano de início). */
+export function ouvirParadas(api: FirebaseApi, anos: string[], cb: (l: Parada[]) => void): Unsub {
+  const { fsMod, fs } = api;
+  const por = new Map<string, Parada[]>();
+  const unsubs = anos.map((ano) =>
+    fsMod.onSnapshot(
+      fsMod.doc(fs, COL_PARADAS, ano),
+      (snap) => {
+        const m = (snap.data()?.paradas ?? {}) as Record<string, unknown>;
+        por.set(
+          ano,
+          Object.entries(m)
+            .map(([id, v]) => completarParada(id, v))
+            .filter((p): p is Parada => !!p),
+        );
+        cb([...por.values()].flat());
+      },
+      () => {
+        por.set(ano, []);
+        cb([...por.values()].flat());
+      },
+    ),
+  );
+  return () => unsubs.forEach((u) => u());
+}
+
+export function gravarParada(api: FirebaseApi, p: Parada, por: string, anoAnterior?: string): Promise<void> {
+  const { fsMod, fs } = api;
+  const ano = p.inicio.slice(0, 4);
+  const b = fsMod.writeBatch(fs);
+  b.set(fsMod.doc(fs, COL_PARADAS, ano), { paradas: { [p.id]: { ...p, atualizadoEm: new Date().toISOString(), atualizadoPor: por } }, ...carimbo(por) }, { merge: true });
+  if (anoAnterior && anoAnterior !== ano) b.set(fsMod.doc(fs, COL_PARADAS, anoAnterior), { paradas: { [p.id]: fsMod.deleteField() }, ...carimbo(por) }, { merge: true });
+  return b.commit();
+}
+
+export function excluirParada(api: FirebaseApi, p: Pick<Parada, 'id' | 'inicio'>, por: string): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, COL_PARADAS, p.inicio.slice(0, 4)), { paradas: { [p.id]: fsMod.deleteField() }, ...carimbo(por) }, { merge: true });
 }

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { FirebaseApi } from '../cloud/firebase';
-import { ouvirMeses, ouvirOms, type Pendencia } from './data';
-import type { Area, Atividade, OmInfo } from './model';
+import { ouvirMeses, ouvirOms, ouvirParadas, type Pendencia } from './data';
+import type { Area, Atividade, OmInfo, Parada } from './model';
 
 export interface ProgCtx {
   api: FirebaseApi;
@@ -60,3 +60,12 @@ export const useAreasNomes = () => {
 export const irPara = (hash: string) => {
   window.location.hash = hash;
 };
+
+/** Paradas do ano atual e do seguinte (para o calendário de dezembro/janeiro). */
+export function useParadas(): Parada[] {
+  const { api } = useProg();
+  const ano = new Date().getFullYear();
+  const [l, setL] = useState<Parada[]>([]);
+  useEffect(() => ouvirParadas(api, [String(ano - 1), String(ano), String(ano + 1)], setL), [api, ano]);
+  return l;
+}

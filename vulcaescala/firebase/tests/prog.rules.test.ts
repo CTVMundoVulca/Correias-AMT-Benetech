@@ -68,6 +68,14 @@ describe('Programação: todos veem, só administradores programam', () => {
     await assertSucceeds(as(ADMIN).doc('prog_mes/2026-11').set({ itens: { a1: atividade }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
     await assertSucceeds(as(ADMIN).doc('prog_oms/2026').set({ oms: { '900033748430': { situacao: 'aberta' } }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
     await assertSucceeds(as(ADMIN).doc('prog_config/areas').set({ lista: [{ nome: 'COQUERIA', contato: 'ramal 1' }] }));
+    await assertSucceeds(as(ADMIN).doc('prog_paradas/2026').set({ paradas: { p1: { tipo: 'geral', inicio: '2026-11-18' } }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
+  });
+
+  it('paradas: todos veem, só administradores lançam', async () => {
+    await assertSucceeds(anon().doc('prog_paradas/2026').get());
+    await assertFails(anon().doc('prog_paradas/2026').set({ paradas: {} }, { merge: true }));
+    await assertFails(as(OUTRO).doc('prog_paradas/2026').set({ paradas: {} }, { merge: true }));
+    await assertFails(as(ADMIN).doc('prog_paradas/2026').set({ paradas: {}, extra: 1 }));
   });
 
   it('qualquer sessão do app lê; sem sessão, nada', async () => {

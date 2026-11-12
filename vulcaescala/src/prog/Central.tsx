@@ -1,0 +1,380 @@
+import { useEffect, useMemo, useState } from 'react';
+import { MONTHS, addDays, fromIsoDate, toIsoDate } from '../domain/isoWeek';
+import type { Day } from '../domain/types';
+import type { PubConfig } from '../cloud/publico';
+import { useAtividades, useParadas, useProg } from './context';
+import { ouvirSolicitacoes } from './data';
+import { efetivoDoDia, ouvirEscalaDoDia } from './efetivo';
+import { CalendarioMes, MapaSemana, corDaArea, diasDaSemana, gradeDoMes, mesDeIso, segundaDe, type Mes } from './Painel';
+import { dataBr } from './Solicitar';
+import { AREA_INTERNA, TIPOS_PARADA, diaUtil, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Solicitacao } from './model';
+
+const somaMes = (ym: string, n: number) => {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const STATUS_SOLIC: Record<Solicitacao['status'], { nome: string; cls: string }> = {
+  aberta: { nome: 'Aguardando', cls: 'st-aberta' },
+  programada: { nome: 'Programada', cls: 'st-programada' },
+  recusada: { nome: 'Recusada', cls: 'st-recusada' },
+  cancelada: { nome: 'Cancelada', cls: 'st-cancelada' },
+};
+const URG: Record<Solicitacao['urgencia'], { nome: string; cls: string }> = {
+  normal: { nome: 'Normal', cls: 'ur-normal' },
+  urgente: { nome: 'Urgente', cls: 'ur-urgente' },
+  emergencia: { nome: 'Equip. parado', cls: 'ur-parado' },
+};
+
+/** Central: visão geral da programação, demandas, efetivo do dia, paradas e semana. */
+export function Central() {
+  const { api, isAdmin, feriados } = useProg();
+  const hoje = hojeIso();
+  const mesAtual = hoje.slice(0, 7);
+  const mesAnt = somaMes(mesAtual, -1);
+  const [mes, setMes] = useState<Mes>(() => mesDeIso(hoje));
+  const [dia, setDia] = useState(hoje);
+  const grade = gradeDoMes(mes);
+  const segunda = segundaDe(dia);
+  const semana = diasDaSemana(segunda);
+  const ini = [grade[0], semana[0], `${mesAnt}-01`].sort()[0];
+  const fim = [grade[grade.length - 1], semana[6], hoje].sort().reverse()[0];
+  const lista = useAtividades(mesesEntre(ini, fim));
+  const paradas = useParadas();
+
+  const [solic, setSolic] = useState<Solicitacao[] | null>(null);
+  useEffect(() => ouvirSolicitacoes(api, (l) => setSolic(l), toIsoDate(addDays(fromIsoDate(hoje)!, -45)), () => setSolic([])), [api, hoje]);
+
+  const [escala, setEscala] = useState<{ efetivo: PubConfig['efetivo']; dia: Day | null } | null>(null);
+  useEffect(() => ouvirEscalaDoDia(api, hoje, (efetivo, d) => setEscala({ efetivo, dia: d })), [api, hoje]);
+
+  const doMes = useMemo(() => (lista ?? []).filter((a) => mesDe(a.data) === mesAtual), [lista, mesAtual]);
+  const doMesAnt = useMemo(() => (lista ?? []).filter((a) => mesDe(a.data) === mesAnt), [lista, mesAnt]);
+  const r = resumir(doMes);
+  const exec = r.classes.programada + r.classes.nao_programada + r.classes.emergencia;
+  const variacao = doMesAnt.length ? (doMes.length - doMesAnt.length) / doMesAnt.length : null;
+  const top = porArea(doMes.filter((a) => a.classe !== 'cancelada')).slice(0, 5);
+  const progPorId = useMemo(() => new Map((lista ?? []).map((a) => [a.id, a])), [lista]);
+  // fim de semana ou feriado: quem não foi escalado está de folga (não conta como disponível)
+  const ef = escala ? efetivoDoDia(escala.efetivo, escala.dia, !diaUtil(hoje, feriados), progPorId) : null;
+  const fila = (solic ?? []).filter((s) => s.status === 'aberta').concat((solic ?? []).filter((s) => s.status !== 'aberta')).slice(0, 6);
+  const abertas = (solic ?? []).filter((s) => s.status === 'aberta').length;
+  const proximas = paradas.filter((p) => p.fim >= hoje).sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(0, 4);
+  const escolher = (d: string) => {
+    setDia(d);
+    setMes(mesDeIso(d));
+  };
+  const nomeMes = MONTHS[Number(mesAtual.slice(5)) - 1];
+
+  return (
+    <div className="central">
+      {/* indicadores */}
+      <div className="kpi-faixa">
+        <Kpi ico="📋" cor="k-azul" titulo="Atividades no mês" valor={lista ? r.total : '…'} extra={variacao === null ? undefined : `${variacao >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(variacao * 100))}% vs mês anterior`} />
+        <Kpi ico="📅" cor="k-prog" titulo="Programadas" valor={r.classes.programada} extra={pct(exec ? r.classes.programada / exec : null)} />
+        <Kpi ico="⏱" cor="k-naoprog" titulo="Não programadas" valor={r.classes.nao_programada} extra={pct(exec ? r.classes.nao_programada / exec : null)} />
+        <Kpi ico="⚡" cor="k-emerg" titulo="Emergências" valor={r.classes.emergencia} extra={pct(exec ? r.classes.emergencia / exec : null)} />
+        <div className="kpi-efetivo">
+          <Kpi ico="👥" cor="k-neutro" titulo="Efetivo" valor={ef ? ef.total : '…'} />
+          <Kpi ico="👷" cor="k-prog" titulo="Alocados" valor={ef ? ef.alocados : '…'} />
+          <Kpi ico="🙋" cor="k-neutro" titulo="Disponíveis" valor={ef ? ef.disponiveis : '…'} />
+        </div>
+      </div>
+
+      <div className="central-grid">
+        {/* fila de demandas */}
+        <section className="painel-bloco b-fila">
+          <div className="bloco-topo">
+            <h3>📥 Fila de demandas {abertas > 0 && <span className="badge pend num">{abertas} aguardando</span>}</h3>
+            <a className="link small" href={isAdmin ? '#/programar' : '#/solicitar'}>
+              Ver todas →
+            </a>
+          </div>
+          {solic === null ? (
+            <p className="muted small">Carregando…</p>
+          ) : fila.length === 0 ? (
+            <p className="muted small">Nenhuma solicitação nos últimos 45 dias.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="fila">
+                <thead>
+                  <tr>
+                    <th>Área</th>
+                    <th>Serviço</th>
+                    <th>Urgência</th>
+                    <th className="col-larga">Solicitante</th>
+                    <th>Para</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fila.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <span className={'sw-area ' + corDaArea(s.area)} /> {s.area}
+                      </td>
+                      <td className="fila-serv">
+                        {s.equipamento && <b>{s.equipamento} </b>}
+                        <span className="muted">{s.descricao}</span>
+                        {s.om && <div className="small num muted">OM {s.om}</div>}
+                      </td>
+                      <td>
+                        <span className={'pill ' + URG[s.urgencia].cls}>{URG[s.urgencia].nome}</span>
+                      </td>
+                      <td className="col-larga small">
+                        {s.solicitante}
+                        {s.contato && <div className="muted">📞 {s.contato}</div>}
+                      </td>
+                      <td className="num small">{dataBr(s.dataDesejada).slice(0, 5)}</td>
+                      <td>
+                        <span className={'pill ' + STATUS_SOLIC[s.status].cls}>{STATUS_SOLIC[s.status].nome}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* classificação do mês */}
+        <section className="painel-bloco b-classe">
+          <div className="bloco-topo">
+            <h3>Classificação — {nomeMes}</h3>
+          </div>
+          <Rosca
+            total={exec}
+            fatias={[
+              { k: 'programada', nome: 'Programadas', v: r.classes.programada },
+              { k: 'nao_programada', nome: 'Não programadas', v: r.classes.nao_programada },
+              { k: 'emergencia', nome: 'Emergências', v: r.classes.emergencia },
+            ]}
+          />
+          {r.classes.cancelada + r.classes.sem > 0 && (
+            <p className="small muted center">
+              + {r.classes.cancelada} cancelada(s){r.classes.sem ? ` · ${r.classes.sem} sem classificação` : ''}
+            </p>
+          )}
+        </section>
+
+        {/* efetivo do dia pela escala */}
+        <section className="painel-bloco b-efetivo">
+          <div className="bloco-topo">
+            <h3>👥 Efetivo hoje {ef && <span className="muted small">({ef.total} pessoas)</span>}</h3>
+            <a className="link small" href="../escala/">
+              Abrir escala →
+            </a>
+          </div>
+          {!ef ? (
+            <p className="muted small">Carregando a escala…</p>
+          ) : (
+            <div className="efetivo-linha">
+              <div className="ef-num">
+                <b className="num">{ef.alocados}</b>
+                <span>alocados</span>
+              </div>
+              <div className="ef-num">
+                <b className="num">{ef.disponiveis}</b>
+                <span>disponíveis</span>
+              </div>
+              <div className="ef-num">
+                <b className="num">{ef.ausentes + ef.folgaAuto}</b>
+                <span>{ef.folgaAuto ? 'folga/ausentes' : 'ausentes'}</span>
+              </div>
+              <Anel valor={ef.ocupacao} />
+              <div className="ef-areas">
+                {ef.semEscala ? (
+                  <p className="muted small">A escala de hoje ainda não foi lançada.</p>
+                ) : ef.porArea.length === 0 ? (
+                  <p className="muted small">Ninguém alocado ainda.</p>
+                ) : (
+                  <ul className="hbars">
+                    {ef.porArea.slice(0, 5).map((x) => (
+                      <li key={x.area} className="hbar" title={`${x.area}: ${x.pessoas}`}>
+                        <span className="hbar-nome">
+                          <span className={'sw-area ' + corDaArea(x.area.startsWith('OUTRAS') ? '' : x.area)} /> {x.area === AREA_INTERNA ? 'INTERNO' : x.area}
+                        </span>
+                        <span className="hbar-trilho">
+                          <span className="hbar-pilha" style={{ width: `${(x.pessoas / Math.max(1, ef.alocados)) * 100}%` }}>
+                            <span className={'seg-area ' + corDaArea(x.area.startsWith('OUTRAS') ? '' : x.area)} style={{ flexGrow: 1 }} />
+                          </span>
+                          <span className="hbar-valor num">{x.pessoas}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* áreas que mais solicitaram */}
+        <section className="painel-bloco b-top">
+          <div className="bloco-topo">
+            <h3>Áreas que mais demandaram — {nomeMes}</h3>
+          </div>
+          {top.length === 0 ? (
+            <p className="muted small">Sem atividades no mês.</p>
+          ) : (
+            <ul className="hbars">
+              {top.map((g) => (
+                <li key={g.chave} className="hbar" title={`${g.chave}: ${g.total} atividade(s)`}>
+                  <span className="hbar-nome">
+                    <span className={'sw-area ' + corDaArea(g.chave)} /> {g.chave}
+                  </span>
+                  <span className="hbar-trilho">
+                    <span className="hbar-pilha" style={{ width: `${(g.total / top[0].total) * 100}%` }}>
+                      <span className={'seg-area ' + corDaArea(g.chave)} style={{ flexGrow: 1 }} />
+                    </span>
+                    <span className="hbar-valor num">{g.total}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* calendário com paradas */}
+        <section className="painel-bloco b-cal">
+          <CalendarioMes mes={mes} setMes={setMes} dia={dia} onDia={escolher} lista={lista} paradas={paradas} semana={segunda} />
+          {proximas.length > 0 && (
+            <ul className="plain-list prox-paradas">
+              {proximas.map((p) => {
+                const t = TIPOS_PARADA.find((x) => x.id === p.tipo)!;
+                return (
+                  <li key={p.id} className={'parada-faixa parada-' + p.tipo}>
+                    <b>
+                      {t.icone} {p.area}
+                    </b>{' '}
+                    · {p.inicio === p.fim ? dataBr(p.inicio).slice(0, 5) : `${dataBr(p.inicio).slice(0, 5)}–${dataBr(p.fim).slice(0, 5)}`} · {t.nome}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {/* semana */}
+        <section className="painel-bloco b-semana">
+          <MapaSemana segunda={segunda} dia={dia} onDia={escolher} lista={lista} />
+          <a className="link small" href="#/painel">
+            Ver o dia em detalhe →
+          </a>
+        </section>
+      </div>
+
+      <AcoesRapidas admin={isAdmin} />
+    </div>
+  );
+}
+
+function Kpi({ ico, cor, titulo, valor, extra }: { ico: string; cor: string; titulo: string; valor: number | string; extra?: string }) {
+  return (
+    <div className="kpi-c">
+      <span className={'kpi-ico ' + cor} aria-hidden>
+        {ico}
+      </span>
+      <span className="kpi-txt">
+        <span className="kpi-tit">{titulo}</span>
+        <b className="num">{valor}</b>
+        {extra && <span className="kpi-extra num">{extra}</span>}
+      </span>
+    </div>
+  );
+}
+
+/** Rosca de 3 fatias (classificação). Rótulos diretos na legenda, com número e %. */
+function Rosca({ total, fatias }: { total: number; fatias: { k: string; nome: string; v: number }[] }) {
+  const R = 42;
+  const C = 2 * Math.PI * R;
+  let acc = 0;
+  return (
+    <div className="rosca">
+      <svg viewBox="0 0 110 110" role="img" aria-label={fatias.map((f) => `${f.nome} ${f.v}`).join(', ')}>
+        <circle cx="55" cy="55" r={R} fill="none" className="rosca-fundo" strokeWidth="16" />
+        {total > 0 &&
+          fatias
+            .filter((f) => f.v)
+            .map((f) => {
+              const len = (f.v / total) * C;
+              const el = (
+                <circle
+                  key={f.k}
+                  cx="55"
+                  cy="55"
+                  r={R}
+                  fill="none"
+                  strokeWidth="16"
+                  className={'rosca-seg s-' + f.k}
+                  strokeDasharray={`${Math.max(0, len - 2)} ${C}`}
+                  strokeDashoffset={-acc}
+                  transform="rotate(-90 55 55)"
+                >
+                  <title>{`${f.nome}: ${f.v}`}</title>
+                </circle>
+              );
+              acc += len;
+              return el;
+            })}
+        <text x="55" y="55" textAnchor="middle" className="rosca-total">
+          {total}
+        </text>
+        <text x="55" y="70" textAnchor="middle" className="rosca-sub">
+          executadas
+        </text>
+      </svg>
+      <ul className="rosca-leg">
+        {fatias.map((f) => (
+          <li key={f.k}>
+            <span className={'sw s-' + f.k} /> {f.nome}
+            <b className="num">
+              {f.v} <span className="muted">({pct(total ? f.v / total : null)})</span>
+            </b>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Anel({ valor }: { valor: number | null }) {
+  const R = 30;
+  const C = 2 * Math.PI * R;
+  const v = valor === null ? 0 : Math.min(1, valor);
+  return (
+    <svg className="anel" viewBox="0 0 80 80" role="img" aria-label={`Ocupação ${pct(valor)}`}>
+      <circle cx="40" cy="40" r={R} fill="none" className="rosca-fundo" strokeWidth="9" />
+      <circle cx="40" cy="40" r={R} fill="none" className="anel-valor" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${v * C} ${C}`} transform="rotate(-90 40 40)" />
+      <text x="40" y="42" textAnchor="middle" className="anel-num">
+        {pct(valor)}
+      </text>
+      <text x="40" y="55" textAnchor="middle" className="rosca-sub">
+        ocupação
+      </text>
+    </svg>
+  );
+}
+
+export function AcoesRapidas({ admin }: { admin: boolean }) {
+  const acoes = [
+    { href: '#/solicitar', ico: '➕', nome: 'Nova solicitação', destaque: true },
+    ...(admin ? [{ href: '#/programar', ico: '🗓', nome: 'Programar' }] : []),
+    { href: '#/painel', ico: '📍', nome: 'Dia a dia' },
+    { href: '#/paradas', ico: '⛔', nome: 'Paradas' },
+    { href: '#/oms', ico: '🧾', nome: 'OMs' },
+    { href: '#/dashboard', ico: '📊', nome: 'Relatórios' },
+  ];
+  return (
+    <nav className="acoes-rapidas" aria-label="Ações rápidas">
+      <span className="acoes-tit">⚡ Ações rápidas</span>
+      {acoes.map((a) => (
+        <a key={a.href} href={a.href} className={'acao' + (a.destaque ? ' destaque' : '')}>
+          <span aria-hidden>{a.ico}</span>
+          {a.nome}
+        </a>
+      ))}
+    </nav>
+  );
+}

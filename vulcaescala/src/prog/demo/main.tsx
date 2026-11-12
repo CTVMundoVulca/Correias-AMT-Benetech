@@ -6,6 +6,7 @@ import { ConfirmProvider } from '../../ui/ConfirmDialog';
 import { ProgApp } from '../ProgApp';
 import { lerPacote } from '../Importar';
 import { anoDaOm, hojeIso, mesDe } from '../model';
+import { locateDay, toUtcDay } from '../../domain/isoWeek';
 import { semear } from './firebaseFalso';
 import '../../styles/fonts.css';
 import '../../styles/tokens.css';
@@ -60,7 +61,33 @@ semear('prog_solicitacoes/exemplo-2', {
   criadoEm: new Date(agora.getTime() - 26 * 3_600_000).toISOString(),
   atualizadoEm: agora.toISOString(),
 });
-void hojeIso;
+// paradas de exemplo
+const dIso = (n: number) => iso(new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() + n));
+const par = (id: string, tipo: string, area: string, ini: number, fim: number, descricao: string) => ({
+  id, tipo, area, equipamento: '', descricao, inicio: dIso(ini), fim: dIso(fim), criadoEm: '', criadoPor: 'exemplo', atualizadoEm: '', atualizadoPor: 'exemplo',
+});
+semear(`prog_paradas/${agora.getFullYear()}`, {
+  paradas: {
+    px1: par('px1', 'geral', 'COQUERIA', 6, 8, 'EXEMPLO: parada geral da bateria'),
+    px2: par('px2', 'parcial', 'SINTERIZAÇÃO', 13, 14, 'EXEMPLO: parada parcial da linha 2'),
+    px3: par('px3', 'critica', 'PÁTIO DE MINÉRIO', 2, 2, 'EXEMPLO: intervenção na recuperadora'),
+  },
+});
+
+// escala de exemplo de hoje (22 colaboradores genéricos), alocados nas atividades programadas de hoje
+if (window.__DEMO_DADOS__) {
+  const p = lerPacote(JSON.stringify(window.__DEMO_DADOS__));
+  const efetivo = Array.from({ length: 22 }, (_, i) => ({ id: `c${i + 1}`, nome: `COLABORADOR ${String(i + 1).padStart(2, '0')}`, funcao: 'Vulcanizador', ativo: true }));
+  semear('escala_publica_config/geral', { efetivo, funcoes: ['Vulcanizador'], ausencias: [], feriados: {} });
+  const hoje = hojeIso();
+  let k = 0;
+  const activities = p.atividades
+    .filter((a) => a.data === hoje && a.classe !== 'cancelada')
+    .map((a) => ({ id: `prog-${a.id}`, nome: a.descricao, workerIds: Array.from({ length: Math.min(a.pessoas || 2, 22 - k - 2) }, () => `c${++k}`) }));
+  const d = new Date();
+  const { weekKey, dayIndex } = locateDay(toUtcDay(d));
+  semear(`escala_publica/${weekKey}_${dayIndex}`, { activities, absences: [{ workerId: 'c22', tipo: 'ausencia' }] });
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
