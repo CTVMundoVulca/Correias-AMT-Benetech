@@ -403,3 +403,14 @@
 }
 /* mesmo espaço para o nome do feriado em todos os dias: as barras ficam alinhadas */
 .cpar-num { min-height: 1.95em; }
+
+/* ---------- Painel x Gestão ---------- */
+.hdr-btn.modo { width: auto; padding: 0 10px; font-weight: 700; font-size: 0.8rem; text-decoration: none; white-space: nowrap; }
+.faixa-gestao { background: #f28c28; color: #1d1205; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.4px; text-align: center; padding: 4px max(12px, env(safe-area-inset-left, 0px)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modo-gestao .prog-lateral { border-right: 3px solid #f28c28; }
+.modo-gestao .lat-item.on { background: #f28c28; color: #1d1205; }
+.lat-troca { margin-top: 12px; border: 1px dashed var(--line-strong); text-decoration: none; }
+.equipe-lista { display: flex; flex-direction: column; gap: 4px; }
+.equipe-lista li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.equipe-email { font-family: var(--mono); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 420px) { .hdr-btn.modo { padding: 0 7px; font-size: 0.72rem; } }

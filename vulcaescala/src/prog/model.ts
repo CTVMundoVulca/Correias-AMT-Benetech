@@ -607,3 +607,97 @@ export function paradasNoDia(lista: Parada[], data: string): Parada[] {
   const peso: Record<TipoParada, number> = { geral: 0, critica: 1, parcial: 2 };
   return lista.filter((p) => p.inicio <= data && data <= p.fim).sort((a, b) => peso[a.tipo] - peso[b.tipo] || a.area.localeCompare(b.area));
 }
+
+// ------------------------------------------------------------------ papéis da gestão
+
+/** Quem faz o quê na Gestão (e-mails em minúsculas). Os administradores da escala são sempre administradores. */
+export interface Papeis {
+  admins: string[];
+  programadores: string[];
+  supervisores: string[];
+}
+export const PAPEIS_VAZIOS: Papeis = { admins: [], programadores: [], supervisores: [] };
+
+export interface Permissoes {
+  /** monta/altera a programação, responde solicitações, confirma paradas, dá baixa nas OMs */
+  programar: boolean;
+  /** marca o retorno da OM (realizada / pendente) */
+  retorno: boolean;
+  /** cadastra a equipe e os papéis */
+  administrar: boolean;
+}
+export const SEM_PERMISSAO: Permissoes = { programar: false, retorno: false, administrar: false };
+
+export function permissoes(email: string | null, papeis: Papeis, adminEscala: boolean): Permissoes {
+  const e = (email ?? '').toLowerCase();
+  if (!e) return SEM_PERMISSAO;
+  const admin = adminEscala || papeis.admins.includes(e);
+  const prog = admin || papeis.programadores.includes(e);
+  return { administrar: admin, programar: prog, retorno: admin || papeis.supervisores.includes(e) };
+}
+
+export function completarPapeis(v: unknown): Papeis {
+  const p = (v ?? {}) as Partial<Papeis>;
+  const lista = (x: unknown) =>
+    Array.isArray(x) ? [...new Set(x.filter((s): s is string => typeof s === 'string').map((s) => s.trim().toLowerCase()).filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)))].sort() : [];
+  return { admins: lista(p.admins), programadores: lista(p.programadores), supervisores: lista(p.supervisores) };
+}
+
+// ------------------------------------------------------------------ retorno do supervisor
+
+/** Retorno da OM marcado pelo supervisor (documento próprio, separado da baixa). */
+export interface Retorno {
+  realizada: boolean;
+  em: string;
+  por: string;
+}
+
+/**
+ * Situação que vale para a OM: a baixa (programação) manda; senão, o retorno marcado pelo
+ * supervisor; senão, o que veio da planilha/cadastro.
+ */
+export function situacaoEfetiva(o: OmInfo, r: Retorno | undefined): OmInfo {
+  if (o.situacao === 'baixada') return o;
+  if (!r) return o;
+  return r.realizada
+    ? { ...o, situacao: 'retornada', retornoEm: r.em, retornoPor: r.por }
+    : { ...o, situacao: o.situacao === 'sem_registro' ? 'sem_registro' : 'aberta', retornoEm: '', retornoPor: '' };
+}
+
+// ------------------------------------------------------------------ paradas informadas pelas áreas
+
+export type StatusPedidoParada = 'pendente' | 'confirmada' | 'recusada' | 'cancelada';
+
+/** Parada informada por uma área (sem login); entra no calendário quando a programação confirma. */
+export interface PedidoParada {
+  id: string;
+  tipo: TipoParada;
+  area: string;
+  equipamento: string;
+  descricao: string;
+  inicio: string;
+  fim: string;
+  solicitante: string;
+  contato: string;
+  criadoUid: string;
+  criadoEm: string;
+  status: StatusPedidoParada;
+  resposta: string;
+  atualizadoEm: string;
+  atualizadoPor: string;
+}
+
+export function completarPedidoParada(id: string, v: unknown): PedidoParada | null {
+  const base = completarParada(id, v);
+  if (!base) return null;
+  const p = (v ?? {}) as Partial<PedidoParada>;
+  return {
+    ...base,
+    solicitante: str(p.solicitante, SOLICITANTE_MAX),
+    contato: str(p.contato, CONTATO_MAX),
+    criadoUid: str(p.criadoUid, 128),
+    criadoEm: str(p.criadoEm, 40),
+    status: (['pendente', 'confirmada', 'recusada', 'cancelada'] as const).find((s) => s === p.status) ?? 'pendente',
+    resposta: str(p.resposta, RESPOSTA_MAX),
+  };
+}

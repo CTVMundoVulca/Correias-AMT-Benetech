@@ -6,6 +6,12 @@ import {
   completarOm,
   completarSolicitacao,
   completarParada,
+  completarPapeis,
+  completarPedidoParada,
+  PAPEIS_VAZIOS,
+  type Papeis,
+  type PedidoParada,
+  type Retorno,
   type Parada,
   mesDe,
   type Area,
@@ -323,4 +329,95 @@ export function gravarParada(api: FirebaseApi, p: Parada, por: string, anoAnteri
 export function excluirParada(api: FirebaseApi, p: Pick<Parada, 'id' | 'inicio'>, por: string): Promise<void> {
   const { fsMod, fs } = api;
   return fsMod.setDoc(fsMod.doc(fs, COL_PARADAS, p.inicio.slice(0, 4)), { paradas: { [p.id]: fsMod.deleteField() }, ...carimbo(por) }, { merge: true });
+}
+
+// ------------------------------------------------------------------ papéis
+
+export const DOC_PAPEIS = 'prog_config/papeis';
+
+/** Papéis da gestão. Só quem está logado com e-mail lê (a regra confere). */
+export function ouvirPapeis(api: FirebaseApi, cb: (p: Papeis) => void): Unsub {
+  const { fsMod, fs } = api;
+  return fsMod.onSnapshot(
+    fsMod.doc(fs, DOC_PAPEIS),
+    (snap) => cb(completarPapeis(snap.data())),
+    () => cb(PAPEIS_VAZIOS),
+  );
+}
+
+export function gravarPapeis(api: FirebaseApi, p: Papeis): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, DOC_PAPEIS), completarPapeis(p));
+}
+
+// ------------------------------------------------------------------ retornos (supervisor)
+
+export const COL_RETORNOS = 'prog_retornos';
+
+/** Retornos marcados pelo supervisor, por OM (um documento por ano, o mesmo ano do cadastro da OM). */
+export function ouvirRetornos(api: FirebaseApi, anos: string[], cb: (m: Map<string, Retorno>) => void): Unsub {
+  const { fsMod, fs } = api;
+  const por = new Map<string, Record<string, Retorno>>();
+  const emitir = () => {
+    const m = new Map<string, Retorno>();
+    for (const ano of [...por.keys()].sort()) for (const [om, r] of Object.entries(por.get(ano)!)) m.set(om, r);
+    cb(m);
+  };
+  const unsubs = anos.map((ano) =>
+    fsMod.onSnapshot(
+      fsMod.doc(fs, COL_RETORNOS, ano),
+      (snap) => {
+        const raw = (snap.data()?.retornos ?? {}) as Record<string, Partial<Retorno>>;
+        const r: Record<string, Retorno> = {};
+        for (const [om, v] of Object.entries(raw)) r[om] = { realizada: v?.realizada === true, em: String(v?.em ?? ''), por: String(v?.por ?? '') };
+        por.set(ano, r);
+        emitir();
+      },
+      () => {
+        por.set(ano, {});
+        emitir();
+      },
+    ),
+  );
+  return () => unsubs.forEach((u) => u());
+}
+
+export function gravarRetornos(api: FirebaseApi, itens: { om: OmInfo; realizada: boolean }[], por: string): Promise<void> {
+  const { fsMod, fs } = api;
+  const agora = new Date().toISOString();
+  const porAno = new Map<string, Record<string, Retorno>>();
+  for (const { om, realizada } of itens) {
+    const ano = anoDaOm(om) || new Date().getFullYear().toString();
+    const m = porAno.get(ano) ?? {};
+    m[om.om] = { realizada, em: agora, por };
+    porAno.set(ano, m);
+  }
+  const b = fsMod.writeBatch(fs);
+  for (const [ano, m] of porAno) b.set(fsMod.doc(fs, COL_RETORNOS, ano), { retornos: m, ...carimbo(por) }, { merge: true });
+  return b.commit();
+}
+
+// ------------------------------------------------------------------ paradas informadas pelas áreas
+
+export const COL_PEDIDOS_PARADA = 'prog_paradas_pedidos';
+
+export function ouvirPedidosParada(api: FirebaseApi, desde: string, cb: (l: PedidoParada[]) => void): Unsub {
+  const { fsMod, fs } = api;
+  const q = fsMod.query(fsMod.collection(fs, COL_PEDIDOS_PARADA), fsMod.where('criadoEm', '>=', desde));
+  return fsMod.onSnapshot(
+    q,
+    (snap) =>
+      cb(
+        snap.docs
+          .map((d) => completarPedidoParada(d.id, d.data()))
+          .filter((p): p is PedidoParada => !!p)
+          .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)),
+      ),
+    () => cb([]),
+  );
+}
+
+export function gravarPedidoParada(api: FirebaseApi, p: PedidoParada): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, COL_PEDIDOS_PARADA, p.id), p);
 }

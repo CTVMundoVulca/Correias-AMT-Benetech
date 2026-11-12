@@ -29,12 +29,21 @@ const STATUS: Record<StatusSolicitacao, { nome: string; cls: string }> = {
   cancelada: { nome: 'Cancelada', cls: 'neutral' },
 };
 
-function lembrar(): { solicitante: string; contato: string; area: string } {
+/** Nome, contato e área de quem pede (lembrados no aparelho). */
+export function lembrarSolicitante(): { solicitante: string; contato: string; area: string } {
   try {
     const v = JSON.parse(localStorage.getItem(LEMBRAR) ?? '{}');
     return { solicitante: String(v.solicitante ?? ''), contato: String(v.contato ?? ''), area: String(v.area ?? '') };
   } catch {
     return { solicitante: '', contato: '', area: '' };
+  }
+}
+
+export function guardarSolicitante(solicitante: string, contato: string, area: string) {
+  try {
+    localStorage.setItem(LEMBRAR, JSON.stringify({ solicitante, contato, area }));
+  } catch {
+    /* sem armazenamento */
   }
 }
 
@@ -45,7 +54,7 @@ export function Solicitar() {
   const { api, uid, areas } = useProg();
   const toast = useToast();
   const confirm = useConfirm();
-  const salvo = lembrar();
+  const salvo = lembrarSolicitante();
   const [area, setArea] = useState(salvo.area);
   const [equipamento, setEquipamento] = useState('');
   const [om, setOm] = useState('');
@@ -88,11 +97,7 @@ export function Solicitar() {
     if (!s.solicitante) return toast('Informe seu nome.', 'warn');
     if (s.om && s.om.length < 6) return toast('Número da OM incompleto.', 'warn');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s.dataDesejada)) return toast('Informe a data desejada.', 'warn');
-    try {
-      localStorage.setItem(LEMBRAR, JSON.stringify({ solicitante: s.solicitante, contato: s.contato, area: s.area }));
-    } catch {
-      /* sem armazenamento */
-    }
+    guardarSolicitante(s.solicitante, s.contato, s.area);
     gravarSolicitacao(api, s).catch(() => toast('A nuvem recusou a solicitação. Confira os campos.', 'danger'));
     toast('Solicitação enviada à programação');
     setEquipamento('');

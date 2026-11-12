@@ -2,18 +2,19 @@ import { useMemo, useState } from 'react';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useOms, useProg } from './context';
-import { gravarOms } from './data';
+import { gravarOms, gravarRetornos } from './data';
 import { dataBr } from './Solicitar';
 import { SITUACOES, contarOms, diasEntre, hojeIso, semAcento, type OmInfo, type SituacaoOm } from './model';
 
 type Filtro = SituacaoOm | 'pendentes' | 'todas';
 
 /**
- * Controle de baixa das OMs: retorno da supervisão (executada) → baixa da programação (encerrada).
- * Todos consultam; só administradores registram.
+ * Controle das OMs (Gestão): o SUPERVISOR marca o retorno (realizada / pendente) e a
+ * PROGRAMAÇÃO dá a baixa (encerrada no SAP). Cada papel só vê os botões do que pode fazer.
  */
 export function Oms() {
-  const { api, por, isAdmin } = useProg();
+  const { api, por, pode } = useProg();
+  const seleciona = pode.programar || pode.retorno;
   const toast = useToast();
   const confirm = useConfirm();
   const oms = useOms();
@@ -35,30 +36,37 @@ export function Oms() {
       .sort((a, b) => a.ultimaData.localeCompare(b.ultimaData) || a.om.localeCompare(b.om));
   }, [todas, filtro, busca]);
 
-  const mudar = (alvo: OmInfo[], situacao: SituacaoOm) => {
+  /** programação: dá ou desfaz a baixa (documento das OMs) */
+  const baixa = (alvo: OmInfo[], baixar: boolean) => {
     const agora = new Date().toISOString();
-    const novas = alvo.map((o) => {
-      const x: OmInfo = { ...o, situacao };
-      if (situacao === 'aberta') Object.assign(x, { retornoEm: '', retornoPor: '', baixaEm: '', baixaPor: '' });
-      if (situacao === 'retornada') Object.assign(x, { retornoEm: o.retornoEm || agora, retornoPor: o.retornoPor || por, baixaEm: '', baixaPor: '' });
-      if (situacao === 'baixada')
-        Object.assign(x, { retornoEm: o.retornoEm || agora, retornoPor: o.retornoPor || por, baixaEm: agora, baixaPor: por });
-      return x;
-    });
+    const novas = alvo.map((o): OmInfo =>
+      baixar
+        ? { ...o, situacao: 'baixada', baixaEm: agora, baixaPor: por }
+        : { ...o, situacao: o.retornoEm ? 'retornada' : 'aberta', baixaEm: '', baixaPor: '' },
+    );
     gravarOms(api, novas, por).catch(() => toast('A nuvem recusou a alteração.', 'danger'));
-    toast(novas.length === 1 ? 'OM atualizada' : `${novas.length} OMs atualizadas`);
+    toast(novas.length === 1 ? (baixar ? 'Baixa registrada' : 'Baixa desfeita') : `${novas.length} OMs baixadas`);
+    setSel(new Set());
+  };
+  /** supervisor: marca realizada (retorno) ou volta para pendente (documento de retornos) */
+  const retorno = (alvo: OmInfo[], realizada: boolean) => {
+    gravarRetornos(api, alvo.map((om) => ({ om, realizada })), por).catch(() => toast('A nuvem recusou a alteração.', 'danger'));
+    toast(alvo.length === 1 ? (realizada ? 'Retorno registrado: realizada' : 'OM voltou para pendente') : `${alvo.length} OMs marcadas como realizadas`);
     setSel(new Set());
   };
 
-  const baixarSelecionadas = async () => {
-    const alvo = lista.filter((o) => sel.has(o.om));
+  const emLote = async (acao: 'baixa' | 'retorno') => {
+    const alvo = lista.filter((o) => sel.has(o.om) && o.situacao !== 'baixada');
     if (!alvo.length) return;
     const ok = await confirm({
-      title: `Dar baixa em ${alvo.length} OM(s)?`,
-      message: <p>Registra o retorno da supervisão (se faltar) e a baixa da programação com a data de hoje e o seu e-mail.</p>,
-      confirmLabel: 'Dar baixa',
+      title: acao === 'baixa' ? `Dar baixa em ${alvo.length} OM(s)?` : `Marcar ${alvo.length} OM(s) como realizadas?`,
+      message: <p>Fica registrado com a data de hoje e o seu e-mail.</p>,
+      confirmLabel: acao === 'baixa' ? 'Dar baixa' : 'Marcar realizadas',
     });
-    if (ok) mudar(alvo, 'baixada');
+    if (ok) {
+      if (acao === 'baixa') baixa(alvo, true);
+      else retorno(alvo, true);
+    }
   };
 
   const filtros: { id: Filtro; nome: string; n: number }[] = [
@@ -74,7 +82,7 @@ export function Oms() {
       <section className="card pad stack">
         <h2>Controle de OMs</h2>
         <p className="small muted">
-          Fluxo: a supervisão devolve a OM como executada (<b>retorno</b>) e a programação encerra no SAP (<b>baixa</b>). “Sem registro” = OMs da
+          Fluxo: o <b>supervisor</b> marca a OM como realizada (<b>retorno</b>) e a <b>programação</b> dá a <b>baixa</b> no SAP. “Sem registro” = OMs da
           planilha antes da semana 10, quando o controle de retorno ainda não existia.
         </p>
         <div className="segmented">
@@ -85,11 +93,18 @@ export function Oms() {
           ))}
         </div>
         <input className="input" type="search" placeholder="Buscar OM, equipamento, área…" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        {isAdmin && sel.size > 0 && (
+        {seleciona && sel.size > 0 && (
           <div className="row">
-            <button className="btn primary" onClick={() => void baixarSelecionadas()}>
-              Dar baixa nas {sel.size} selecionadas
-            </button>
+            {pode.retorno && (
+              <button className="btn" onClick={() => void emLote('retorno')}>
+                ✓ Realizadas ({sel.size})
+              </button>
+            )}
+            {pode.programar && (
+              <button className="btn primary" onClick={() => void emLote('baixa')}>
+                Dar baixa ({sel.size})
+              </button>
+            )}
             <button className="btn" onClick={() => setSel(new Set())}>
               Limpar seleção
             </button>
@@ -103,7 +118,7 @@ export function Oms() {
         <p className="muted">Nenhuma OM neste filtro.</p>
       ) : (
         <ul className="plain-list stack">
-          {isAdmin && (
+          {seleciona && (
             <li>
               <label className="check small">
                 <input
@@ -121,7 +136,7 @@ export function Oms() {
               <li key={o.om} className="card pad om-item">
                 <div className="row between nowrap">
                   <label className="row nowrap om-num">
-                    {isAdmin && (
+                    {seleciona && (
                       <input
                         type="checkbox"
                         checked={sel.has(o.om)}
@@ -150,25 +165,27 @@ export function Oms() {
                   {o.baixaEm && ` · baixa ${new Date(o.baixaEm).toLocaleDateString('pt-BR')}${o.baixaPor ? ` (${o.baixaPor})` : ''}`}
                   {o.cancelada && ' · cancelada'}
                 </div>
-                {isAdmin && (
-                  <div className="row">
-                    {(o.situacao === 'aberta' || o.situacao === 'sem_registro') && (
-                      <button className="btn small" onClick={() => mudar([o], 'retornada')}>
-                        ✓ Retorno da supervisão
+                <div className="row">
+                  {pode.retorno && o.situacao !== 'baixada' && (o.situacao === 'retornada' ? (
+                    <button className="link small" onClick={() => retorno([o], false)}>
+                      Voltar para pendente
+                    </button>
+                  ) : (
+                    <button className="btn small" onClick={() => retorno([o], true)}>
+                      ✓ Realizada (retorno)
+                    </button>
+                  ))}
+                  {pode.programar &&
+                    (o.situacao === 'baixada' ? (
+                      <button className="link small" onClick={() => baixa([o], false)}>
+                        Desfazer baixa
                       </button>
-                    )}
-                    {o.situacao !== 'baixada' && (
-                      <button className="btn small primary" onClick={() => mudar([o], 'baixada')}>
-                        ✓ Baixa da programação
+                    ) : (
+                      <button className={'btn small' + (o.situacao === 'retornada' ? ' primary' : '')} onClick={() => baixa([o], true)}>
+                        ✓ Baixa no SAP
                       </button>
-                    )}
-                    {(o.situacao === 'retornada' || o.situacao === 'baixada') && (
-                      <button className="link small" onClick={() => mudar([o], o.situacao === 'baixada' ? 'retornada' : 'aberta')}>
-                        Desfazer
-                      </button>
-                    )}
-                  </div>
-                )}
+                    ))}
+                </div>
               </li>
             );
           })}

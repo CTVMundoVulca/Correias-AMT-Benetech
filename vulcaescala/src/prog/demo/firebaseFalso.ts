@@ -83,7 +83,8 @@ const mudarUsuario = (u: Usuario | null) => {
   atual = u;
   authOuvintes.forEach((cb) => setTimeout(() => cb(u), 0));
 };
-const ehAdmin = () => !!atual?.email;
+/** no teste, só admin@teste.com é administrador "da escala"; os demais papéis vêm de prog_config/papeis */
+const ehAdmin = () => atual?.email === 'admin@teste.com';
 
 const fsMod = {
   doc: (_fs: unknown, ...seg: string[]): Ref => {

@@ -71,18 +71,20 @@ describe('Programação: todos veem, só administradores programam', () => {
     await assertSucceeds(as(ADMIN).doc('prog_paradas/2026').set({ paradas: { p1: { tipo: 'geral', inicio: '2026-11-18' } }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
   });
 
-  it('paradas: todos veem, só administradores lançam', async () => {
+  it('paradas confirmadas: todos veem; só a programação lança', async () => {
     await assertSucceeds(anon().doc('prog_paradas/2026').get());
     await assertFails(anon().doc('prog_paradas/2026').set({ paradas: {} }, { merge: true }));
     await assertFails(as(OUTRO).doc('prog_paradas/2026').set({ paradas: {} }, { merge: true }));
     await assertFails(as(ADMIN).doc('prog_paradas/2026').set({ paradas: {}, extra: 1 }));
   });
 
-  it('qualquer sessão do app lê; sem sessão, nada', async () => {
+  it('qualquer sessão do app lê a programação; OMs só a gestão; sem sessão, nada', async () => {
     await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('prog_mes/2026-11').set({ itens: { a1: atividade } }));
     await assertSucceeds(anon().doc('prog_mes/2026-11').get());
-    await assertSucceeds(anon().doc('prog_oms/2026').get());
     await assertSucceeds(anon().doc('prog_config/areas').get());
+    await assertFails(anon().doc('prog_oms/2026').get());
+    await assertFails(as(OUTRO).doc('prog_oms/2026').get());
+    await assertSucceeds(as(ADMIN).doc('prog_oms/2026').get());
     await assertFails(semLogin().doc('prog_mes/2026-11').get());
   });
 
@@ -131,5 +133,59 @@ describe('Solicitações das áreas', () => {
     await assertFails(as(ADMIN).doc('prog_solicitacoes/s1').set({ ...solic, criadoUid: 'outro' }));
     await assertSucceeds(as(ADMIN).doc('prog_solicitacoes/s1').set({ ...solic, status: 'recusada', resposta: 'Sem material' }));
     await assertSucceeds(as(ADMIN).doc('prog_solicitacoes/s1').delete());
+  });
+});
+
+describe('Papéis da gestão (cadastrados pelo administrador no app)', () => {
+  const PROG = 'programador@benetechbrasil.com.br';
+  const SUP = 'supervisor@benetechbrasil.com.br';
+  const papeis = { admins: [], programadores: [PROG], supervisores: [SUP] };
+
+  it('só administrador cadastra papéis; quem está logado lê; anônimo não', async () => {
+    await assertFails(as(OUTRO).doc('prog_config/papeis').set(papeis));
+    await assertSucceeds(as(ADMIN).doc('prog_config/papeis').set(papeis));
+    await assertSucceeds(as(OUTRO).doc('prog_config/papeis').get());
+    await assertFails(anon().doc('prog_config/papeis').get());
+    await assertFails(as(ADMIN).doc('prog_config/papeis').set({ ...papeis, outro: [] }));
+  });
+
+  it('programador programa, confirma paradas e dá baixa; não marca retorno nem cadastra papéis', async () => {
+    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('prog_config/papeis').set(papeis));
+    await assertSucceeds(as(PROG).doc('prog_mes/2026-11').set({ itens: { a1: atividade } }, { merge: true }));
+    await assertSucceeds(as(PROG).doc('prog_oms/2026').set({ oms: { '900033748430': { situacao: 'baixada' } } }, { merge: true }));
+    await assertSucceeds(as(PROG).doc('prog_paradas/2026').set({ paradas: { p1: { tipo: 'geral' } } }, { merge: true }));
+    await assertFails(as(PROG).doc('prog_retornos/2026').set({ retornos: {} }, { merge: true }));
+    await assertFails(as(PROG).doc('prog_config/papeis').set(papeis));
+  });
+
+  it('supervisor só marca o retorno: não altera programação, baixa nem paradas', async () => {
+    await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('prog_config/papeis').set(papeis));
+    await assertSucceeds(as(SUP).doc('prog_retornos/2026').set({ retornos: { '900033748430': { realizada: true, em: 'x', por: SUP } } }, { merge: true }));
+    await assertSucceeds(as(SUP).doc('prog_oms/2026').get());
+    await assertFails(as(SUP).doc('prog_oms/2026').set({ oms: {} }, { merge: true }));
+    await assertFails(as(SUP).doc('prog_mes/2026-11').set({ itens: {} }, { merge: true }));
+    await assertFails(as(SUP).doc('prog_paradas/2026').set({ paradas: {} }, { merge: true }));
+    await assertFails(anon().doc('prog_retornos/2026').set({ retornos: {} }, { merge: true }));
+  });
+});
+
+describe('Paradas informadas pelas áreas', () => {
+  const ped = {
+    id: 'pp1', tipo: 'geral', area: 'COQUERIA', equipamento: '', descricao: 'Parada da bateria', inicio: '2026-11-18', fim: '2026-11-20',
+    solicitante: 'Programador Coqueria', contato: '', criadoUid: 'anon-uid', criadoEm: '2026-11-12T10:00:00Z', status: 'pendente', resposta: '',
+    atualizadoEm: 'x', atualizadoPor: 'anônimo',
+  };
+  it('área informa (pendente); não confirma sozinha; pode cancelar', async () => {
+    await assertSucceeds(anon().doc('prog_paradas_pedidos/pp1').set(ped));
+    await assertFails(anon().doc('prog_paradas_pedidos/pp2').set({ ...ped, id: 'pp2', status: 'confirmada' }));
+    await assertFails(anon().doc('prog_paradas_pedidos/pp3').set({ ...ped, id: 'pp3', fim: '2026-11-01' }));
+    await assertFails(anon().doc('prog_paradas_pedidos/pp1').set({ ...ped, status: 'confirmada' }));
+    await assertFails(anon('outro-uid').doc('prog_paradas_pedidos/pp1').set({ ...ped, status: 'cancelada' }));
+    await assertSucceeds(anon().doc('prog_paradas_pedidos/pp1').set({ ...ped, status: 'cancelada' }));
+  });
+  it('programação confirma ou recusa', async () => {
+    await assertSucceeds(anon().doc('prog_paradas_pedidos/pp1').set(ped));
+    await assertSucceeds(as(ADMIN).doc('prog_paradas_pedidos/pp1').set({ ...ped, status: 'confirmada', atualizadoPor: ADMIN }));
+    await assertSucceeds(as(ADMIN).doc('prog_paradas_pedidos/pp1').set({ ...ped, status: 'recusada', resposta: 'Data conflita' }));
   });
 });

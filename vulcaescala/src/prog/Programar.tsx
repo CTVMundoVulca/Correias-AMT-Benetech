@@ -16,7 +16,7 @@ type Edicao = { a: Atividade; nova: boolean; solic?: Solicitacao };
 
 /** Programação semanal (substitui a aba "SEMANA" da planilha). Só administradores. */
 export function Programar() {
-  const { api, por, isAdmin } = useProg();
+  const { api, por, pode } = useProg();
   const toast = useToast();
   const [segunda, setSegunda] = useState(() => segundaDe(hojeIso()));
   const dias = diasDaSemana(segunda);
@@ -34,7 +34,7 @@ export function Programar() {
   const semanaNum = isoWeekOf(fromIsoDate(segunda)!).week;
   const mudar = (n: number) => setSegunda(toIsoDate(addDays(fromIsoDate(segunda)!, 7 * n)));
 
-  if (!isAdmin) return <p className="muted">Só administradores programam.</p>;
+  if (!pode.programar) return <p className="muted">Só a programação monta e altera a programação.</p>;
 
   const nova = (data: string) => setEdicao({ a: atividadeVazia(newId(), data, por), nova: true });
   const programarSolic = (s: Solicitacao) => {

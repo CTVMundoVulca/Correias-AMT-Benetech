@@ -29,7 +29,7 @@ const URG: Record<Solicitacao['urgencia'], { nome: string; cls: string }> = {
 
 /** Central: visão geral da programação, demandas, efetivo do dia, paradas e semana. */
 export function Central() {
-  const { api, isAdmin, feriados } = useProg();
+  const { api, feriados } = useProg();
   const hoje = hojeIso();
   const mesAtual = hoje.slice(0, 7);
   const mesAnt = somaMes(mesAtual, -1);
@@ -87,7 +87,7 @@ export function Central() {
         <section className="painel-bloco b-fila">
           <div className="bloco-topo">
             <h3>📥 Fila de demandas {abertas > 0 && <span className="badge pend num">{abertas} aguardando</span>}</h3>
-            <a className="link small" href={isAdmin ? '#/programar' : '#/solicitar'}>
+            <a className="link small" href="#/solicitar">
               Ver todas →
             </a>
           </div>
@@ -265,7 +265,7 @@ export function Central() {
         </section>
       </div>
 
-      <AcoesRapidas admin={isAdmin} />
+      <AcoesRapidas />
     </div>
   );
 }
@@ -357,14 +357,13 @@ function Anel({ valor }: { valor: number | null }) {
   );
 }
 
-export function AcoesRapidas({ admin }: { admin: boolean }) {
+export function AcoesRapidas() {
   const acoes = [
     { href: '#/solicitar', ico: '➕', nome: 'Nova solicitação', destaque: true },
-    ...(admin ? [{ href: '#/programar', ico: '🗓', nome: 'Programar' }] : []),
+    { href: '#/paradas', ico: '⛔', nome: 'Informar parada' },
     { href: '#/painel', ico: '📍', nome: 'Dia a dia' },
-    { href: '#/paradas', ico: '⛔', nome: 'Paradas' },
-    { href: '#/oms', ico: '🧾', nome: 'OMs' },
     { href: '#/dashboard', ico: '📊', nome: 'Relatórios' },
+    { href: '#/g', ico: '⚙', nome: 'Gestão' },
   ];
   return (
     <nav className="acoes-rapidas" aria-label="Ações rápidas">

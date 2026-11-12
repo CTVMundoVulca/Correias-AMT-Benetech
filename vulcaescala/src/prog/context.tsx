@@ -1,14 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { FirebaseApi } from '../cloud/firebase';
-import { ouvirMeses, ouvirOms, ouvirParadas, type Pendencia } from './data';
-import type { Area, Atividade, OmInfo, Parada } from './model';
+import { ouvirMeses, ouvirOms, ouvirParadas, ouvirRetornos, type Pendencia } from './data';
+import { situacaoEfetiva, type Area, type Atividade, type OmInfo, type Parada, type Permissoes, type Retorno } from './model';
 
 export interface ProgCtx {
   api: FirebaseApi;
   /** e-mail de quem está logado ou "anônimo" */
   por: string;
   uid: string;
-  isAdmin: boolean;
+  /** o que este usuário pode fazer na Gestão (papel cadastrado pelo administrador) */
+  pode: Permissoes;
+  /** está na área de Gestão (back-end) e não no Painel público */
+  gestao: boolean;
   areas: Area[];
   /** feriados municipais (Vitória) da escala; os nacionais são calculados */
   feriados: Record<string, string>;
@@ -42,14 +45,30 @@ export function useAtividades(meses: string[]): Atividade[] | null {
   return l;
 }
 
-/** OMs do ano atual e do anterior (uma OM fica no ano da primeira programação). */
+/**
+ * OMs do ano atual e do anterior, com o retorno do supervisor aplicado (situação que vale).
+ * Só a Gestão lê as OMs; no Painel público devolve null.
+ */
 export function useOms(anosExtras: string[] = []): Map<string, OmInfo> | null {
-  const { api } = useProg();
+  const { api, pode } = useProg();
+  const pode0 = pode.programar || pode.retorno;
   const ano = new Date().getFullYear();
   const chave = [...new Set([String(ano - 1), String(ano), ...anosExtras])].sort().join(',');
-  const [m, setM] = useState<Map<string, OmInfo> | null>(null);
-  useEffect(() => ouvirOms(api, chave.split(','), (x) => setM(x)), [api, chave]);
-  return m;
+  const [oms, setOms] = useState<Map<string, OmInfo> | null>(null);
+  const [ret, setRet] = useState<Map<string, Retorno>>(new Map());
+  useEffect(() => {
+    if (!pode0) {
+      setOms(null);
+      return;
+    }
+    const u1 = ouvirOms(api, chave.split(','), (x) => setOms(x));
+    const u2 = ouvirRetornos(api, chave.split(','), setRet);
+    return () => {
+      u1();
+      u2();
+    };
+  }, [api, chave, pode0]);
+  return useMemo(() => (oms ? new Map([...oms].map(([k, o]) => [k, situacaoEfetiva(o, ret.get(k))])) : null), [oms, ret]);
 }
 
 export const useAreasNomes = () => {
@@ -61,7 +80,7 @@ export const irPara = (hash: string) => {
   window.location.hash = hash;
 };
 
-/** Paradas do ano atual e do seguinte (para o calendário de dezembro/janeiro). */
+/** Paradas confirmadas do ano anterior, atual e seguinte (todos veem). */
 export function useParadas(): Parada[] {
   const { api } = useProg();
   const ano = new Date().getFullYear();

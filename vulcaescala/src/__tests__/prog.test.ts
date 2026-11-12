@@ -153,3 +153,33 @@ describe('utilidades', () => {
     expect(a.equipe).toBe('dia');
   });
 });
+
+import { completarPapeis, permissoes, situacaoEfetiva, completarOm } from '../prog/model';
+
+describe('papéis da gestão', () => {
+  const p = completarPapeis({ admins: ['Chefe@x.com'], programadores: ['prog@x.com', 'invalido'], supervisores: ['sup@x.com'] });
+  it('limpa a lista (minúsculas, e-mails válidos)', () => {
+    expect(p.admins).toEqual(['chefe@x.com']);
+    expect(p.programadores).toEqual(['prog@x.com']);
+  });
+  it('cada papel com o que pode', () => {
+    expect(permissoes(null, p, false)).toEqual({ programar: false, retorno: false, administrar: false });
+    expect(permissoes('prog@x.com', p, false)).toEqual({ programar: true, retorno: false, administrar: false });
+    expect(permissoes('SUP@x.com', p, false)).toEqual({ programar: false, retorno: true, administrar: false });
+    expect(permissoes('chefe@x.com', p, false)).toEqual({ programar: true, retorno: true, administrar: true });
+    expect(permissoes('outro@x.com', p, true)).toEqual({ programar: true, retorno: true, administrar: true }); // administrador da escala
+    expect(permissoes('outro@x.com', p, false).programar).toBe(false);
+  });
+});
+
+describe('situação da OM: baixa (programação) > retorno (supervisor) > cadastro', () => {
+  const base = completarOm('900000000001', { situacao: 'aberta', primeiraData: '2026-11-10', ultimaData: '2026-11-10' });
+  it('retorno do supervisor muda aberta para realizada e de volta', () => {
+    expect(situacaoEfetiva(base, { realizada: true, em: 't', por: 's' }).situacao).toBe('retornada');
+    expect(situacaoEfetiva({ ...base, situacao: 'retornada' }, { realizada: false, em: 't', por: 's' }).situacao).toBe('aberta');
+    expect(situacaoEfetiva(base, undefined).situacao).toBe('aberta');
+  });
+  it('baixada continua baixada', () => {
+    expect(situacaoEfetiva({ ...base, situacao: 'baixada' }, { realizada: false, em: 't', por: 's' }).situacao).toBe('baixada');
+  });
+});

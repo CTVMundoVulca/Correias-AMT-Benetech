@@ -74,6 +74,14 @@ semear(`prog_paradas/${agora.getFullYear()}`, {
   },
 });
 
+// papéis de teste e uma parada enviada por uma área (a confirmar)
+semear('prog_config/papeis', { admins: [], programadores: ['programador@teste.com'], supervisores: ['supervisor@teste.com'] });
+semear('prog_paradas_pedidos/pedido-exemplo', {
+  id: 'pedido-exemplo', tipo: 'parcial', area: 'ACIARIA', equipamento: 'T-13', descricao: 'EXEMPLO: troca de rolos da linha',
+  inicio: dIso(9), fim: dIso(10), solicitante: 'Programador da Aciaria (exemplo)', contato: 'ramal 0000', criadoUid: 'outra-area',
+  criadoEm: new Date(agora.getTime() - 5 * 3_600_000).toISOString(), status: 'pendente', resposta: '', atualizadoEm: '', atualizadoPor: 'anônimo',
+});
+
 // escala de exemplo de hoje (22 colaboradores genéricos), alocados nas atividades programadas de hoje
 if (window.__DEMO_DADOS__) {
   const p = lerPacote(JSON.stringify(window.__DEMO_DADOS__));
@@ -92,7 +100,8 @@ if (window.__DEMO_DADOS__) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <div className="modo-teste">
-      🧪 MODO TESTE — nada é gravado na nuvem; recarregar a página volta ao início. Para programar: “Entrar” com qualquer e-mail e senha.
+      🧪 MODO TESTE — nada vai para a nuvem; recarregar volta ao início. Gestão: entre com programador@teste.com, supervisor@teste.com ou
+      admin@teste.com (qualquer senha).
     </div>
     <ToastProvider>
       <ConfirmProvider>

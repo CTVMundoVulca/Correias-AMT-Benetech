@@ -131,7 +131,11 @@ export function Dashboard() {
               <Kpi v={r.classes.nao_programada} t="Não programadas" />
               <Kpi v={r.classes.cancelada} t={`Canceladas (${pct(r.indiceCancelamento)})`} />
               <Kpi v={r.retrabalho} t="Retrabalhos" />
-              <Kpi v={cOms.aberta + cOms.retornada} t="OMs sem baixa" dica={`${cOms.aberta} aguardando retorno · ${cOms.retornada} aguardando baixa`} />
+              {oms ? (
+                <Kpi v={cOms.aberta + cOms.retornada} t="OMs sem baixa" dica={`${cOms.aberta} aguardando retorno · ${cOms.retornada} aguardando baixa`} />
+              ) : (
+                <Kpi v={r.comOm} t="Atividades com OM" />
+              )}
             </div>
             {r.classes.sem > 0 && (
               <p className="small muted">
@@ -172,6 +176,7 @@ export function Dashboard() {
               <BarrasSimples itens={gTipo.map((g) => ({ nome: g.chave, v: g.total }))} />
             </Card>
 
+            {oms && (
             <Card titulo="Situação das OMs programadas no período">
               <BarrasSimples
                 itens={[
@@ -182,6 +187,7 @@ export function Dashboard() {
                 ]}
               />
             </Card>
+            )}
           </>
         )}
       </div>

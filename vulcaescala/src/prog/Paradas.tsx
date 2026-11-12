@@ -1,89 +1,65 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { newId } from '../domain/ids';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useParadas, useProg } from './context';
-import { excluirParada, gravarParada } from './data';
-import { dataBr } from './Solicitar';
+import { excluirParada, gravarParada, gravarPedidoParada, ouvirPedidosParada } from './data';
+import { dataBr, guardarSolicitante, lembrarSolicitante } from './Solicitar';
 import { corDaArea } from './Painel';
 import { Fragment } from 'react';
 import { MONTHS, WEEKDAYS, WEEKDAYS_SHORT, formatDate, fromIsoDate, locateDay, monthWeeks, toIsoDate } from '../domain/isoWeek';
 import { feriadoEm } from '../domain/feriados';
-import { DESCRICAO_MAX, EQUIP_MAX, TIPOS_PARADA, hojeIso, limparTexto, maiusculas, type Parada } from './model';
+import { DESCRICAO_MAX, EQUIP_MAX, TIPOS_PARADA, hojeIso, limparTexto, maiusculas, type Parada, type PedidoParada, type StatusPedidoParada, type TipoParada } from './model';
 
-/** Calendário de paradas: todos consultam; administradores lançam. */
-export function Paradas() {
-  const { isAdmin, por } = useProg();
-  const lista = useParadas();
-  const [verPassadas, setVerPassadas] = useState(false);
+/** Calendário + linha do tempo das paradas confirmadas. */
+function VistaParadas({ lista }: { lista: Parada[] }) {
   const [vista, setVista] = useState<'cal' | 'linha'>('cal');
-  const [edicao, setEdicao] = useState<{ p: Parada; nova: boolean } | null>(null);
+  return (
+    <section className="card pad">
+      <div className="segmented vista-paradas">
+        <button className={'seg' + (vista === 'cal' ? ' on' : '')} onClick={() => setVista('cal')}>
+          📅 Calendário
+        </button>
+        <button className={'seg' + (vista === 'linha' ? ' on' : '')} onClick={() => setVista('linha')}>
+          ▬ Linha do tempo
+        </button>
+      </div>
+      {vista === 'cal' ? <CalendarioParadas paradas={lista} /> : <MapaParadas paradas={lista} />}
+    </section>
+  );
+}
+
+/** Lista das paradas confirmadas (próximas ou encerradas). */
+function ListaParadas({ lista, onEditar }: { lista: Parada[]; onEditar?: (p: Parada) => void }) {
+  const [verPassadas, setVerPassadas] = useState(false);
   const hoje = hojeIso();
   const vis = lista
     .filter((p) => (verPassadas ? p.fim < hoje : p.fim >= hoje))
     .sort((a, b) => (verPassadas ? b.inicio.localeCompare(a.inicio) : a.inicio.localeCompare(b.inicio)));
-
-  const nova = () => {
-    const agora = new Date().toISOString();
-    setEdicao({
-      nova: true,
-      p: { id: newId(), tipo: 'geral', area: '', equipamento: '', descricao: '', inicio: hoje, fim: hoje, criadoEm: agora, criadoPor: por, atualizadoEm: agora, atualizadoPor: por },
-    });
-  };
-
   return (
-    <div className="stack prog">
-      <section className="card pad stack">
-        <div className="row between">
-          <h2>Calendário de paradas</h2>
-          {isAdmin && (
-            <button className="btn primary small" onClick={nova}>
-              + Parada
-            </button>
-          )}
-        </div>
-        <ul className="legenda-areas grande">
-          {TIPOS_PARADA.map((t) => (
-            <li key={t.id}>
-              <span className={'sw-parada parada-' + t.id}>{t.icone}</span> {t.nome}
-            </li>
-          ))}
-        </ul>
-        <div className="segmented">
-          <button className={'seg' + (!verPassadas ? ' on' : '')} onClick={() => setVerPassadas(false)}>
-            Em andamento e próximas
-          </button>
-          <button className={'seg' + (verPassadas ? ' on' : '')} onClick={() => setVerPassadas(true)}>
-            Encerradas
-          </button>
-        </div>
-      </section>
-      <section className="card pad">
-        <div className="segmented vista-paradas">
-          <button className={'seg' + (vista === 'cal' ? ' on' : '')} onClick={() => setVista('cal')}>
-            📅 Calendário
-          </button>
-          <button className={'seg' + (vista === 'linha' ? ' on' : '')} onClick={() => setVista('linha')}>
-            ▬ Linha do tempo
-          </button>
-        </div>
-        {vista === 'cal' ? <CalendarioParadas paradas={lista} /> : <MapaParadas paradas={lista} />}
-      </section>
+    <>
+      <div className="segmented">
+        <button className={'seg' + (!verPassadas ? ' on' : '')} onClick={() => setVerPassadas(false)}>
+          Em andamento e próximas
+        </button>
+        <button className={'seg' + (verPassadas ? ' on' : '')} onClick={() => setVerPassadas(true)}>
+          Encerradas
+        </button>
+      </div>
       {vis.length === 0 ? (
-        <p className="muted">{verPassadas ? 'Nenhuma parada encerrada.' : 'Nenhuma parada programada.'}</p>
+        <p className="muted">{verPassadas ? 'Nenhuma parada encerrada.' : 'Nenhuma parada confirmada.'}</p>
       ) : (
         <ul className="plain-list stack">
           {vis.map((p) => {
             const t = TIPOS_PARADA.find((x) => x.id === p.tipo)!;
-            const agora = p.inicio <= hoje && hoje <= p.fim;
             const corpo = (
               <>
                 <div className="row between nowrap">
                   <b>
                     {t.icone} {t.nome}
                   </b>
-                  {agora && <span className="badge today">Agora</span>}
+                  {p.inicio <= hoje && hoje <= p.fim && <span className="badge today">Agora</span>}
                 </div>
                 <div>
                   <span className={'sw-area ' + corDaArea(p.area)} /> <b>{p.area || '—'}</b>
@@ -95,8 +71,8 @@ export function Paradas() {
             );
             return (
               <li key={p.id} className={'card parada-item parada-' + p.tipo}>
-                {isAdmin ? (
-                  <button className="ativ-btn pad" onClick={() => setEdicao({ p, nova: false })}>
+                {onEditar ? (
+                  <button className="ativ-btn pad" onClick={() => onEditar(p)}>
                     {corpo}
                   </button>
                 ) : (
@@ -107,12 +83,308 @@ export function Paradas() {
           })}
         </ul>
       )}
-      {edicao && <ParadaDialog atual={edicao.p} nova={edicao.nova} onClose={() => setEdicao(null)} />}
+    </>
+  );
+}
+
+function Legenda() {
+  return (
+    <ul className="legenda-areas grande">
+      {TIPOS_PARADA.map((t) => (
+        <li key={t.id}>
+          <span className={'sw-parada parada-' + t.id}>{t.icone}</span> {t.nome}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const STATUS_PEDIDO: Record<StatusPedidoParada, { nome: string; cls: string }> = {
+  pendente: { nome: 'A confirmar', cls: 'pend' },
+  confirmada: { nome: 'Confirmada', cls: 'ok' },
+  recusada: { nome: 'Recusada', cls: 'danger' },
+  cancelada: { nome: 'Cancelada', cls: 'neutral' },
+};
+
+/** PAINEL: todos veem o calendário de paradas confirmadas e as áreas informam as suas. */
+export function ParadasPainel() {
+  const { api, uid, areas } = useProg();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const lista = useParadas();
+  const salvo = lembrarSolicitante();
+  const [tipo, setTipo] = useState<TipoParada>('geral');
+  const [area, setArea] = useState(salvo.area);
+  const [equipamento, setEquipamento] = useState('');
+  const [inicio, setInicio] = useState('');
+  const [fim, setFim] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [solicitante, setSolicitante] = useState(salvo.solicitante);
+  const [contato, setContato] = useState(salvo.contato);
+  const [pedidos, setPedidos] = useState<PedidoParada[]>([]);
+  const [filtro, setFiltro] = useState<'minhas' | 'todas'>('minhas');
+  useEffect(() => ouvirPedidosParada(api, new Date(Date.now() - 120 * 86_400_000).toISOString(), setPedidos), [api]);
+
+  const enviar = (e: FormEvent) => {
+    e.preventDefault();
+    const agora = new Date().toISOString();
+    const p: PedidoParada = {
+      id: newId(),
+      tipo,
+      area: limparTexto(area, 60),
+      equipamento: maiusculas(equipamento, EQUIP_MAX),
+      descricao: limparTexto(descricao, DESCRICAO_MAX),
+      inicio,
+      fim: fim && fim >= inicio ? fim : inicio,
+      solicitante: limparTexto(solicitante, 80),
+      contato: limparTexto(contato, 80),
+      criadoUid: uid,
+      criadoEm: agora,
+      status: 'pendente',
+      resposta: '',
+      atualizadoEm: agora,
+      atualizadoPor: 'anônimo',
+    };
+    if (!p.area) return toast('Escolha a área.', 'warn');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.inicio)) return toast('Informe o início da parada.', 'warn');
+    if (!p.solicitante) return toast('Informe seu nome.', 'warn');
+    guardarSolicitante(p.solicitante, p.contato, p.area);
+    gravarPedidoParada(api, p).catch(() => toast('A nuvem recusou o envio. Confira os campos.', 'danger'));
+    toast('Parada enviada; a programação vai confirmar');
+    setEquipamento('');
+    setInicio('');
+    setFim('');
+    setDescricao('');
+    setFiltro('minhas');
+  };
+  const cancelar = async (p: PedidoParada) => {
+    if (!(await confirm({ title: 'Cancelar o envio desta parada?', message: <p>{p.area}</p>, confirmLabel: 'Cancelar envio', danger: true }))) return;
+    gravarPedidoParada(api, { ...p, status: 'cancelada', atualizadoEm: new Date().toISOString(), atualizadoPor: 'anônimo' }).catch(() =>
+      toast('Não foi possível cancelar.', 'danger'),
+    );
+  };
+  const vis = pedidos.filter((p) => filtro === 'todas' || p.criadoUid === uid);
+
+  return (
+    <div className="stack prog">
+      <section className="card pad stack">
+        <h2>Calendário de paradas</h2>
+        <p className="small muted">Paradas das áreas confirmadas pela programação. A sua área vai parar? Informe abaixo.</p>
+        <Legenda />
+      </section>
+      <VistaParadas lista={lista} />
+
+      <form className="card pad stack" onSubmit={enviar}>
+        <h3>Informar parada da área</h3>
+        <div className="segmented" role="radiogroup" aria-label="Tipo de parada">
+          {TIPOS_PARADA.map((t) => (
+            <button key={t.id} type="button" role="radio" aria-checked={tipo === t.id} className={'seg' + (tipo === t.id ? ' on' : '')} onClick={() => setTipo(t.id)}>
+              {t.icone} {t.nome}
+            </button>
+          ))}
+        </div>
+        <label className="field">
+          Área
+          <select className="input" value={area} onChange={(e) => setArea(e.target.value)}>
+            <option value="">Escolha…</option>
+            {areas.map((a) => (
+              <option key={a.nome}>{a.nome}</option>
+            ))}
+            {area && !areas.some((a) => a.nome === area) && <option>{area}</option>}
+          </select>
+        </label>
+        <label className="field">
+          Equipamento (opcional)
+          <input className="input" value={equipamento} maxLength={EQUIP_MAX} onChange={(e) => setEquipamento(e.target.value)} />
+        </label>
+        <div className="two-cols">
+          <label className="field">
+            Início
+            <input className="input" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+          </label>
+          <label className="field">
+            Fim
+            <input className="input" type="date" value={fim} min={inicio} onChange={(e) => setFim(e.target.value)} />
+          </label>
+        </div>
+        <label className="field">
+          Observação (opcional)
+          <textarea className="input" rows={2} maxLength={DESCRICAO_MAX} value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+        </label>
+        <div className="two-cols">
+          <label className="field">
+            Seu nome
+            <input className="input" value={solicitante} maxLength={80} autoComplete="name" onChange={(e) => setSolicitante(e.target.value)} />
+          </label>
+          <label className="field">
+            Ramal / telefone (opcional)
+            <input className="input" value={contato} maxLength={80} onChange={(e) => setContato(e.target.value)} />
+          </label>
+        </div>
+        <button className="btn primary" type="submit">
+          Enviar para a programação
+        </button>
+      </form>
+
+      <section className="card pad stack">
+        <div className="row between">
+          <h3>Paradas enviadas</h3>
+          <div className="segmented">
+            <button className={'seg' + (filtro === 'minhas' ? ' on' : '')} onClick={() => setFiltro('minhas')}>
+              Deste aparelho
+            </button>
+            <button className={'seg' + (filtro === 'todas' ? ' on' : '')} onClick={() => setFiltro('todas')}>
+              Todas
+            </button>
+          </div>
+        </div>
+        {vis.length === 0 ? (
+          <p className="muted small">Nenhuma parada enviada.</p>
+        ) : (
+          <ul className="plain-list solic-list">
+            {vis.map((p) => (
+              <li key={p.id} className="solic">
+                <div className="row between">
+                  <b>
+                    {TIPOS_PARADA.find((t) => t.id === p.tipo)?.icone} {p.area}
+                    {p.equipamento && ` · ${p.equipamento}`}
+                  </b>
+                  <span className={'badge ' + STATUS_PEDIDO[p.status].cls}>{STATUS_PEDIDO[p.status].nome}</span>
+                </div>
+                <div className="small">
+                  {p.inicio === p.fim ? dataBr(p.inicio) : `${dataBr(p.inicio)} a ${dataBr(p.fim)}`} · {p.solicitante}
+                  {p.contato && ` (${p.contato})`}
+                </div>
+                {p.descricao && <div className="small muted">{p.descricao}</div>}
+                {p.resposta && <div className="small">Programação: {p.resposta}</div>}
+                {p.status === 'pendente' && p.criadoUid === uid && (
+                  <button className="link small" onClick={() => void cancelar(p)}>
+                    Cancelar envio
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
 
-function ParadaDialog({ atual, nova, onClose }: { atual: Parada; nova: boolean; onClose: () => void }) {
+/** GESTÃO (programador): confirmar as paradas enviadas pelas áreas e lançar/corrigir paradas. */
+export function ParadasGestao() {
+  const { api, por, pode } = useProg();
+  const toast = useToast();
+  const lista = useParadas();
+  const [pedidos, setPedidos] = useState<PedidoParada[]>([]);
+  const [edicao, setEdicao] = useState<{ p: Parada; nova: boolean; pedido?: PedidoParada } | null>(null);
+  useEffect(() => ouvirPedidosParada(api, new Date(Date.now() - 120 * 86_400_000).toISOString(), setPedidos), [api]);
+  const pendentes = pedidos.filter((p) => p.status === 'pendente').sort((a, b) => a.inicio.localeCompare(b.inicio));
+  if (!pode.programar) return <p className="muted">Só a programação confirma e lança paradas.</p>;
+
+  const agora = () => new Date().toISOString();
+  const nova = () =>
+    setEdicao({
+      nova: true,
+      p: { id: newId(), tipo: 'geral', area: '', equipamento: '', descricao: '', inicio: hojeIso(), fim: hojeIso(), criadoEm: agora(), criadoPor: por, atualizadoEm: agora(), atualizadoPor: por },
+    });
+  const comoParada = (x: PedidoParada): Parada => ({
+    id: x.id,
+    tipo: x.tipo,
+    area: x.area,
+    equipamento: x.equipamento,
+    descricao: x.descricao,
+    inicio: x.inicio,
+    fim: x.fim,
+    criadoEm: x.criadoEm,
+    criadoPor: `${x.solicitante} (área)`,
+    atualizadoEm: agora(),
+    atualizadoPor: por,
+  });
+  const confirmar = (x: PedidoParada) => {
+    gravarParada(api, comoParada(x), por).catch(() => toast('A nuvem recusou a parada.', 'danger'));
+    gravarPedidoParada(api, { ...x, status: 'confirmada', atualizadoEm: agora(), atualizadoPor: por }).catch(() => {});
+    toast('Parada confirmada no calendário');
+  };
+  const recusar = (x: PedidoParada) => {
+    const motivo = window.prompt('Motivo (aparece para a área):', '');
+    if (motivo === null) return;
+    gravarPedidoParada(api, { ...x, status: 'recusada', resposta: motivo.trim().slice(0, 300), atualizadoEm: agora(), atualizadoPor: por }).catch(() =>
+      toast('Não foi possível recusar.', 'danger'),
+    );
+  };
+
+  return (
+    <div className="stack prog">
+      {pendentes.length > 0 && (
+        <section className="card pad stack inbox">
+          <h3>
+            📥 Paradas enviadas pelas áreas <span className="badge pend num">{pendentes.length}</span>
+          </h3>
+          <ul className="plain-list solic-list">
+            {pendentes.map((x) => (
+              <li key={x.id} className={'solic'}>
+                <div className="row between">
+                  <b>
+                    {TIPOS_PARADA.find((t) => t.id === x.tipo)?.icone} {x.area}
+                    {x.equipamento && ` · ${x.equipamento}`}
+                  </b>
+                  <span className="small">{TIPOS_PARADA.find((t) => t.id === x.tipo)?.nome}</span>
+                </div>
+                <div className="small">
+                  {x.inicio === x.fim ? dataBr(x.inicio) : `${dataBr(x.inicio)} a ${dataBr(x.fim)}`} · {x.solicitante}
+                  {x.contato && ` (${x.contato})`}
+                </div>
+                {x.descricao && <div className="small muted">{x.descricao}</div>}
+                <div className="row">
+                  <button className="btn primary small" onClick={() => confirmar(x)}>
+                    Confirmar
+                  </button>
+                  <button className="btn small" onClick={() => setEdicao({ p: comoParada(x), nova: true, pedido: x })}>
+                    Ajustar e confirmar
+                  </button>
+                  <button className="btn small" onClick={() => recusar(x)}>
+                    Recusar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <section className="card pad stack">
+        <div className="row between">
+          <h2>Paradas confirmadas</h2>
+          <button className="btn primary small" onClick={nova}>
+            + Parada
+          </button>
+        </div>
+        <Legenda />
+      </section>
+      <VistaParadas lista={lista} />
+      <ListaParadas lista={lista} onEditar={(p) => setEdicao({ p, nova: false })} />
+      {edicao && (
+        <ParadaDialog
+          atual={edicao.p}
+          nova={edicao.nova}
+          onClose={() => setEdicao(null)}
+          onSalvo={(p) =>
+            edicao.pedido &&
+            gravarPedidoParada(api, {
+              ...edicao.pedido,
+              status: 'confirmada',
+              resposta: edicao.pedido.inicio !== p.inicio || edicao.pedido.fim !== p.fim ? `Confirmada com ajuste: ${dataBr(p.inicio)} a ${dataBr(p.fim)}` : '',
+              atualizadoEm: agora(),
+              atualizadoPor: por,
+            }).catch(() => {})
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+function ParadaDialog({ atual, nova, onClose, onSalvo }: { atual: Parada; nova: boolean; onClose: () => void; onSalvo?: (p: Parada) => void }) {
   const { api, por, areas } = useProg();
   const toast = useToast();
   const confirm = useConfirm();
@@ -126,6 +398,7 @@ function ParadaDialog({ atual, nova, onClose }: { atual: Parada; nova: boolean; 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(x.inicio)) return toast('Informe o início.', 'warn');
     if (!x.fim || x.fim < x.inicio) x.fim = x.inicio;
     gravarParada(api, x, por, nova ? undefined : atual.inicio.slice(0, 4)).catch(() => toast('A nuvem recusou a parada.', 'danger'));
+    onSalvo?.(x);
     toast(nova ? 'Parada lançada' : 'Parada atualizada');
     onClose();
   };
