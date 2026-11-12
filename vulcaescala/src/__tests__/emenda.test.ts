@@ -76,3 +76,41 @@ describe('registro incompleto', () => {
     expect(e.efetivo).toEqual([]);
   });
 });
+
+import { emendaComBase, proximoNumero } from '../emenda/model';
+
+describe('nova emenda com base em outra', () => {
+  const orig = {
+    ...novaEmenda('a', '2026-11-10', 'x', ['Termômetro']),
+    tag: 'L-21',
+    om: '900012345678',
+    numero: '1',
+    especificacao: 'EP 1000/4',
+    largura: '1200',
+    efetivo: [{ workerId: '', nome: 'FULANO', matricula: '' }],
+    materiaisEmenda: [{ nome: 'Cola', lote: 'L1', validade: '2027-01' }] as never,
+    tempAmbiente: '30',
+    umidade: '70',
+    horaFechada: '10:00',
+    dureza: '60',
+    ckLixada: 'Sim' as const,
+    libTecnico: { nome: 'T', data: '2026-11-10', assinatura: 'data:image/png;base64,AAA' } as never,
+  };
+  const n = emendaComBase(orig, 'b', '2026-11-12', 'y');
+  it('copia identificação, efetivo, materiais e dados da emenda', () => {
+    expect([n.tag, n.om, n.especificacao, n.largura]).toEqual(['L-21', '900012345678', 'EP 1000/4', '1200']);
+    expect(n.efetivo).toEqual(orig.efetivo);
+    expect(n.materiaisEmenda).toEqual(orig.materiaisEmenda);
+    expect(n.efetivo).not.toBe(orig.efetivo); // cópia, não o mesmo objeto
+  });
+  it('id, data e número novos; dados da execução e assinaturas em branco', () => {
+    expect([n.id, n.data, n.numero]).toEqual(['b', '2026-11-12', '2']);
+    expect([n.tempAmbiente, n.umidade, n.horaFechada, n.dureza, n.ckLixada]).toEqual(['', '', '', '', '']);
+    expect(JSON.stringify(n.libTecnico)).not.toContain('base64');
+  });
+  it('próximo número', () => {
+    expect(proximoNumero('9')).toBe('10');
+    expect(proximoNumero('1A')).toBe('');
+    expect(proximoNumero('')).toBe('');
+  });
+});
