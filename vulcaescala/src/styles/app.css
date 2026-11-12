@@ -471,3 +471,8 @@ input.input[type='time']::-webkit-date-and-time-value { text-align: left; margin
 .prog-strip ul { margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .prog-strip-item { font-size: 0.88rem; }
 .prog-strip .btn.small { min-height: 34px; padding: 4px 10px; font-size: 0.82rem; }
+
+/* celular deitado (altura pequena): o cabeçalho rola com a página em vez de ocupar a tela */
+@media (orientation: landscape) and (max-height: 520px) {
+  .app-header { position: static; }
+}

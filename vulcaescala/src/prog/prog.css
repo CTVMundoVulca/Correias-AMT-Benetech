@@ -336,3 +336,29 @@
   .fila .col-larga { display: block; grid-column: 1 / -1; }
   .fila-serv { min-width: 0; }
 }
+
+/* mapa de paradas (linha do tempo do mês) */
+.mapa-paradas { display: flex; flex-direction: column; gap: 10px; }
+.mp-grade { display: grid; gap: 2px 1px; min-width: 760px; align-items: stretch; font-size: 0.72rem; }
+.mp-linha { display: contents; }
+.mp-canto { position: sticky; left: 0; background: var(--surface); z-index: 2; }
+.mp-dia { display: flex; flex-direction: column; align-items: center; line-height: 1.1; color: var(--ink-2); padding: 2px 0; border-radius: 4px; }
+.mp-dia.fds { color: var(--red-ink); }
+.mp-dia.hoje { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.mp-dow { font-size: 0.6rem; }
+.mp-area { position: sticky; left: 0; z-index: 2; background: var(--surface); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 6px 6px 6px 0; grid-row: inherit; }
+.mp-cel { background: var(--surface-2); border-radius: 3px; min-height: 28px; grid-row: inherit; }
+.mp-cel.hoje { box-shadow: inset 0 0 0 2px var(--accent); }
+.mp-barra { grid-row: inherit; z-index: 1; display: flex; align-items: center; gap: 4px; padding: 0 6px; margin: 3px 0; border-radius: 6px; background: var(--par-bg); color: var(--par-ink); border: 1px solid var(--par-ink); font-weight: 700; overflow: hidden; white-space: nowrap; }
+.mp-rot { overflow: hidden; text-overflow: ellipsis; font-size: 0.7rem; }
+
+/* celular deitado: altura pequena — cabeçalho e ações rolam com a página */
+@media (orientation: landscape) and (max-height: 520px) {
+  .app-header { position: static; }
+  .app-header-inner { padding-top: 4px; }
+  .prog-tabs .tab { min-height: 34px; padding: 4px 8px; }
+  .tela-central .acoes-rapidas { position: static; background: none; border: 0; padding: 0; flex-wrap: wrap; }
+  .tela-central .acao { background: var(--surface); border: 1px solid var(--line); color: var(--ink); min-width: 96px; }
+  .prog-main.larga { padding-bottom: 16px; }
+  .prog-main.larga, .app-header-inner { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+}

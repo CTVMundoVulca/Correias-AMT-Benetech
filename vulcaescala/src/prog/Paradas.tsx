@@ -7,6 +7,8 @@ import { useParadas, useProg } from './context';
 import { excluirParada, gravarParada } from './data';
 import { dataBr } from './Solicitar';
 import { corDaArea } from './Painel';
+import { MONTHS, WEEKDAYS_SHORT, fromIsoDate, locateDay } from '../domain/isoWeek';
+import { feriadoEm } from '../domain/feriados';
 import { DESCRICAO_MAX, EQUIP_MAX, TIPOS_PARADA, hojeIso, limparTexto, maiusculas, type Parada } from './model';
 
 /** Calendário de paradas: todos consultam; administradores lançam. */
@@ -54,6 +56,9 @@ export function Paradas() {
             Encerradas
           </button>
         </div>
+      </section>
+      <section className="card pad">
+        <MapaParadas paradas={lista} />
       </section>
       {vis.length === 0 ? (
         <p className="muted">{verPassadas ? 'Nenhuma parada encerrada.' : 'Nenhuma parada programada.'}</p>
@@ -180,5 +185,96 @@ function ParadaDialog({ atual, nova, onClose }: { atual: Parada; nova: boolean; 
         </label>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * Mapa de paradas do mês: uma linha por área, uma coluna por dia; a barra mostra o período
+ * de cada parada com a cor do tipo (geral / intervenção crítica / parcial).
+ */
+export function MapaParadas({ paradas }: { paradas: Parada[] }) {
+  const { feriados } = useProg();
+  const hoje = hojeIso();
+  const [ym, setYm] = useState(hoje.slice(0, 7));
+  const [y, m] = ym.split('-').map(Number);
+  const nDias = new Date(y, m, 0).getDate();
+  const dias = Array.from({ length: nDias }, (_, i) => `${ym}-${String(i + 1).padStart(2, '0')}`);
+  const mudar = (n: number) => {
+    const d = new Date(y, m - 1 + n, 1);
+    setYm(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+  const doMes = paradas.filter((p) => p.fim >= dias[0] && p.inicio <= dias[nDias - 1]);
+  const porArea = new Map<string, Parada[]>();
+  for (const p of doMes) porArea.set(p.area || '—', [...(porArea.get(p.area || '—') ?? []), p]);
+  const linhas = [...porArea.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+  const col = (d: string) => Math.max(1, Math.min(nDias, Number(d.slice(8)))) ;
+
+  return (
+    <div className="mapa-paradas">
+      <div className="row between nowrap">
+        <button className="btn small" onClick={() => mudar(-1)} aria-label="Mês anterior">
+          ‹
+        </button>
+        <h3 className="center">
+          Mapa de paradas — {MONTHS[m - 1]} <span className="num muted">{y}</span>
+        </h3>
+        <button className="btn small" onClick={() => mudar(1)} aria-label="Próximo mês">
+          ›
+        </button>
+      </div>
+      {linhas.length === 0 ? (
+        <p className="muted small center">Nenhuma parada neste mês.</p>
+      ) : (
+        <div className="table-wrap">
+          <div className="mp-grade" style={{ gridTemplateColumns: `minmax(96px, 150px) repeat(${nDias}, minmax(22px, 1fr))` }}>
+            <span className="mp-canto" />
+            {dias.map((d) => {
+              const dt = fromIsoDate(d)!;
+              const di = locateDay(dt).dayIndex;
+              const folga = di >= 5 || !!feriadoEm(feriados, d);
+              return (
+                <span key={d} className={'mp-dia' + (folga ? ' fds' : '') + (d === hoje ? ' hoje' : '')} title={feriadoEm(feriados, d) ?? undefined}>
+                  <span className="mp-dow">{WEEKDAYS_SHORT[di][0]}</span>
+                  <span className="num">{d.slice(8)}</span>
+                </span>
+              );
+            })}
+            {linhas.map(([area, ps], li) => (
+              <div key={area} className="mp-linha" style={{ gridRow: li + 2 }}>
+                <span className="mp-area" style={{ gridColumn: 1 }} title={area}>
+                  <span className={'sw-area ' + corDaArea(area)} /> {area}
+                </span>
+                {dias.map((d, i) => (
+                  <span key={d} className={'mp-cel' + (d === hoje ? ' hoje' : '')} style={{ gridColumn: i + 2 }} />
+                ))}
+                {ps.map((p) => {
+                  const t = TIPOS_PARADA.find((x) => x.id === p.tipo)!;
+                  const a = p.inicio < dias[0] ? 1 : col(p.inicio);
+                  const b = p.fim > dias[nDias - 1] ? nDias : col(p.fim);
+                  return (
+                    <span
+                      key={p.id}
+                      className={'mp-barra parada-' + p.tipo}
+                      style={{ gridColumn: `${a + 1} / ${b + 2}` }}
+                      title={`${t.nome} · ${area}${p.equipamento ? ` · ${p.equipamento}` : ''} · ${dataBr(p.inicio)}${p.fim !== p.inicio ? ` a ${dataBr(p.fim)}` : ''}${p.descricao ? ` — ${p.descricao}` : ''}`}
+                    >
+                      {t.icone}
+                      {b - a >= 2 && <span className="mp-rot">{p.equipamento || t.nome}</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <ul className="legenda-areas">
+        {TIPOS_PARADA.map((t) => (
+          <li key={t.id}>
+            <span className={'sw-parada parada-' + t.id}>{t.icone}</span> {t.nome}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
