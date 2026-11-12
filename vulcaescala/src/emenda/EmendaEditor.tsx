@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useToast } from '../ui/Toast';
 import { irPara, podeExcluir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
-import { gravarCampos, ouvirEmenda } from './data';
+import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
+import { newId } from '../domain/ids';
+import { emendaComBase, hojeIso } from './model';
 import {
   fmtData,
   liberacaoVazia,
@@ -144,6 +146,26 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
   const excluir = async () => {
     if (await excluirEmenda(e)) irPara('#');
   };
+  // "Nova com base nesta": copia o que se repete (TAG, OM, efetivo, materiais, dados da
+  // emenda, prensa) e deixa em branco o que é da execução (data, horários, checklists, fotos, assinaturas)
+  const novaComBase = () => {
+    flush();
+    const nova = { ...emendaComBase(e, newId(), hojeIso(), por), criadoUid: uid };
+    criarEmenda(api, nova).catch(() => toast('A nuvem recusou a cópia.', 'danger'));
+    try {
+      sessionStorage.setItem(`emenda:copia:${nova.id}`, `${e.numero ? `nº ${e.numero}` : 'anterior'} — ${e.tag || 'sem TAG'}`);
+    } catch {
+      /* sem armazenamento: só não mostra o aviso */
+    }
+    toast('Nova emenda criada com base nesta');
+    irPara(`#/e/${nova.id}`);
+  };
+  let copiaDe: string | null = null;
+  try {
+    copiaDe = sessionStorage.getItem(`emenda:copia:${id}`);
+  } catch {
+    /* sem armazenamento */
+  }
   // PDF de um relatório que ainda não tem nada não faz sentido (e ele nem existe na nuvem)
   const abrirPdf = () => {
     if (vazio) return toast('Preencha o relatório antes de gerar o PDF.', 'warn');
@@ -160,10 +182,21 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <strong className="grow ellipsis" style={{ textAlign: 'center' }}>
           Emenda nº {e.numero || '?'} — {e.tag || 'sem TAG'}
         </strong>
+        {!vazio && (
+          <button className="btn small" onClick={novaComBase} title="Criar nova emenda com base nesta" aria-label="Criar nova emenda com base nesta">
+            ⧉ Copiar
+          </button>
+        )}
         <button className="btn small primary" onClick={abrirPdf}>
           PDF
         </button>
       </div>
+      {copiaDe && (
+        <div className="banner warn small">
+          <b>Criada com base na emenda {copiaDe}.</b> Foram copiados TAG, OM, efetivo, materiais, aparelhos, dados da emenda e da prensa. Confira o{' '}
+          <b>número</b> e a <b>data</b> e preencha o que é desta execução: horários, temperaturas, clima, demãos, checklists, dureza, fotos e assinaturas.
+        </div>
+      )}
 
       <Sec n="1" t="Identificação">
         <div className="g2">
@@ -321,6 +354,11 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <button className="btn primary" onClick={abrirPdf}>
           📄 Gerar relatório (PDF)
         </button>
+        {!vazio && (
+          <button className="btn" onClick={novaComBase}>
+            ⧉ Nova emenda com base nesta
+          </button>
+        )}
         <button className="btn" onClick={() => (flush(), irPara('#'))}>
           Voltar à lista
         </button>
