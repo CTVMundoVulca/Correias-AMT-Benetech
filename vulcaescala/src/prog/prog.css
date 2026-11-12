@@ -457,3 +457,25 @@
 .modo-pdf .prog-dia .dia-corpo { display: block !important; }
 .modo-pdf .chevron, .modo-pdf .apontar-btn, .modo-pdf .dia-cab-pend, .modo-pdf .dia-cab-txt .barra-areas { display: none !important; }
 @media (prefers-reduced-motion: reduce) { .dia-cab .chevron { transition: none; } }
+
+/* Dia a dia e OMs recolhíveis */
+.recolher-barra { align-items: center; }
+.area-cab { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.area-cab:focus-visible, .om-grupo-cab:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.area-cab .chevron, .om-grupo-cab .chevron { color: var(--ink-2); width: 16px; flex-shrink: 0; text-align: center; transition: transform 0.12s; font-size: 1.2rem; }
+.area-cab[aria-expanded='true'] .chevron, .om-grupo-cab[aria-expanded='true'] .chevron { transform: rotate(90deg); }
+.area-cab-txt { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.area-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.tag-equip.mini { font-size: 0.68rem; padding: 0 4px; }
+.area-cartao.fechado { padding-top: 8px; padding-bottom: 8px; }
+.om-grupo { border-left: 6px solid var(--cor, var(--a0)); padding: 8px 12px; }
+.om-grupo-cab { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; min-height: 40px; }
+.om-grupo-n { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.om-grupo-corpo { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.om-grupo-corpo .om-item { background: var(--surface-2); }
+@media (prefers-reduced-motion: reduce) { .area-cab .chevron, .om-grupo-cab .chevron { transition: none; } }
+/* OM no celular: número e situação quebram linha em vez de alargar a página */
+.om-item > .row.between.nowrap { flex-wrap: wrap; gap: 4px 8px; }
+.om-item .badge { white-space: normal; max-width: 100%; }
+.recolher-barra .grow { flex: 1 1 100%; }
+@media (min-width: 700px) { .recolher-barra .grow { flex: 1 1 auto; } }

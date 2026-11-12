@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { MONTHS, WEEKDAYS, WEEKDAYS_SHORT, addDays, formatDate, fromIsoDate, isoWeekOf, locateDay, monthWeeks, toIsoDate } from '../domain/isoWeek';
 import { feriadoEm } from '../domain/feriados';
 import { useAtividades, useParadas, useProg } from './context';
+import { useRecolhiveis } from './recolher';
 import { AREA_INTERNA, TIPOS_PARADA, alocacaoDoDia, hojeIso, mesesEntre, nomeClasse, paradasNoDia, type Atividade, type Parada } from './model';
 
 /** Segunda-feira (AAAA-MM-DD) da semana da data. */
@@ -280,6 +281,8 @@ export function Painel() {
   const r = useMemo(() => alocacaoDoDia(lista ?? [], dia), [lista, dia]);
   const doDia = fatiasDoDia((lista ?? []).filter((a) => a.data === dia));
   const parDia = paradasNoDia(paradas, dia);
+  // cartões das áreas recolhidos por padrão (a pergunta da tela é "onde está o efetivo")
+  const rec = useRecolhiveis('prog:areas-abertas', () => false);
   const hoje = hojeIso();
   const escolher = (d: string) => {
     setDia(d);
@@ -337,8 +340,27 @@ export function Painel() {
         )}
       </section>
 
+      {r.areas.length > 1 && (
+        <div className="row recolher-barra">
+          <span className="small muted grow">Toque na área para ver as atividades</span>
+          <button className="btn small" onClick={() => rec.todos(r.areas.map((g) => g.area), true)}>
+            ▾ Expandir todas
+          </button>
+          <button className="btn small" onClick={() => rec.todos(r.areas.map((g) => g.area), false)}>
+            ▸ Recolher todas
+          </button>
+        </div>
+      )}
       {r.areas.map((g) => (
-        <CartaoArea key={g.area} area={g.area} pessoas={g.pessoas} atividades={g.atividades} contato={contato.get(g.area)} />
+        <CartaoArea
+          key={g.area}
+          area={g.area}
+          pessoas={g.pessoas}
+          atividades={g.atividades}
+          contato={contato.get(g.area)}
+          aberto={rec.aberto(g.area)}
+          onAlternar={() => rec.alternar(g.area)}
+        />
       ))}
 
       {r.canceladas.length > 0 && (
@@ -369,32 +391,96 @@ export function Painel() {
   );
 }
 
-export function CartaoArea({ area, pessoas, atividades, contato }: { area: string; pessoas: number; atividades: Atividade[]; contato?: string }) {
-  return (
-    <section className={'card area-cartao ' + corDaArea(area)}>
-      <div className="row between nowrap area-topo">
-        <h3>{area}</h3>
-        <span className="area-pes" title="pessoas da vulcanização">
-          👷 <b className="num">{pessoas || '—'}</b>
+/** Cartão de uma área no Dia a dia. Recolhido: área, pessoas, nº de atividades e TAGs. */
+export function CartaoArea({
+  area,
+  pessoas,
+  atividades,
+  contato,
+  aberto = true,
+  onAlternar,
+}: {
+  area: string;
+  pessoas: number;
+  atividades: Atividade[];
+  contato?: string;
+  aberto?: boolean;
+  onAlternar?: () => void;
+}) {
+  const tags = [...new Set(atividades.map((a) => a.equipamento).filter(Boolean))];
+  const cab = (
+    <>
+      {onAlternar && (
+        <span className="chevron" aria-hidden>
+          ›
         </span>
+      )}
+      <div className="grow area-cab-txt">
+        <h3>{area}</h3>
+        {!aberto && (
+          <div className="small muted area-resumo">
+            {atividades.length} atividade{atividades.length === 1 ? '' : 's'}
+            {tags.length > 0 && (
+              <>
+                {' · '}
+                {tags.slice(0, 6).map((t) => (
+                  <span key={t} className="tag-equip mini">
+                    {t}
+                  </span>
+                ))}
+                {tags.length > 6 && ` +${tags.length - 6}`}
+              </>
+            )}
+          </div>
+        )}
       </div>
-      {contato && <p className="small area-contato">📞 Liberação: {contato}</p>}
-      <ul className="plain-list cartao-ativs">
-        {atividades.map((a) => (
-          <li key={a.id} className="cartao-ativ">
-            <span className="tag-equip">{a.equipamento || '—'}</span>
-            <span className="cartao-desc">{a.descricao}</span>
-            <span className="cartao-meta">
-              {a.pessoas > 0 && <span>👷{a.pessoas}</span>}
-              {a.equipe === 'turno' && <span title="Equipe de turno">🌙</span>}
-              {a.horario && <span>🕐 {a.horario}</span>}
-              {a.classe === 'emergencia' && <span className="pill emerg">⚡ Emergência</span>}
-              {a.classe === 'nao_programada' && <span className="pill naoprog">⏱ Não programada</span>}
-              {a.retrabalho && <span className="pill retra">↺ Retrabalho</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <span className="area-pes" title="pessoas da vulcanização">
+        👷 <b className="num">{pessoas || '—'}</b>
+      </span>
+    </>
+  );
+  return (
+    <section className={'card area-cartao ' + corDaArea(area) + (aberto ? '' : ' fechado')}>
+      {onAlternar ? (
+        <div
+          className="area-topo area-cab"
+          role="button"
+          tabIndex={0}
+          aria-expanded={aberto}
+          onClick={onAlternar}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onAlternar();
+            }
+          }}
+        >
+          {cab}
+        </div>
+      ) : (
+        <div className="row between nowrap area-topo">{cab}</div>
+      )}
+      {aberto && (
+        <>
+          {contato && <p className="small area-contato">📞 Liberação: {contato}</p>}
+          <ul className="plain-list cartao-ativs">
+            {atividades.map((a) => (
+              <li key={a.id} className="cartao-ativ">
+                <span className="tag-equip">{a.equipamento || '—'}</span>
+                <span className="cartao-desc">{a.descricao}</span>
+                <span className="cartao-meta">
+                  {a.pessoas > 0 && <span>👷{a.pessoas}</span>}
+                  {a.equipe === 'turno' && <span title="Equipe de turno">🌙</span>}
+                  {a.horario && <span>🕐 {a.horario}</span>}
+                  {a.classe === 'emergencia' && <span className="pill emerg">⚡ Emergência</span>}
+                  {a.classe === 'nao_programada' && <span className="pill naoprog">⏱ Não programada</span>}
+                  {a.retrabalho && <span className="pill retra">↺ Retrabalho</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

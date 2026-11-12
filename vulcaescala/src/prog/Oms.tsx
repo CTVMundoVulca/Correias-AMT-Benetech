@@ -3,6 +3,8 @@ import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useOms, useProg } from './context';
 import { gravarOms, gravarRetornos } from './data';
+import { useRecolhiveis } from './recolher';
+import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
 import { SITUACOES, contarOms, diasEntre, hojeIso, semAcento, type OmInfo, type SituacaoOm } from './model';
 
@@ -15,6 +17,7 @@ type Filtro = SituacaoOm | 'pendentes' | 'todas';
 export function Oms() {
   const { api, por, pode } = useProg();
   const seleciona = pode.programar || pode.retorno;
+  const rec = useRecolhiveis('prog:oms-grupos', () => false);
   const toast = useToast();
   const confirm = useConfirm();
   const oms = useOms();
@@ -77,60 +80,17 @@ export function Oms() {
     { id: 'sem_registro', nome: 'Sem registro', n: cont.sem_registro },
   ];
 
-  return (
-    <div className="stack prog">
-      <section className="card pad stack">
-        <h2>Controle de OMs</h2>
-        <p className="small muted">
-          Fluxo: o <b>supervisor</b> marca a OM como realizada (<b>retorno</b>) e a <b>programação</b> dá a <b>baixa</b> no SAP. “Sem registro” = OMs da
-          planilha antes da semana 10, quando o controle de retorno ainda não existia.
-        </p>
-        <div className="segmented">
-          {filtros.map((f) => (
-            <button key={f.id} className={'seg' + (filtro === f.id ? ' on' : '')} onClick={() => setFiltro(f.id)}>
-              {f.nome} <span className="num">({f.n})</span>
-            </button>
-          ))}
-        </div>
-        <input className="input" type="search" placeholder="Buscar OM, equipamento, área…" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        {seleciona && sel.size > 0 && (
-          <div className="row">
-            {pode.retorno && (
-              <button className="btn" onClick={() => void emLote('retorno')}>
-                ✓ Realizadas ({sel.size})
-              </button>
-            )}
-            {pode.programar && (
-              <button className="btn primary" onClick={() => void emLote('baixa')}>
-                Dar baixa ({sel.size})
-              </button>
-            )}
-            <button className="btn" onClick={() => setSel(new Set())}>
-              Limpar seleção
-            </button>
-          </div>
-        )}
-      </section>
+  // agrupadas por área (recolhíveis); a área com a OM pendente mais antiga vem primeiro
+  const grupos = useMemo(() => {
+    const m = new Map<string, OmInfo[]>();
+    for (const o of lista) {
+      const k = o.area || 'SEM ÁREA';
+      m.set(k, [...(m.get(k) ?? []), o]);
+    }
+    return [...m.entries()].sort((a, b) => a[1][0].ultimaData.localeCompare(b[1][0].ultimaData) || a[0].localeCompare(b[0], 'pt-BR'));
+  }, [lista]);
 
-      {oms === null ? (
-        <p className="muted">Carregando…</p>
-      ) : lista.length === 0 ? (
-        <p className="muted">Nenhuma OM neste filtro.</p>
-      ) : (
-        <ul className="plain-list stack">
-          {seleciona && (
-            <li>
-              <label className="check small">
-                <input
-                  type="checkbox"
-                  checked={lista.length > 0 && lista.every((o) => sel.has(o.om))}
-                  onChange={(e) => setSel(e.target.checked ? new Set(lista.map((o) => o.om)) : new Set())}
-                />{' '}
-                Selecionar todas as {lista.length} desta lista
-              </label>
-            </li>
-          )}
-          {lista.slice(0, 300).map((o) => {
+  const itemOm = (o: OmInfo) => {
             const atraso = o.situacao !== 'baixada' && o.ultimaData < hoje ? diasEntre(o.ultimaData, hoje) : 0;
             return (
               <li key={o.om} className="card pad om-item">
@@ -188,8 +148,131 @@ export function Oms() {
                 </div>
               </li>
             );
+          };
+
+  return (
+    <div className="stack prog">
+      <section className="card pad stack">
+        <h2>Controle de OMs</h2>
+        <p className="small muted">
+          Fluxo: o <b>supervisor</b> marca a OM como realizada (<b>retorno</b>) e a <b>programação</b> dá a <b>baixa</b> no SAP. “Sem registro” = OMs da
+          planilha antes da semana 10, quando o controle de retorno ainda não existia.
+        </p>
+        <div className="segmented">
+          {filtros.map((f) => (
+            <button key={f.id} className={'seg' + (filtro === f.id ? ' on' : '')} onClick={() => setFiltro(f.id)}>
+              {f.nome} <span className="num">({f.n})</span>
+            </button>
+          ))}
+        </div>
+        <input className="input" type="search" placeholder="Buscar OM, equipamento, área…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+        {grupos.length > 1 && !busca.trim() && (
+          <div className="row recolher-barra">
+            <span className="small muted grow">
+              {lista.length} OM(s) em {grupos.length} área(s) — toque na área para abrir
+            </span>
+            <button className="btn small" onClick={() => rec.todos(grupos.map(([a]) => a), true)}>
+              ▾ Expandir todas
+            </button>
+            <button className="btn small" onClick={() => rec.todos(grupos.map(([a]) => a), false)}>
+              ▸ Recolher todas
+            </button>
+          </div>
+        )}
+        {seleciona && sel.size > 0 && (
+          <div className="row">
+            {pode.retorno && (
+              <button className="btn" onClick={() => void emLote('retorno')}>
+                ✓ Realizadas ({sel.size})
+              </button>
+            )}
+            {pode.programar && (
+              <button className="btn primary" onClick={() => void emLote('baixa')}>
+                Dar baixa ({sel.size})
+              </button>
+            )}
+            <button className="btn" onClick={() => setSel(new Set())}>
+              Limpar seleção
+            </button>
+          </div>
+        )}
+      </section>
+
+      {oms === null ? (
+        <p className="muted">Carregando…</p>
+      ) : lista.length === 0 ? (
+        <p className="muted">Nenhuma OM neste filtro.</p>
+      ) : (
+        <ul className="plain-list stack">
+          {seleciona && (
+            <li>
+              <label className="check small">
+                <input
+                  type="checkbox"
+                  checked={lista.length > 0 && lista.every((o) => sel.has(o.om))}
+                  onChange={(e) => setSel(e.target.checked ? new Set(lista.map((o) => o.om)) : new Set())}
+                />{' '}
+                Selecionar todas as {lista.length} desta lista
+              </label>
+            </li>
+          )}
+          {grupos.map(([area, oms]) => {
+            const abre = !!busca.trim() || rec.aberto(area);
+            const maisAntiga = Math.max(0, ...oms.map((o) => (o.situacao !== 'baixada' && o.ultimaData < hoje ? diasEntre(o.ultimaData, hoje) : 0)));
+            const todosSel = seleciona && oms.every((o) => sel.has(o.om));
+            return (
+              <li key={area} className={'card om-grupo ' + corDaArea(area) + (abre ? '' : ' fechado')}>
+                <div
+                  className="om-grupo-cab"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={abre}
+                  onClick={() => rec.alternar(area)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      rec.alternar(area);
+                    }
+                  }}
+                >
+                  <span className="chevron" aria-hidden>
+                    ›
+                  </span>
+                  <span className={'sw-area ' + corDaArea(area)} />
+                  <b className="grow">{area}</b>
+                  <span className="small muted om-grupo-n">
+                    <span className="num">{oms.length}</span> OM{oms.length === 1 ? '' : 's'}
+                    {maisAntiga > 0 && <span className="badge pend">mais antiga há {maisAntiga} d</span>}
+                  </span>
+                </div>
+                {abre && (
+                  <div className="om-grupo-corpo">
+                    {seleciona && (
+                      <label className="check small">
+                        <input
+                          type="checkbox"
+                          checked={todosSel}
+                          onChange={(e) =>
+                            setSel((s0) => {
+                              const n = new Set(s0);
+                              for (const o of oms) e.target.checked ? n.add(o.om) : n.delete(o.om);
+                              return n;
+                            })
+                          }
+                        />{' '}
+                        Selecionar as {oms.length} desta área
+                      </label>
+                    )}
+                    <ul className="plain-list stack">
+                      {oms.slice(0, 200).map(itemOm)}
+                      {oms.length > 200 && <li className="muted small">Mostrando 200 de {oms.length}. Use a busca para encontrar uma OM.</li>}
+                    </ul>
+                  </div>
+                )}
+              </li>
+            );
           })}
-          {lista.length > 300 && <li className="muted small">Mostrando 300 de {lista.length}. Use a busca para encontrar uma OM.</li>}
+
         </ul>
       )}
     </div>
