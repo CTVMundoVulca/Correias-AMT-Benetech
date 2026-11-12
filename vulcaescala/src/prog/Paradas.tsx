@@ -7,6 +7,7 @@ import { useParadas, useProg } from './context';
 import { excluirParada, gravarParada, gravarPedidoParada, ouvirPedidosParada } from './data';
 import { dataBr, guardarSolicitante, lembrarSolicitante } from './Solicitar';
 import { corDaArea } from './Painel';
+import { RecusarDialog } from './RecusarDialog';
 import { Fragment } from 'react';
 import { MONTHS, WEEKDAYS, WEEKDAYS_SHORT, formatDate, fromIsoDate, locateDay, monthWeeks, toIsoDate } from '../domain/isoWeek';
 import { feriadoEm } from '../domain/feriados';
@@ -278,6 +279,7 @@ export function ParadasGestao() {
   const lista = useParadas();
   const [pedidos, setPedidos] = useState<PedidoParada[]>([]);
   const [edicao, setEdicao] = useState<{ p: Parada; nova: boolean; pedido?: PedidoParada } | null>(null);
+  const [recusando, setRecusando] = useState<PedidoParada | null>(null);
   useEffect(() => ouvirPedidosParada(api, new Date(Date.now() - 120 * 86_400_000).toISOString(), setPedidos), [api]);
   const pendentes = pedidos.filter((p) => p.status === 'pendente').sort((a, b) => a.inicio.localeCompare(b.inicio));
   if (!pode.programar) return <p className="muted">Só a programação confirma e lança paradas.</p>;
@@ -306,13 +308,13 @@ export function ParadasGestao() {
     gravarPedidoParada(api, { ...x, status: 'confirmada', atualizadoEm: agora(), atualizadoPor: por }).catch(() => {});
     toast('Parada confirmada no calendário');
   };
-  const recusar = (x: PedidoParada) => {
-    const motivo = window.prompt('Motivo (aparece para a área):', '');
-    if (motivo === null) return;
-    gravarPedidoParada(api, { ...x, status: 'recusada', resposta: motivo.trim().slice(0, 300), atualizadoEm: agora(), atualizadoPor: por }).catch(() =>
+  const recusar = (x: PedidoParada, motivo: string) => {
+    gravarPedidoParada(api, { ...x, status: 'recusada', resposta: motivo, atualizadoEm: agora(), atualizadoPor: por }).catch(() =>
       toast('Não foi possível recusar.', 'danger'),
     );
+    toast('Parada recusada; a área vê o motivo');
   };
+
 
   return (
     <div className="stack prog">
@@ -343,7 +345,7 @@ export function ParadasGestao() {
                   <button className="btn small" onClick={() => setEdicao({ p: comoParada(x), nova: true, pedido: x })}>
                     Ajustar e confirmar
                   </button>
-                  <button className="btn small" onClick={() => recusar(x)}>
+                  <button className="btn small" onClick={() => setRecusando(x)}>
                     Recusar
                   </button>
                 </div>
@@ -363,6 +365,18 @@ export function ParadasGestao() {
       </section>
       <VistaParadas lista={lista} />
       <ListaParadas lista={lista} onEditar={(p) => setEdicao({ p, nova: false })} />
+      {recusando && (
+        <RecusarDialog
+          titulo="Recusar parada"
+          resumo={
+            <>
+              <b>{recusando.area}</b> · {recusando.inicio === recusando.fim ? dataBr(recusando.inicio) : `${dataBr(recusando.inicio)} a ${dataBr(recusando.fim)}`}
+            </>
+          }
+          onRecusar={(m) => recusar(recusando, m)}
+          onClose={() => setRecusando(null)}
+        />
+      )}
       {edicao && (
         <ParadaDialog
           atual={edicao.p}

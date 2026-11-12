@@ -8,6 +8,7 @@ import { gravarSolicitacao, ouvirAbertas } from './data';
 import { AtividadeDialog } from './AtividadeDialog';
 import { AreasDialog } from './AreasDialog';
 import { Importar } from './Importar';
+import { RecusarDialog } from './RecusarDialog';
 import { LinhaAtividade, curtoDia, diasDaSemana, rotuloDia, segundaDe } from './Painel';
 import { dataBr } from './Solicitar';
 import { URGENCIAS, atividadeVazia, hojeIso, maiusculas, mesesEntre, ordenarAtividades, resumir, tipoPelaDescricao, type Atividade, type Solicitacao } from './model';
@@ -26,6 +27,7 @@ export function Programar() {
   const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [areasAberto, setAreasAberto] = useState(false);
   const [importar, setImportar] = useState(false);
+  const [recusando, setRecusando] = useState<Solicitacao | null>(null);
 
   useEffect(() => ouvirAbertas(api, setAbertas), [api]);
 
@@ -46,14 +48,13 @@ export function Programar() {
       a: { ...a, area: s.area, equipamento: s.equipamento, om: s.om, descricao: desc, tipo: tipoPelaDescricao(desc), solicitacaoId: s.id, comunicadoEm: s.criadoEm },
     });
   };
-  const recusar = (s: Solicitacao) => {
-    const motivo = window.prompt('Motivo da recusa (aparece para quem pediu):', '');
-    if (motivo === null) return;
-    gravarSolicitacao(api, { ...s, status: 'recusada', resposta: motivo.trim().slice(0, 300), atualizadoEm: new Date().toISOString(), atualizadoPor: por }).catch(() =>
+  const recusar = (s: Solicitacao, motivo: string) => {
+    gravarSolicitacao(api, { ...s, status: 'recusada', resposta: motivo, atualizadoEm: new Date().toISOString(), atualizadoPor: por }).catch(() =>
       toast('Não foi possível recusar.', 'danger'),
     );
-    toast('Solicitação recusada');
+    toast('Solicitação recusada; a área vê o motivo');
   };
+
 
   return (
     <div className="stack prog">
@@ -82,7 +83,7 @@ export function Programar() {
                   <button className="btn primary small" onClick={() => programarSolic(s)}>
                     Programar
                   </button>
-                  <button className="btn small" onClick={() => recusar(s)}>
+                  <button className="btn small" onClick={() => setRecusando(s)}>
                     Recusar
                   </button>
                 </div>
@@ -173,6 +174,22 @@ export function Programar() {
       )}
       {areasAberto && <AreasDialog onClose={() => setAreasAberto(false)} />}
       {importar && <Importar onClose={() => setImportar(false)} />}
+      {recusando && (
+        <RecusarDialog
+          titulo="Recusar solicitação"
+          resumo={
+            <>
+              <b>
+                {recusando.area}
+                {recusando.equipamento ? ` · ${recusando.equipamento}` : ''}
+              </b>{' '}
+              — {recusando.descricao}
+            </>
+          }
+          onRecusar={(m) => recusar(recusando, m)}
+          onClose={() => setRecusando(null)}
+        />
+      )}
     </div>
   );
 }
