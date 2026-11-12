@@ -10,7 +10,9 @@ import { AreasDialog } from './AreasDialog';
 import { Importar } from './Importar';
 import { RecusarDialog } from './RecusarDialog';
 import { ApontarDialog } from './ApontarDialog';
-import { LinhaAtividade, curtoDia, diasDaSemana, rotuloDia, segundaDe } from './Painel';
+import { BarraAreas, LinhaAtividade, curtoDia, diasDaSemana, fatiasDoDia, rotuloDia, segundaDe } from './Painel';
+
+const CHAVE_ABERTOS = 'prog:dias-abertos';
 import { dataBr } from './Solicitar';
 import { URGENCIAS, atividadeVazia, hojeIso, maiusculas, mesesEntre, ordenarAtividades, resumir, tipoPelaDescricao, type Atividade, type Solicitacao } from './model';
 
@@ -27,6 +29,28 @@ export function Programar() {
   const [abertas, setAbertas] = useState<Solicitacao[]>([]);
   const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [apontar, setApontar] = useState<string | null>(null);
+  // dias recolhidos/abertos (como na Escala): por padrão só o dia de hoje fica aberto; a escolha fica no aparelho
+  const [abertos, setAbertos] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(CHAVE_ABERTOS) ?? '{}') ?? {};
+    } catch {
+      return {};
+    }
+  });
+  const guardar = (m: Record<string, boolean>) => {
+    // só as últimas semanas (não cresce para sempre)
+    const limite = toIsoDate(addDays(fromIsoDate(hojeIso())!, -60));
+    const limpo = Object.fromEntries(Object.entries(m).filter(([k]) => k >= limite));
+    setAbertos(limpo);
+    try {
+      localStorage.setItem(CHAVE_ABERTOS, JSON.stringify(limpo));
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+  };
+  const estaAberto = (d: string) => abertos[d] ?? d === hojeIso();
+  const alternar = (d: string) => guardar({ ...abertos, [d]: !estaAberto(d) });
+  const todos = (v: boolean) => guardar({ ...abertos, ...Object.fromEntries(dias.map((d) => [d, v])) });
   const [areasAberto, setAreasAberto] = useState(false);
   const [importar, setImportar] = useState(false);
   const [recusando, setRecusando] = useState<Solicitacao | null>(null);
@@ -126,6 +150,12 @@ export function Programar() {
           <button className="btn small" onClick={() => setImportar(true)}>
             Importar planilha
           </button>
+          <button className="btn small" onClick={() => todos(true)}>
+            ▾ Expandir todos
+          </button>
+          <button className="btn small" onClick={() => todos(false)}>
+            ▸ Recolher todos
+          </button>
           <PdfBotao alvo={() => document.getElementById('prog-semana')} titulo={`Programação Vulcanização - Semana ${semanaNum}`} className="btn small" />
         </div>
       </section>
@@ -139,15 +169,38 @@ export function Programar() {
           const pessoas = doDia.reduce((s, a) => s + (a.classe === 'cancelada' ? 0 : a.pessoas), 0);
           const aApontar = d <= hojeIso() ? doDia.filter((a) => a.classe !== 'cancelada' && !a.execucao).length : 0;
           return (
-            <section key={d} className={'card pad prog-dia' + (d === hojeIso() ? ' today' : '')}>
-              <div className="row between">
-                <h3>
-                  {rotuloDia(d)} {d === hojeIso() && <span className="badge today">Hoje</span>}
-                </h3>
-                <span className="small muted">
-                  {doDia.length} ativ. · 👷 <span className="num">{pessoas}</span>
+            <section key={d} className={'card pad prog-dia' + (d === hojeIso() ? ' today' : '') + (estaAberto(d) ? '' : ' fechado')}>
+              <div
+                className="dia-cab"
+                role="button"
+                tabIndex={0}
+                aria-expanded={estaAberto(d)}
+                aria-controls={`dia-${d}`}
+                onClick={() => alternar(d)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    alternar(d);
+                  }
+                }}
+              >
+                <span className="chevron" aria-hidden>
+                  ›
+                </span>
+                <div className="grow dia-cab-txt">
+                  <h3>
+                    {rotuloDia(d)} {d === hojeIso() && <span className="badge today">Hoje</span>}
+                  </h3>
+                  {!estaAberto(d) && doDia.length > 0 && <BarraAreas fatias={fatiasDoDia(doDia)} />}
+                </div>
+                <span className="small muted dia-cab-n">
+                  <span>
+                    {doDia.length} ativ. · 👷 <span className="num">{pessoas}</span>
+                  </span>
+                  {aApontar > 0 && <span className="badge pend dia-cab-pend">⚠ {aApontar} a apontar</span>}
                 </span>
               </div>
+              <div className="dia-corpo" id={`dia-${d}`}>
               {lista === null ? (
                 <p className="muted small">Carregando…</p>
               ) : (
@@ -165,6 +218,7 @@ export function Programar() {
               <button className="btn small add-ativ" onClick={() => nova(d)}>
                 + Atividade
               </button>
+              </div>
             </section>
           );
         })}
