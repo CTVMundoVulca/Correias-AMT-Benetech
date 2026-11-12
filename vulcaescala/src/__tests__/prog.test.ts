@@ -183,3 +183,21 @@ describe('situação da OM: baixa (programação) > retorno (supervisor) > cadas
     expect(situacaoEfetiva({ ...base, situacao: 'baixada' }, { realizada: false, em: 't', por: 's' }).situacao).toBe('baixada');
   });
 });
+
+import { efetivoDoDia } from '../prog/efetivo';
+
+describe('efetivo do dia: só o contrato; apoio à parte', () => {
+  it('separa contrato e apoio', () => {
+    const ef = [
+      { id: 'a', nome: 'A', funcao: 'V', ativo: true },
+      { id: 'b', nome: 'B', funcao: 'V', ativo: true },
+      { id: 'c', nome: 'C', funcao: 'V', ativo: true },
+      { id: 'x', nome: 'X', funcao: 'V', ativo: true, apoio: true },
+      { id: 'y', nome: 'Y', funcao: 'V', ativo: true, apoio: true },
+    ];
+    const dia = { activities: [{ id: 'z', nome: 'T', workerIds: ['a', 'x'] }], absences: [{ workerId: 'b', tipo: 'ausencia' }, { workerId: 'y', tipo: 'ausencia' }] };
+    const r = efetivoDoDia(ef, dia, false, new Map());
+    expect([r.total, r.alocados, r.apoio, r.ausentes, r.disponiveis]).toEqual([3, 1, 1, 1, 1]);
+    expect(r.ocupacao).toBeCloseTo(0.5);
+  });
+});

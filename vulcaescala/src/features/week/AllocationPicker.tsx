@@ -74,7 +74,9 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
                   toast(st.kind === 'here' ? `${w.nome} retirado` : `${w.nome} alocado`);
                 }}
               >
-                <span className="pick-name">{w.nome}</span>
+                <span className="pick-name">
+                  {w.nome} {w.apoio && <span className="tag-apoio">Apoio</span>}
+                </span>
                 {st.kind !== 'free' ? (
                   <span className="pick-status">{statusLabel(st)}</span>
                 ) : (

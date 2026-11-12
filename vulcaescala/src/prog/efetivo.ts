@@ -10,9 +10,12 @@ import type { Day } from '../domain/types';
 import { AREA_INTERNA, type Atividade } from './model';
 
 export interface EfetivoDia {
-  /** colaboradores ativos no cadastro da escala */
+  /** efetivo ativo DO CONTRATO (sem o apoio de outros contratos) */
   total: number;
+  /** alocados do contrato */
   alocados: number;
+  /** pessoas de apoio (outros contratos) alocadas no dia */
+  apoio: number;
   /** ausências registradas (folga, férias, atestado… aparecem só como "ausência") */
   ausentes: number;
   /** fim de semana/feriado: quem não foi escalado está de folga automática */
@@ -33,8 +36,10 @@ export function efetivoDoDia(
   folga: boolean,
   progPorId: Map<string, Atividade>,
 ): EfetivoDia {
-  const ativos = efetivo.filter((w) => w.ativo);
+  const ativos = efetivo.filter((w) => w.ativo && !w.apoio);
   const ids = new Set(ativos.map((w) => w.id));
+  const idsApoio = new Set(efetivo.filter((w) => w.apoio).map((w) => w.id));
+  const apoio = new Set<string>();
   const d = dia ?? { activities: [], absences: [] };
   const aloc = new Set<string>();
   const porArea = new Map<string, Set<string>>();
@@ -42,9 +47,11 @@ export function efetivoDoDia(
     const prog = a.id.startsWith('prog-') ? progPorId.get(a.id.slice(5)) : undefined;
     const area = prog ? prog.area || AREA_INTERNA : 'OUTRAS ATIVIDADES DA ESCALA';
     for (const w of a.workerIds) {
+      if (idsApoio.has(w)) apoio.add(w);
+      if (!ids.has(w) && !idsApoio.has(w)) continue;
+      (porArea.get(area) ?? porArea.set(area, new Set()).get(area)!).add(w);
       if (!ids.has(w)) continue;
       aloc.add(w);
-      (porArea.get(area) ?? porArea.set(area, new Set()).get(area)!).add(w);
     }
   }
   const aus = new Set(d.absences.map((x) => x.workerId).filter((w) => ids.has(w) && !aloc.has(w)));
@@ -55,6 +62,7 @@ export function efetivoDoDia(
   return {
     total: ativos.length,
     alocados: aloc.size,
+    apoio: apoio.size,
     ausentes: aus.size,
     folgaAuto,
     disponiveis,

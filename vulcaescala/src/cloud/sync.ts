@@ -2,7 +2,7 @@ import type * as FsMod from 'firebase/firestore';
 import { AUSENCIAS_PADRAO, AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, TipoAusencia, Worker, emptyDay, emptyWeek } from '../domain/types';
 import { cleanName } from '../domain/names';
 import { migrate } from '../storage/migrations';
-import { Action, reducer, withMatricula } from '../state/reducer';
+import { Action, reducer, withApoio, withMatricula } from '../state/reducer';
 import type { FirebaseApi } from './firebase';
 
 /**
@@ -114,7 +114,8 @@ function readDay(data: unknown): Day {
 function readWorker(id: string, data: unknown): Worker {
   const w = (data ?? {}) as Partial<Worker>;
   const base: Worker = { id, nome: String(w.nome ?? ''), funcao: (w.funcao ?? 'Vulcanizador') as Worker['funcao'], ativo: w.ativo !== false };
-  return typeof w.matricula === 'string' && w.matricula ? { ...base, matricula: w.matricula } : base;
+  const comMat = typeof w.matricula === 'string' && w.matricula ? { ...base, matricula: w.matricula } : base;
+  return w.apoio === true ? { ...comMat, apoio: true } : comMat;
 }
 
 /** Aplica uma ação de dia a um único dia, usando o mesmo reducer da tela. */
@@ -600,11 +601,11 @@ export class CloudSync {
           let w: Worker | null = snap.exists() ? readWorker(id, snap.data()) : null;
           if (action.type === 'worker/add') {
             if (w) return w; // já criado (ação repetida)
-            w = withMatricula({ id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true }, action.matricula);
+            w = withApoio(withMatricula({ id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true }, action.matricula), action.apoio);
           } else if (!w) {
             return null; // removido por outra pessoa
           } else if (action.type === 'worker/update') {
-            w = withMatricula({ ...w, nome: cleanName(action.nome), funcao: action.funcao }, action.matricula ?? w.matricula);
+            w = withApoio(withMatricula({ ...w, nome: cleanName(action.nome), funcao: action.funcao }, action.matricula ?? w.matricula), action.apoio ?? w.apoio);
           } else {
             w = { ...w, ativo: action.ativo };
           }

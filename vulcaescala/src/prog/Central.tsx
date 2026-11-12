@@ -79,15 +79,15 @@ export function Central() {
         <Kpi ico="⏱" cor="k-naoprog" titulo="Não programadas" valor={r.classes.nao_programada} extra={pct(exec ? r.classes.nao_programada / exec : null)} />
         <Kpi ico="⚡" cor="k-emerg" titulo="Emergências" valor={r.classes.emergencia} extra={pct(exec ? r.classes.emergencia / exec : null)} />
         <div className="kpi-efetivo">
-          <Kpi ico="👥" cor="k-neutro" titulo="Efetivo" valor={ef ? ef.total : '…'} />
-          <Kpi ico="👷" cor="k-prog" titulo="Alocados" valor={ef ? ef.alocados : '…'} />
+          <Kpi ico="👥" cor="k-neutro" titulo="Contrato" valor={ef ? ef.total : '…'} />
+          <Kpi ico="👷" cor="k-prog" titulo="Alocados" valor={ef ? ef.alocados : '…'} extra={ef && ef.apoio ? `+${ef.apoio} de apoio` : undefined} />
           <Kpi ico="🙋" cor="k-neutro" titulo="Disponíveis" valor={ef ? ef.disponiveis : '…'} />
         </div>
       </div>
 
       {/* carga × capacidade: em que dias ainda há folga para pedir serviço */}
       <section className="painel-bloco b-carga">
-        <CargaCapacidade dias={proximos} lista={lista} efetivo={escala ? escala.efetivo.filter((w) => w.ativo).length : null} onDia={escolher} />
+        <CargaCapacidade dias={proximos} lista={lista} efetivo={escala ? escala.efetivo : null} onDia={escolher} />
       </section>
 
       <div className="central-grid">
@@ -169,7 +169,14 @@ export function Central() {
         {/* efetivo do dia pela escala */}
         <section className="painel-bloco b-efetivo">
           <div className="bloco-topo">
-            <h3>👥 Efetivo hoje {ef && <span className="muted small">({ef.total} pessoas)</span>}</h3>
+            <h3>
+              👥 Efetivo hoje{' '}
+              {ef && (
+                <span className="muted small">
+                  ({ef.total} do contrato{ef.apoio ? ` + ${ef.apoio} de apoio` : ''})
+                </span>
+              )}
+            </h3>
             <a className="link small" href="../escala/">
               Abrir escala →
             </a>

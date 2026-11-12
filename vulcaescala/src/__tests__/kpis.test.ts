@@ -163,3 +163,10 @@ describe('cabeçalho da carga × capacidade', () => {
     ]);
   });
 });
+
+describe('efetivo do contrato x apoio', () => {
+  it('apoio escalado soma à capacidade do dia, mas não ao efetivo do contrato', () => {
+    const r = cargaCapacidade(['2026-11-12'], [at({ data: '2026-11-12', pessoas: 18 })], 17, new Map([['2026-11-12', 1]]), new Map([['2026-11-12', 3]]));
+    expect(r[0]).toMatchObject({ capacidade: 16, apoio: 3, livres: 1, programado: 18 });
+  });
+});

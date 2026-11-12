@@ -512,3 +512,4 @@
 .carga-data b { font-size: 0.7rem; }
 .carga-dia-n { font-size: 0.82rem; font-weight: 700; color: var(--ink); }
 .carga-novo-mes { font-size: 0.58rem; font-weight: 700; color: var(--accent-strong); text-transform: uppercase; }
+.carga-apoio { font-size: 0.58rem; font-weight: 700; color: var(--violet-ink); background: var(--violet-bg); border-radius: 4px; padding: 0 3px; white-space: nowrap; }

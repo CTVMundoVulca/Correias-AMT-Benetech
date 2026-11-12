@@ -77,6 +77,7 @@ function sanitize(s: any): AppState {
       funcao: addFuncao(w.funcao) || funcoes[0],
       ativo: w.ativo !== false,
       ...(typeof w.matricula === 'string' && cleanMatricula(w.matricula) ? { matricula: cleanMatricula(w.matricula) } : {}),
+      ...(w.apoio === true ? { apoio: true } : {}),
     });
   }
   // tipos de ausência: válidos, sem id repetido; vazia → lista padrão

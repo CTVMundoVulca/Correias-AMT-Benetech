@@ -16,6 +16,11 @@ export interface Worker {
   ativo: boolean;
   /** matrícula (opcional) — aparece no Registro de Emenda. Não guardar CPF. */
   matricula?: string;
+  /**
+   * Apoio de outro contrato (vem em dias de maior demanda). Não conta no efetivo/capacidade
+   * do contrato AMT e não gera pendência quando não é alocado. Ausente = efetivo do contrato.
+   */
+  apoio?: boolean;
 }
 
 export const MATRICULA_MAX = 30;

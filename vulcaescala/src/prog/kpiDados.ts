@@ -14,7 +14,7 @@ export interface DadosKpi {
   solicitacoes: Solicitacao[];
   /** Registro de Emenda: só TAG e data */
   emendas: { tag: string; data: string }[];
-  /** efetivo ativo na escala (cópia pública) */
+  /** efetivo ativo DO CONTRATO na escala (cópia pública) */
   efetivo: number;
   escala: DiaEscala[];
   /** a escala foi lida só para os últimos 92 dias do período (para não pesar) */
@@ -60,7 +60,9 @@ export function useDadosKpi(de: string, ate: string): DadosKpi | null {
         ler(fsMod.getDocs(fsMod.query(fsMod.collection(fs, COL_ATRASOS), fsMod.where('semana', '>=', semana(de)), fsMod.where('semana', '<=', semana(ate)))), null),
       ]);
       if (!vivo) return;
-      const efetivoLista = (cfg?.data()?.efetivo ?? []) as { ativo?: boolean }[];
+      const efetivoLista = (cfg?.data()?.efetivo ?? []) as { id?: string; ativo?: boolean; apoio?: boolean }[];
+      const contrato = new Set(efetivoLista.filter((w) => !w?.apoio).map((w) => String(w?.id)));
+      const apoioIds = new Set(efetivoLista.filter((w) => w?.apoio).map((w) => String(w?.id)));
       const escala: DiaEscala[] = [];
       for (const doc of dias?.docs ?? []) {
         const m = /^(\d{4}-W\d{2})_([0-6])$/.exec(doc.id);
@@ -68,13 +70,22 @@ export function useDadosKpi(de: string, ate: string): DadosKpi | null {
         // data do dia a partir da semana ISO
         const segunda = diasEntreDatas(escalaDesde, ate).find((x) => semana(x) === m[1] && locateDay(fromIsoDate(x)!).dayIndex === 0);
         const data = segunda ? toIsoDate(addDays(fromIsoDate(segunda)!, Number(m[2]))) : '';
-        const aus = (doc.data()?.absences ?? []) as unknown[];
-        if (data) escala.push({ data, ausentes: Array.isArray(aus) ? aus.length : 0 });
+        const aus = (doc.data()?.absences ?? []) as { workerId?: string }[];
+        const ats = (doc.data()?.activities ?? []) as { workerIds?: string[] }[];
+        const apoio = new Set<string>();
+        for (const a of Array.isArray(ats) ? ats : []) for (const w of a.workerIds ?? []) if (apoioIds.has(w)) apoio.add(w);
+        if (data)
+          escala.push({
+            data,
+            ausentes: Array.isArray(aus) ? aus.filter((a) => contrato.has(String(a.workerId))).length : 0,
+            apoio: apoio.size,
+          });
       }
       setD({
         solicitacoes: (sol?.docs ?? []).map((x) => completarSolicitacao(x.id, x.data())),
         emendas: (em?.docs ?? []).map((x) => ({ tag: String(x.data()?.tag ?? ''), data: String(x.data()?.data ?? '') })),
-        efetivo: Array.isArray(efetivoLista) ? efetivoLista.filter((w) => w?.ativo !== false).length : 0,
+        // efetivo DO CONTRATO (apoio de outros contratos não entra na capacidade)
+        efetivo: Array.isArray(efetivoLista) ? efetivoLista.filter((w) => w?.ativo !== false && !w?.apoio).length : 0,
         escala,
         escalaDesde,
         atrasos: (atr?.docs ?? []).map((x) => ({ ...(x.data() as Atraso), id: x.id })),

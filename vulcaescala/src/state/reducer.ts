@@ -9,8 +9,8 @@ export interface DayRef {
 
 export type Action =
   | { type: 'state/replace'; state: AppState }
-  | { type: 'worker/add'; id: string; nome: string; funcao: Funcao; matricula?: string }
-  | { type: 'worker/update'; id: string; nome: string; funcao: Funcao; matricula?: string }
+  | { type: 'worker/add'; id: string; nome: string; funcao: Funcao; matricula?: string; apoio?: boolean }
+  | { type: 'worker/update'; id: string; nome: string; funcao: Funcao; matricula?: string; apoio?: boolean }
   | { type: 'worker/setActive'; id: string; ativo: boolean }
   | { type: 'worker/remove'; id: string }
   | { type: 'funcao/add'; nome: string }
@@ -58,6 +58,13 @@ export function withMatricula(w: Worker, matricula: string | undefined): Worker 
   return m ? { ...rest, matricula: m } : rest;
 }
 
+/** Grava "apoio" só quando verdadeiro (o padrão é efetivo do contrato). */
+export function withApoio(w: Worker, apoio: boolean | undefined): Worker {
+  const { apoio: _old, ...rest } = w;
+  void _old;
+  return apoio ? { ...rest, apoio: true } : rest;
+}
+
 /** Função já existe na lista (sem diferenciar maiúsculas nem acentos)? */
 export function hasFuncao(state: AppState, nome: string, ignore?: string): boolean {
   const k = nameKey(nome);
@@ -88,7 +95,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'worker/add': {
       const nome = cleanName(action.nome);
       if (!nome || isDuplicateName(state, nome) || state.workers.some((w) => w.id === action.id)) return state;
-      return { ...state, workers: [...state.workers, withMatricula({ id: action.id, nome, funcao: action.funcao, ativo: true }, action.matricula)] };
+      return { ...state, workers: [...state.workers, withApoio(withMatricula({ id: action.id, nome, funcao: action.funcao, ativo: true }, action.matricula), action.apoio)] };
     }
     case 'worker/update': {
       const nome = cleanName(action.nome);
@@ -96,7 +103,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         workers: state.workers.map((w) =>
-          w.id === action.id ? withMatricula({ ...w, nome, funcao: action.funcao }, action.matricula ?? w.matricula) : w,
+          w.id === action.id ? withApoio(withMatricula({ ...w, nome, funcao: action.funcao }, action.matricula ?? w.matricula), action.apoio ?? w.apoio) : w,
         ),
       };
     }

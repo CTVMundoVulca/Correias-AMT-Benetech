@@ -204,8 +204,10 @@ export function vidaEmendas(emendas: { tag: string; data: string }[]) {
 
 export interface DiaEscala {
   data: string;
-  /** pessoas ausentes registradas no dia */
+  /** pessoas DO CONTRATO ausentes registradas no dia */
   ausentes: number;
+  /** pessoas de apoio (outros contratos) alocadas no dia */
+  apoio?: number;
 }
 
 /**
@@ -218,7 +220,10 @@ export function ocupacaoEfetivo(lista: Atividade[], efetivo: number, dias: strin
   const bruto = efetivo * uteis.length;
   const disponivel = bruto - aus;
   const programado = lista.filter((a) => a.classe !== 'cancelada' && uteis.includes(a.data)).reduce((s, a) => s + a.pessoas, 0);
+  const comApoio = escala.filter((d) => (d.apoio ?? 0) > 0);
   return {
+    apoioPessoasDia: comApoio.reduce((s, d) => s + (d.apoio ?? 0), 0),
+    diasComApoio: comApoio.length,
     diasUteis: uteis.length,
     disponivel,
     programado,
@@ -250,8 +255,10 @@ export interface CargaDia {
   data: string;
   /** pessoas já programadas (sem canceladas) */
   programado: number;
-  /** efetivo ativo − ausências lançadas na escala */
+  /** efetivo ativo DO CONTRATO − ausências do contrato lançadas na escala */
   capacidade: number;
+  /** pessoas de apoio de outros contratos já escaladas no dia (somam à capacidade do dia) */
+  apoio: number;
   livres: number;
   /** programado ÷ capacidade (null sem capacidade) */
   ocupacao: number | null;
@@ -275,17 +282,26 @@ export function proximosDiasUteis(hoje: string, n: number, feriados: Record<stri
 /** Limite (85%) a partir do qual o dia é tratado como "perto do limite". */
 export const LIMITE_OCUPACAO = 0.85;
 
-export function cargaCapacidade(dias: string[], lista: Atividade[], efetivo: number, ausPorDia: Map<string, number>): CargaDia[] {
+export function cargaCapacidade(
+  dias: string[],
+  lista: Atividade[],
+  efetivo: number,
+  ausPorDia: Map<string, number>,
+  apoioPorDia: Map<string, number> = new Map(),
+): CargaDia[] {
   return dias.map((data) => {
     const programado = lista.filter((a) => a.data === data && a.classe !== 'cancelada').reduce((s, a) => s + a.pessoas, 0);
     const aus = ausPorDia.get(data);
+    const apoio = apoioPorDia.get(data) ?? 0;
     const capacidade = Math.max(0, efetivo - (aus ?? 0));
-    const ocupacao = capacidade ? programado / capacidade : null;
+    const total = capacidade + apoio;
+    const ocupacao = total ? programado / total : null;
     return {
       data,
       programado,
       capacidade,
-      livres: Math.max(0, capacidade - programado),
+      apoio,
+      livres: Math.max(0, total - programado),
       ocupacao,
       nivel: ocupacao === null || ocupacao > 1 ? 'lotado' : ocupacao >= LIMITE_OCUPACAO ? 'limite' : 'folga',
       semEscala: aus === undefined,

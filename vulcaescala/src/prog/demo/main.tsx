@@ -85,7 +85,8 @@ semear('prog_paradas_pedidos/pedido-exemplo', {
 // escala de exemplo de hoje (22 colaboradores genéricos), alocados nas atividades programadas de hoje
 if (window.__DEMO_DADOS__) {
   const p = lerPacote(JSON.stringify(window.__DEMO_DADOS__));
-  const efetivo = Array.from({ length: 22 }, (_, i) => ({ id: `c${i + 1}`, nome: `COLABORADOR ${String(i + 1).padStart(2, '0')}`, funcao: 'Vulcanizador', ativo: true }));
+  // 17 do contrato + 5 de apoio de outros contratos (como no AMT)
+  const efetivo = Array.from({ length: 22 }, (_, i) => ({ id: `c${i + 1}`, nome: `COLABORADOR ${String(i + 1).padStart(2, '0')}`, funcao: 'Vulcanizador', ativo: true, ...(i >= 17 ? { apoio: true } : {}) }));
   semear('escala_publica_config/geral', { efetivo, funcoes: ['Vulcanizador'], ausencias: [], feriados: {} });
   const hoje = hojeIso();
   let k = 0;

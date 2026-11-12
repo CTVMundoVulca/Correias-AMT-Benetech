@@ -21,7 +21,7 @@ export const AUS_PUBLICAS = new Set(['folga', 'ferias']);
 export const AUS_GENERICA: TipoAusencia = { id: 'ausencia', nome: 'Ausência', sigla: 'AU', cor: 'laranja', ativo: true };
 
 export interface PubConfig {
-  efetivo: { id: string; nome: string; funcao: string; ativo: boolean }[];
+  efetivo: { id: string; nome: string; funcao: string; ativo: boolean; apoio?: boolean }[];
   funcoes: string[];
   ausencias: TipoAusencia[];
   feriados: Record<string, string>;
@@ -38,7 +38,7 @@ export function projetarConfig(m: DocMaps): PubConfig {
   const aus = (m.ausencias ?? AUSENCIAS_PADRAO).filter((t) => AUS_PUBLICAS.has(t.id)).map((t) => ({ ...t }));
   return {
     efetivo: Object.values(m.workers)
-      .map((w) => ({ id: w.id, nome: w.nome, funcao: w.funcao, ativo: w.ativo }))
+      .map((w) => ({ id: w.id, nome: w.nome, funcao: w.funcao, ativo: w.ativo, ...(w.apoio ? { apoio: true } : {}) }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     funcoes: [...(m.funcoes ?? FUNCOES_PADRAO)],
     ausencias: [...aus, { ...AUS_GENERICA }],
@@ -61,7 +61,7 @@ export function diffPublico(priv: DocMaps, pub: Record<string, Day>): { gravar: 
 /** Estado só de leitura montado a partir da cópia pública. */
 export function estadoPublico(cfg: PubConfig | null, dias: Record<string, Day>): AppState {
   const workers: Record<string, Worker> = {};
-  for (const w of cfg?.efetivo ?? []) workers[w.id] = { id: w.id, nome: w.nome, funcao: w.funcao, ativo: w.ativo };
+  for (const w of cfg?.efetivo ?? []) workers[w.id] = { id: w.id, nome: w.nome, funcao: w.funcao, ativo: w.ativo, ...(w.apoio ? { apoio: true } : {}) };
   const ausencias = cfg?.ausencias?.length ? cfg.ausencias : [...AUSENCIAS_PADRAO.filter((t) => AUS_PUBLICAS.has(t.id)), AUS_GENERICA];
   return mapsToState({ workers, days: dias, funcoes: cfg?.funcoes ?? null, ausencias, feriados: cfg?.feriados ?? null });
 }

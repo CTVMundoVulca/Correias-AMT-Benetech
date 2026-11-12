@@ -182,8 +182,13 @@ export function Indicadores({ lista, ini, fim, area, oms }: { lista: Atividade[]
           <>
             <div className="kpis">
               <Tile v={pct(ocup.ocupacao)} t="Ocupação do efetivo" sub={`${ocup.programado} programadas ÷ ${ocup.disponivel} disponíveis (pessoas×dia)`} />
-              <Tile v={pct(ocup.absenteismo)} t="Absenteísmo" sub={`efetivo ${dados.efetivo} · ${ocup.diasUteis} dias úteis`} />
+              <Tile v={pct(ocup.absenteismo)} t="Absenteísmo" sub={`efetivo do contrato ${dados.efetivo} · ${ocup.diasUteis} dias úteis`} />
               <Tile v={`${num1(esp.horas)} h`} t="Horas perdidas com espera" sub={`${esp.registros} atraso(s) registrados na escala`} />
+              <Tile
+                v={ocup.apoioPessoasDia}
+                t="Apoio de outros contratos (pessoas×dia)"
+                sub={`${ocup.diasComApoio} dia(s) com reforço · ${pct(ocup.diasUteis ? ocup.diasComApoio / ocup.diasUteis : null)} dos dias úteis`}
+              />
             </div>
             {dados.escalaDesde > de && (
               <p className="small muted">Ocupação e absenteísmo consideram os últimos 92 dias do período (a partir de {dados.escalaDesde.split('-').reverse().join('/')}).</p>

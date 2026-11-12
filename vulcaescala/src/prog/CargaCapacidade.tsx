@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { COL_PUB_DIAS } from '../cloud/publico';
 import { MONTHS, MONTHS_SHORT, WEEKDAYS_SHORT, fromIsoDate, isoWeekOf, locateDay } from '../domain/isoWeek';
 import { useProg } from './context';
+import type { PubConfig } from '../cloud/publico';
 import { cargaCapacidade, LIMITE_OCUPACAO } from './kpis';
 import type { Atividade } from './model';
 
-/** Ausências lançadas na escala (cópia pública) para os dias pedidos. */
-function useAusencias(dias: string[]): Map<string, number> | null {
+/** Por dia: ausências DO CONTRATO e pessoas de apoio escaladas (cópia pública da escala). */
+function useEscalaDias(dias: string[], efetivo: PubConfig['efetivo'] | null): { aus: Map<string, number>; apoio: Map<string, number> } | null {
   const { api } = useProg();
   const chave = dias.join(',');
-  const [m, setM] = useState<Map<string, number> | null>(null);
+  const contrato = useMemo(() => new Set((efetivo ?? []).filter((w) => !w.apoio).map((w) => w.id)), [efetivo]);
+  const apoioIds = useMemo(() => new Set((efetivo ?? []).filter((w) => w.apoio).map((w) => w.id)), [efetivo]);
+  const [m, setM] = useState<{ aus: Map<string, number>; apoio: Map<string, number> } | null>(null);
   useEffect(() => {
     const ds = chave ? chave.split(',') : [];
     if (!ds.length) return;
@@ -23,17 +26,23 @@ function useAusencias(dias: string[]): Map<string, number> | null {
     return fsMod.onSnapshot(
       q,
       (snap) => {
-        const r = new Map<string, number>();
+        const aus = new Map<string, number>();
+        const apoio = new Map<string, number>();
         for (const doc of snap.docs) {
           const d = porId.get(doc.id);
-          const aus = doc.data()?.absences;
-          if (d) r.set(d, Array.isArray(aus) ? aus.length : 0);
+          if (!d) continue;
+          const x = doc.data() ?? {};
+          const a = Array.isArray(x.absences) ? (x.absences as { workerId: string }[]) : [];
+          aus.set(d, a.filter((y) => contrato.has(y.workerId)).length);
+          const ws = new Set<string>();
+          for (const at of Array.isArray(x.activities) ? (x.activities as { workerIds?: string[] }[]) : []) for (const w of at.workerIds ?? []) if (apoioIds.has(w)) ws.add(w);
+          apoio.set(d, ws.size);
         }
-        setM(r);
+        setM({ aus, apoio });
       },
-      () => setM(new Map()),
+      () => setM({ aus: new Map(), apoio: new Map() }),
     );
-  }, [api, chave]);
+  }, [api, chave, contrato, apoioIds]);
   return m;
 }
 
@@ -49,12 +58,17 @@ export function CargaCapacidade({
 }: {
   dias: string[];
   lista: Atividade[] | null;
-  efetivo: number | null;
+  /** efetivo da escala (cópia pública); null = carregando */
+  efetivo: PubConfig['efetivo'] | null;
   onDia: (d: string) => void;
 }) {
-  const aus = useAusencias(dias);
-  const carga = useMemo(() => (lista && efetivo !== null && aus ? cargaCapacidade(dias, lista, efetivo, aus) : null), [dias, lista, efetivo, aus]);
-  const max = carga ? Math.max(1, ...carga.map((c) => Math.max(c.capacidade, c.programado))) : 1;
+  const esc = useEscalaDias(dias, efetivo);
+  const contrato = efetivo ? efetivo.filter((w) => w.ativo && !w.apoio).length : null;
+  const carga = useMemo(
+    () => (lista && contrato !== null && esc ? cargaCapacidade(dias, lista, contrato, esc.aus, esc.apoio) : null),
+    [dias, lista, contrato, esc],
+  );
+  const max = carga ? Math.max(1, ...carga.map((c) => Math.max(c.capacidade + c.apoio, c.programado))) : 1;
 
   return (
     <div className="carga">
@@ -65,7 +79,7 @@ export function CargaCapacidade({
       <div className="carga-mes">{tituloMeses(dias)}</div>
       {carga === null ? (
         <p className="muted small">Carregando…</p>
-      ) : efetivo === 0 ? (
+      ) : contrato === 0 ? (
         <p className="muted small">O efetivo da escala ainda não foi cadastrado: sem base para a capacidade.</p>
       ) : (
         <>
@@ -88,17 +102,18 @@ export function CargaCapacidade({
                   <button
                     className={'carga-col ' + c.nivel}
                     onClick={() => onDia(c.data)}
-                    title={`${c.programado} pessoas programadas de ${c.capacidade} disponíveis`}
-                    aria-label={`${WEEKDAYS_SHORT[locateDay(d).dayIndex]} ${c.data.slice(8)}/${c.data.slice(5, 7)}: ${c.programado} programadas de ${c.capacidade}, ${c.livres} livres`}
+                    title={`${c.programado} pessoas programadas · contrato ${c.capacidade} disponíveis${c.apoio ? ` + ${c.apoio} de apoio` : ''}`}
+                    aria-label={`${WEEKDAYS_SHORT[locateDay(d).dayIndex]} ${c.data.slice(8)}/${c.data.slice(5, 7)}: ${c.programado} programadas de ${c.capacidade + c.apoio}, ${c.livres} livres`}
                   >
                     <span className="carga-num num">
-                      {c.programado > c.capacidade ? <b>+{c.programado - c.capacidade}</b> : <b>{c.livres}</b>}
+                      {c.programado > c.capacidade + c.apoio ? <b>+{c.programado - c.capacidade - c.apoio}</b> : <b>{c.livres}</b>}
                     </span>
-                    <span className="carga-rot">{c.programado > c.capacidade ? 'acima' : c.livres === 1 ? 'livre' : 'livres'}</span>
+                    <span className="carga-rot">{c.programado > c.capacidade + c.apoio ? 'acima' : c.livres === 1 ? 'livre' : 'livres'}</span>
                     <span className="carga-coluna" aria-hidden>
-                      <span className="carga-cap" style={{ height: alt(c.capacidade) }} />
+                      <span className="carga-cap" style={{ height: alt(c.capacidade + c.apoio) }} />
                       <span className="carga-prog" style={{ height: alt(c.programado) }} />
                     </span>
+                    {c.apoio > 0 && <span className="carga-apoio">+{c.apoio} apoio</span>}
                     <span className="carga-data">
                       <b>{WEEKDAYS_SHORT[locateDay(d).dayIndex]}</b>
                       <span className="num carga-dia-n">{Number(c.data.slice(8))}</span>
@@ -119,7 +134,7 @@ export function CargaCapacidade({
             <li>
               <span className="sw-carga lotado" /> lotado
             </li>
-            <li>┆ capacidade (efetivo − ausências)</li>
+            <li>┆ capacidade (efetivo do contrato − ausências, + apoio escalado)</li>
           </ul>
           <p className="small muted">
             Escolha uma data com folga para pedir serviço: a chance de atendimento é maior.
