@@ -100,3 +100,81 @@
 
 /* faixa do modo teste (só no build de teste) */
 .modo-teste { background: #fdf3c4; color: #6a4c00; border-bottom: 2px solid #f9a825; font-size: 0.8rem; font-weight: 600; text-align: center; padding: 6px 12px; }
+
+/* ---------- painel visual: cor fixa por área (paleta categórica validada) ---------- */
+:root {
+  --a1: #2a78d6; --a2: #eb6834; --a3: #1baf7a; --a4: #eda100; --a5: #e87ba4; --a6: #008300; --a7: #6250d6; --a8: #e34948; --a0: #9aa1ab;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --a1: #3987e5; --a2: #d95926; --a3: #199e70; --a4: #c98500; --a5: #d55181; --a6: #008300; --a7: #9085e9; --a8: #e66767; --a0: #5f6874; }
+}
+:root[data-theme='dark'] { --a1: #3987e5; --a2: #d95926; --a3: #199e70; --a4: #c98500; --a5: #d55181; --a6: #008300; --a7: #9085e9; --a8: #e66767; --a0: #5f6874; }
+.a1 { --cor: var(--a1); } .a2 { --cor: var(--a2); } .a3 { --cor: var(--a3); } .a4 { --cor: var(--a4); }
+.a5 { --cor: var(--a5); } .a6 { --cor: var(--a6); } .a7 { --cor: var(--a7); } .a8 { --cor: var(--a8); } .a0 { --cor: var(--a0); }
+
+.barra-areas { display: flex; gap: 2px; height: 6px; width: 100%; border-radius: 3px; overflow: hidden; }
+.barra-areas.alta { height: 16px; border-radius: 6px; margin: 10px 0 8px; }
+.barra-areas.vazia { background: transparent; }
+.seg-area { background: var(--cor); min-width: 3px; }
+.sw-area { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--cor); vertical-align: -1px; flex-shrink: 0; }
+.legenda-areas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.75rem; color: var(--ink-2); }
+.legenda-areas.grande { font-size: 0.85rem; color: var(--ink); gap: 6px 14px; }
+.legenda-areas.grande b { margin-left: 2px; }
+
+/* calendário */
+.cal-prog h2 { font-size: 1.15rem; }
+.calp-grid { display: grid; grid-template-columns: 30px repeat(7, minmax(0, 1fr)); gap: 3px; margin-top: 10px; }
+.calp-head { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--ink-2); padding-bottom: 2px; }
+.calp-head.fds { color: var(--red-ink); }
+.calp-wk { all: unset; cursor: pointer; display: grid; place-items: center; font-size: 0.68rem; font-weight: 700; color: var(--ink-2); border-radius: 6px; font-family: var(--mono); }
+.calp-wk.on { background: var(--accent-soft); color: var(--accent-strong); }
+.calp-dia {
+  all: unset; box-sizing: border-box; cursor: pointer; position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-height: 58px; padding: 5px 3px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+}
+.calp-dia:hover { border-color: var(--accent); }
+.calp-dia:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.calp-dia.fds { background: var(--surface-2); }
+.calp-dia.fds .calp-num { color: var(--red-ink); }
+.calp-dia.fora { opacity: 0.4; }
+.calp-dia.sel { border: 2px solid var(--accent); background: var(--accent-soft); }
+.calp-num { font-size: 0.85rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.calp-dia.hoje .calp-num { background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 0 6px; }
+.calp-fer { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--red-ink); }
+.calp-pes { font-size: 0.7rem; color: var(--ink-2); line-height: 1; min-height: 0.7rem; }
+.calp-rodape { margin-top: 10px; align-items: flex-start; }
+
+/* resumo do dia */
+.dia-total { text-align: right; line-height: 1; }
+.dia-total b { display: block; font-size: 2.2rem; font-weight: 700; color: var(--accent-strong); }
+.dia-total span { font-size: 0.72rem; color: var(--ink-2); }
+.livre { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--ok-bg); color: var(--ok-ink); font-weight: 600; }
+
+/* cartões das áreas */
+.area-cartao { border-left: 6px solid var(--cor); padding: 10px 12px 10px 12px; }
+.area-topo h3 { font-size: 0.95rem; letter-spacing: 0.3px; }
+.area-pes { font-size: 1.05rem; white-space: nowrap; }
+.area-pes b { font-size: 1.35rem; }
+.area-contato { margin: 2px 0 0; color: var(--ink-2); }
+.cartao-ativs { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 0; }
+.cartao-ativ { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; }
+.cartao-ativ .cartao-meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.78rem; color: var(--ink-2); }
+.cartao-ativ.cancelada .cartao-desc { text-decoration: line-through; color: var(--ink-2); }
+.tag-equip { font-family: var(--mono); font-weight: 700; font-size: 0.8rem; padding: 1px 6px; border-radius: 5px; background: color-mix(in srgb, var(--cor, var(--a0)) 16%, transparent); border: 1px solid color-mix(in srgb, var(--cor, var(--a0)) 45%, transparent); white-space: nowrap; }
+.cartao-desc { font-size: 0.9rem; min-width: 0; }
+.pill { font-weight: 700; border-radius: 999px; padding: 0 8px; font-size: 0.72rem; }
+.pill.emerg { background: var(--red-bg); color: var(--red-ink); }
+.pill.naoprog { background: var(--pend-bg); color: var(--pend-ink); }
+.pill.retra { background: var(--violet-bg); color: var(--violet-ink); }
+
+/* mapa de calor da semana */
+.calor { border-collapse: separate; border-spacing: 3px; width: 100%; table-layout: fixed; font-size: 0.78rem; margin-top: 6px; }
+.calor thead th:first-child { width: 30%; }
+.calor thead th { font-weight: 600; color: var(--ink-2); font-size: 0.7rem; }
+.calor thead .link { font-size: 0.7rem; }
+.calor thead th.sel .link { color: var(--accent-strong); font-weight: 800; }
+.calor-area { text-align: left; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; }
+.calor td { position: relative; height: 30px; border-radius: 6px; background: var(--surface-2); text-align: center; }
+.calor td.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+.calor-cel { position: absolute; inset: 0; border-radius: 6px; background: var(--cor); }
+.calor-n { position: relative; font-weight: 700; color: var(--ink); }
