@@ -438,3 +438,58 @@ export function ordenar(lista: Emenda[]): Emenda[] {
     (a, b) => b.data.localeCompare(a.data) || num(b.numero) - num(a.numero) || b.criadoEm.localeCompare(a.criadoEm),
   );
 }
+
+// ---------------------------------------------------------------- nova emenda com base em outra
+
+/**
+ * Campos que se repetem entre emendas da mesma correia: copiados em "Nova com base nesta".
+ * Tudo o que é da EXECUÇÃO (data, horários, temperaturas, clima, demãos, contaminantes,
+ * checklists, dureza, observações, problemas, fotos e assinaturas) começa em branco.
+ */
+export const CAMPOS_COPIADOS = [
+  'tag',
+  'om',
+  'efetivo',
+  'efetivoPreparo',
+  'materiaisEmenda',
+  'materiaisManta',
+  'equipamentos',
+  'tipoCorreia',
+  'tipoEmenda',
+  'especificacao',
+  'largura',
+  'trecho',
+  'estagio1',
+  'estagio2',
+  'estagio3',
+  'chanfro',
+  'qtdLona',
+  'qtdPasses',
+  'comprPasse',
+  'fechamento',
+  'vies',
+  'comprTotal',
+  'mantaInf',
+  'mantaSup',
+  'tempVulc',
+  'tempoVulc',
+  'pressaoVulc',
+  'seriePrensa',
+  'prensaTestada',
+  'paineis',
+  'bombas',
+  'dataTeste',
+] as const satisfies readonly (keyof Emenda)[];
+
+/** Próximo número da emenda ("1" → "2"); se não for número, fica em branco para preencher. */
+export function proximoNumero(n: string): string {
+  const t = n.trim();
+  return /^\d{1,6}$/.test(t) ? String(Number(t) + 1) : '';
+}
+
+/** Nova emenda (id e data novos) com os dados que se repetem copiados da original. */
+export function emendaComBase(orig: Emenda, id: string, data: string, por: string): Emenda {
+  const nova = novaEmenda(id, data, por, []);
+  const copia = Object.fromEntries(CAMPOS_COPIADOS.map((k) => [k, JSON.parse(JSON.stringify(orig[k] ?? nova[k]))])) as Partial<Emenda>;
+  return { ...nova, ...copia, numero: proximoNumero(orig.numero) };
+}
