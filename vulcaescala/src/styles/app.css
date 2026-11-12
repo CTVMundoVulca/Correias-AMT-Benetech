@@ -480,3 +480,9 @@ input.input[type='time']::-webkit-date-and-time-value { text-align: left; margin
 /* pessoa de apoio de outro contrato (não conta no efetivo do contrato) */
 .tag-apoio { font-size: 0.7rem; font-weight: 700; padding: 0 6px; border-radius: 999px; background: var(--violet-bg); color: var(--violet-ink); }
 .apoio-check { white-space: nowrap; }
+
+/* iOS: campos de data/mês têm largura própria e vazam do contêiner */
+input.input[type='month'], input.input[type='date'], input.input[type='time'], input.input[type='datetime-local'] {
+  -webkit-appearance: none; appearance: none; display: block; max-width: 100%; box-sizing: border-box;
+}
+input.input::-webkit-date-and-time-value { text-align: left; }

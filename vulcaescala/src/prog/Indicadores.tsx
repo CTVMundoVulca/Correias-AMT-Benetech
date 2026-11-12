@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useProg } from './context';
+import { GraficoBarras } from './graficos';
 import { useDadosKpi, diasEntreDatas } from './kpiDados';
 import {
   aderencia,
@@ -42,23 +43,7 @@ function Tile({ v, t, sub, children }: { v: string | number; t: string; sub?: st
 }
 
 function Barras({ itens, fmt = (n: number) => String(n) }: { itens: { chave: string; n: number }[]; fmt?: (n: number) => string }) {
-  if (!itens.length) return <p className="muted small">Sem registros no período.</p>;
-  const max = Math.max(...itens.map((i) => i.n));
-  return (
-    <ul className="hbars">
-      {itens.map((i) => (
-        <li key={i.chave} className="hbar" title={`${i.chave}: ${fmt(i.n)}`}>
-          <span className="hbar-nome">{i.chave}</span>
-          <span className="hbar-trilho">
-            <span className="hbar-pilha" style={{ width: `${(i.n / max) * 100}%` }}>
-              <span className="seg-viz s-unica" style={{ flexGrow: 1 }} />
-            </span>
-            <span className="hbar-valor num">{fmt(i.n)}</span>
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
+  return <GraficoBarras linhas={itens.map((i) => ({ id: i.chave, nome: i.chave, v: i.n }))} fmt={fmt} unidade="" vazio="Sem registros no período." />;
 }
 
 /**

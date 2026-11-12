@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react';
 import { MONTHS, MONTHS_SHORT } from '../domain/isoWeek';
 import { PdfBotao } from '../ui/PdfBotao';
 import { Indicadores } from './Indicadores';
+import { GraficoBarras, GraficoColunas, LegendaSeries, SERIES, type Serie } from './graficos';
 import { useAtividades, useOms, useProg } from './context';
 import {
   AREA_INTERNA,
-  CLASSES,
   contarOms,
   hojeIso,
   mesesEntre,
@@ -15,7 +15,7 @@ import {
   porMes,
   porTipo,
   resumir,
-  type ContagemClasse,
+  type Atividade,
   type Grupo,
 } from './model';
 
@@ -38,8 +38,6 @@ function somaMeses(ym: string, n: number): string {
   return `${y}-${String(m).padStart(2, '0')}`;
 }
 
-/** Ordem fixa das séries (cores por classe, nunca pela posição). */
-const SERIES: { k: keyof ContagemClasse; nome: string }[] = [...CLASSES.map((c) => ({ k: c.id as keyof ContagemClasse, nome: c.nome })), { k: 'sem', nome: 'Não classificada' }];
 
 /** Análise de todas as atividades da vulcanização (todos com o link veem). */
 export function Dashboard() {
@@ -50,6 +48,7 @@ export function Dashboard() {
   const [ate, setAte] = useState(atual);
   const [area, setArea] = useState('');
   const [tabela, setTabela] = useState(false);
+  const [foco, setFoco] = useState<Serie | null>(null);
 
   const [ini, fim] =
     periodo === 'mes' ? [atual, atual] : periodo === 'tri' ? [somaMeses(atual, -2), atual] : periodo === 'ano' ? [`${atual.slice(0, 4)}-01`, atual] : de <= ate ? [de, ate] : [ate, de];
@@ -148,13 +147,27 @@ export function Dashboard() {
             <Indicadores lista={lista} ini={ini} fim={fim} area={area} oms={oms} />
 
             <h3 className="secao-dash">📊 Distribuição das atividades</h3>
-            <Legenda />
+            {!tabela && <p className="small muted dica-int">Toque numa classificação para destacá-la; toque numa barra para ver o detalhe.</p>}
+            <LegendaSeries foco={foco} setFoco={setFoco} />
 
             {tabela ? (
               <TabelaGrupos titulo="Atividades por área" grupos={gArea} />
             ) : (
               <Card titulo="Quais áreas mais solicitam serviço" sub="Atividades no período, por classificação">
-                <BarrasEmpilhadas grupos={gArea} />
+                <GraficoBarras
+                  foco={foco}
+                  linhas={gArea.map((g) => ({ id: g.chave, nome: g.chave, v: g.total, classes: g.classes }))}
+                  detalhe={(l) => (
+                    <div className="gb-det-acoes">
+                      <span className="small muted">{gArea.find((g) => g.chave === l.id)?.pessoasDia ?? 0} pessoas×dia</span>
+                      {!area && (
+                        <button type="button" className="btn small" onClick={() => setArea(l.id)}>
+                          🔎 Ver o dashboard só desta área
+                        </button>
+                      )}
+                    </div>
+                  )}
+                />
               </Card>
             )}
 
@@ -163,34 +176,57 @@ export function Dashboard() {
             ) : (
               gMes.length > 1 && (
                 <Card titulo="Evolução mensal" sub="Atividades por mês, por classificação">
-                  <Colunas grupos={gMes} />
+                  <GraficoColunas
+                    foco={foco}
+                    colunas={gMes.map((g) => ({ id: g.chave, rotulo: gMes[0].chave.slice(0, 4) === gMes[gMes.length - 1].chave.slice(0, 4) ? MONTHS_SHORT[Number(g.chave.slice(5, 7)) - 1] : curtoMes(g.chave), nomeLongo: nomeMes(g.chave), total: g.total, classes: g.classes, pessoasDia: g.pessoasDia }))}
+                  />
                 </Card>
               )
             )}
 
             <Card titulo="Onde o efetivo foi usado" sub="Pessoas × dia por área (soma das pessoas de cada atividade, sem as canceladas)">
-              <BarrasSimples itens={gPessoas.map((g) => ({ nome: g.chave, v: g.pessoasDia }))} />
+              <GraficoBarras
+                unidade="pessoas×dia"
+                linhas={gPessoas.map((g) => ({ id: g.chave, nome: g.chave, v: g.pessoasDia }))}
+                detalhe={(l) => {
+                  const g = gPessoas.find((x) => x.chave === l.id)!;
+                  const exec = g.total - g.classes.cancelada;
+                  return (
+                    <p className="small muted">
+                      {exec} atividade(s) não canceladas · média de {exec ? (g.pessoasDia / exec).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'} pessoas por atividade
+                    </p>
+                  );
+                }}
+              />
             </Card>
 
             <Card titulo="Equipamentos que mais demandaram" sub="Top 10 por número de atividades">
-              <BarrasSimples itens={gEquip.map((g) => ({ nome: g.chave, v: g.total }))} />
+              <GraficoBarras
+                foco={foco}
+                linhas={gEquip.map((g) => {
+                  const [tag, ...resto] = g.chave.split(' · ');
+                  return { id: g.chave, nome: tag, sub: resto.join(' · '), v: g.total, classes: g.classes };
+                })}
+                detalhe={(l) => <UltimasDoEquipamento lista={lista} chave={l.id} />}
+              />
             </Card>
 
-            <Card titulo="Tipos de serviço" sub="Atividades por tipo">
-              <BarrasSimples itens={gTipo.map((g) => ({ nome: g.chave, v: g.total }))} />
+            <Card titulo="Tipos de serviço" sub="Atividades por tipo, por classificação">
+              <GraficoBarras foco={foco} linhas={gTipo.map((g) => ({ id: g.chave, nome: g.chave, v: g.total, classes: g.classes }))} />
             </Card>
 
             {oms && (
-            <Card titulo="Situação das OMs programadas no período">
-              <BarrasSimples
-                itens={[
-                  { nome: 'Aguardando retorno da supervisão', v: cOms.aberta },
-                  { nome: 'Aguardando baixa da programação', v: cOms.retornada },
-                  { nome: 'Baixadas', v: cOms.baixada },
-                  { nome: 'Sem registro (planilha)', v: cOms.sem_registro },
-                ]}
-              />
-            </Card>
+              <Card titulo="Situação das OMs programadas no período">
+                <GraficoBarras
+                  unidade="OMs"
+                  linhas={[
+                    { id: 'aberta', nome: 'Aguardando retorno da supervisão', v: cOms.aberta },
+                    { id: 'retornada', nome: 'Aguardando baixa da programação', v: cOms.retornada },
+                    { id: 'baixada', nome: 'Baixadas', v: cOms.baixada },
+                    { id: 'sem', nome: 'Sem registro (planilha)', v: cOms.sem_registro },
+                  ]}
+                />
+              </Card>
             )}
           </>
         )}
@@ -218,86 +254,23 @@ function Card({ titulo, sub, children }: { titulo: string; sub?: string; childre
   );
 }
 
-function Legenda() {
+/** Últimas atividades de um equipamento (detalhe da barra). */
+function UltimasDoEquipamento({ lista, chave }: { lista: Atividade[]; chave: string }) {
+  const ult = lista
+    .filter((a) => a.area && `${a.equipamento} · ${a.area}` === chave)
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .slice(0, 5);
   return (
-    <ul className="legend-viz" aria-label="Legenda das classificações">
-      {SERIES.map((s) => (
-        <li key={s.k}>
-          <span className={'sw s-' + s.k} aria-hidden /> {s.nome}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-const dicaGrupo = (g: Grupo) =>
-  `${g.chave}: ${g.total} atividade(s) — ` +
-  SERIES.filter((s) => g.classes[s.k])
-    .map((s) => `${s.nome} ${g.classes[s.k]}`)
-    .join(', ');
-
-/** Barras horizontais empilhadas por classificação (uma linha por grupo). */
-function BarrasEmpilhadas({ grupos }: { grupos: Grupo[] }) {
-  if (!grupos.length) return <p className="muted small">Sem atividades no período.</p>;
-  const max = Math.max(...grupos.map((g) => g.total));
-  return (
-    <ul className="hbars" role="list">
-      {grupos.map((g) => (
-        <li key={g.chave} className="hbar" title={dicaGrupo(g)}>
-          <span className="hbar-nome">{g.chave}</span>
-          <span className="hbar-trilho">
-            <span className="hbar-pilha" style={{ width: `${(g.total / max) * 100}%` }}>
-              {SERIES.filter((s) => g.classes[s.k]).map((s) => (
-                <span key={s.k} className={'seg-viz s-' + s.k} style={{ flexGrow: g.classes[s.k] }} />
-              ))}
-            </span>
-            <span className="hbar-valor num">{g.total}</span>
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function BarrasSimples({ itens }: { itens: { nome: string; v: number }[] }) {
-  const vis = itens.filter((i) => i.v > 0);
-  if (!vis.length) return <p className="muted small">Sem dados no período.</p>;
-  const max = Math.max(...vis.map((i) => i.v));
-  return (
-    <ul className="hbars" role="list">
-      {vis.map((i) => (
-        <li key={i.nome} className="hbar" title={`${i.nome}: ${i.v}`}>
-          <span className="hbar-nome">{i.nome}</span>
-          <span className="hbar-trilho">
-            <span className="hbar-pilha" style={{ width: `${(i.v / max) * 100}%` }}>
-              <span className="seg-viz s-unica" style={{ flexGrow: 1 }} />
-            </span>
-            <span className="hbar-valor num">{i.v}</span>
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Colunas por mês, empilhadas por classificação. */
-function Colunas({ grupos }: { grupos: Grupo[] }) {
-  const max = Math.max(1, ...grupos.map((g) => g.total));
-  return (
-    <div className="cols" role="list">
-      {grupos.map((g) => (
-        <div key={g.chave} className="col" role="listitem" title={dicaGrupo({ ...g, chave: nomeMes(g.chave) })}>
-          <span className="col-valor num">{g.total}</span>
-          <span className="col-trilho">
-            <span className="col-pilha" style={{ height: `${(g.total / max) * 100}%` }}>
-              {SERIES.filter((s) => g.classes[s.k]).map((s) => (
-                <span key={s.k} className={'seg-viz s-' + s.k} style={{ flexGrow: g.classes[s.k] }} />
-              ))}
-            </span>
-          </span>
-          <span className="col-nome">{curtoMes(g.chave)}</span>
-        </div>
-      ))}
+    <div className="gb-ultimas">
+      <span className="small muted">Últimas atividades</span>
+      <ul className="plain-list">
+        {ult.map((a) => (
+          <li key={a.id} className="small">
+            <span className="num">{a.data.split('-').reverse().join('/')}</span> · {a.tipo}
+            {a.descricao && <span className="muted"> — {a.descricao}</span>}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
