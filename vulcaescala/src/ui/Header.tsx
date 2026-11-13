@@ -51,9 +51,13 @@ interface HeaderProps {
   title?: string;
   /** situação da sincronização (quando o app não usa o store da escala) */
   status?: { cls: string; short: string; long: string };
+  /** botões extras no cabeçalho (ex.: Entrar/Sair da Programação) */
+  acoes?: React.ReactNode;
+  /** esconde o botão 🏠 do portal (link exclusivo das áreas do cliente) */
+  semPortal?: boolean;
 }
 
-export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcanização', status }: HeaderProps) {
+export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcanização', status, acoes, semPortal }: HeaderProps) {
   const store = useStoreOptional();
   const cloud = store?.cloud ?? null;
   const vis = store?.visualizacao ?? null;
@@ -86,9 +90,11 @@ export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcaniza�
             </div>
           </div>
           <div className="header-actions">
+            {!semPortal && (
             <a className="hdr-btn" href="../" title="Voltar ao menu de apps AMT" aria-label="Menu de apps AMT">
-              🏠
-            </a>
+                🏠
+              </a>
+            )}
             <button className="sync-pill" onClick={() => toast(sync.long)} aria-label={sync.long} title={sync.long}>
               <span className={`sync-dot ${sync.cls}`} aria-hidden />
               <span className="sync-text">{sync.short}</span>
@@ -96,6 +102,7 @@ export function Header({ children, kicker = 'Escala · AMT', title = 'Vulcaniza�
             <button className="hdr-btn" onClick={toggleTheme} title="Tema claro/escuro" aria-label="Alternar tema claro/escuro">
               {dark ? '☀️' : '🌙'}
             </button>
+            {acoes}
             {cloud && (
               <button className="hdr-btn" onClick={cloud.logout} title="Sair" aria-label="Sair da conta">
                 ⏻

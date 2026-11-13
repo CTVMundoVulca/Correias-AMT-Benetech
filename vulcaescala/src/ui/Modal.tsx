@@ -24,7 +24,8 @@ export function Modal({ title, subtitle, onClose, children, footer, size = 'norm
     const first = ref.current?.querySelector<HTMLElement>('[data-autofocus]') ?? ref.current;
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeRef.current();
+      // com um diálogo aberto sobre outro, o Esc fecha só o de cima
+      if (e.key === 'Escape' && [...document.querySelectorAll('.modal')].pop() === ref.current) closeRef.current();
     };
     document.addEventListener('keydown', onKey);
     return () => {

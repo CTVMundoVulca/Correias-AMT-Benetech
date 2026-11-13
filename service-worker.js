@@ -1,11 +1,11 @@
 /* Service Worker ÚNICO do portal AMT — mesmo esquema dos Apps CTV Campo.
-   Controla todos os módulos (portal, Escala, Emenda e Medidas) com uma só versão:
+   Controla todos os módulos (portal, Escala, Emenda, Programação e Medidas) com uma só versão:
    qualquer publicação muda o CACHE_VERSION e todos os aparelhos se atualizam
    sozinhos (app-update.js). Navegação = network-first com fallback para o cache
    (abre offline); demais arquivos = cache-first.
    CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs),
    a partir do conteúdo de todos os arquivos do APP_SHELL. */
-const CACHE_VERSION = 'amt-3d19f62ddd0b';
+const CACHE_VERSION = 'amt-39f222d2003a';
 
 const APP_SHELL = [
   './',
@@ -26,6 +26,14 @@ const APP_SHELL = [
   './emenda/index.html',
   './emenda/logo-benetech.png',
   './emenda/logo-ctv.webp',
+  './programacao/',
+  './programacao/index.html',
+  './programacao/logo-benetech.png',
+  // link exclusivo das áreas do cliente
+  './areas/',
+  './areas/index.html',
+  './areas/manifest.json',
+  './areas/logo-benetech.png',
   // geração de PDF no aparelho (mesmas bibliotecas dos Apps CTV Campo)
   './vendor/html2canvas.min.js',
   './vendor/jspdf.umd.min.js',
@@ -62,7 +70,7 @@ self.addEventListener('activate', (event) => {
 
 /* página inicial de cada módulo, para abrir offline */
 function paginaDoModulo(url) {
-  for (const m of ['escala', 'emenda', 'medidas']) if (url.pathname.includes('/' + m + '/')) return './' + m + '/index.html';
+  for (const m of ['escala', 'emenda', 'programacao', 'areas', 'medidas']) if (url.pathname.includes('/' + m + '/')) return './' + m + '/index.html';
   return './index.html';
 }
 

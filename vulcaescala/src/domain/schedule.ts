@@ -34,7 +34,8 @@ export function pendingWorkers(day: Day, workers: Worker[], feriado: string | nu
   if (day.activities.length === 0 || feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
-  return sortByName(workers.filter((w) => w.ativo && !alloc.has(w.id) && !absent.has(w.id)));
+  // apoio de outro contrato: só entra no dia em que é alocado (não gera pendência)
+  return sortByName(workers.filter((w) => w.ativo && !w.apoio && !alloc.has(w.id) && !absent.has(w.id)));
 }
 
 /** Nome do feriado (nacional ou municipal) no dia da semana, ou null. */
@@ -72,7 +73,7 @@ export function folgasDeFeriado(day: Day, workers: Worker[], feriado: string | n
   if (!feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
-  return sortByName(workers.filter((w) => w.ativo && !alloc.has(w.id) && !absent.has(w.id)));
+  return sortByName(workers.filter((w) => w.ativo && !w.apoio && !alloc.has(w.id) && !absent.has(w.id)));
 }
 
 export interface DayPending {

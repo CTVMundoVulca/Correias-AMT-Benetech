@@ -82,7 +82,9 @@ export function AbsencePicker({ dayRef, dayLabel, onClose }: Props) {
                   toast(here ? 'Ausência removida' : 'Ausência registrada');
                 }}
               >
-                <span className="pick-name">{w.nome}</span>
+                <span className="pick-name">
+                  {w.nome} {w.apoio && <span className="tag-apoio">Apoio</span>}
+                </span>
                 {(here || cur || inActivity) && (
                   <span className={'pick-status' + (cur && !here ? ` tinted cor-${tipoAusencia(state, cur).cor}` : '')}>
                     {here ? '✓' : cur ? tipoAusencia(state, cur).nome : 'Alocado'}

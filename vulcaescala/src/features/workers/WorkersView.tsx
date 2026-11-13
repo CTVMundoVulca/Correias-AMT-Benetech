@@ -10,7 +10,7 @@ import { sortByName, workerUsage } from '../../domain/schedule';
 import { useToast } from '../../ui/Toast';
 import { useConfirm } from '../../ui/ConfirmDialog';
 
-type Situacao = 'todos' | 'ativos' | 'inativos';
+type Situacao = 'todos' | 'ativos' | 'inativos' | 'contrato' | 'apoio';
 
 export function WorkersView() {
   const { state, dispatch } = useStore();
@@ -21,6 +21,7 @@ export function WorkersView() {
   const [funcoesOpen, setFuncoesOpen] = useState(false);
   const [ausenciasOpen, setAusenciasOpen] = useState(false);
   const [matricula, setMatricula] = useState('');
+  const [apoio, setApoio] = useState(false);
   // função escolhida pode ter sido renomeada/removida em outro aparelho
   const funcaoValida = state.funcoes.includes(funcao) ? funcao : (state.funcoes[0] ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,9 @@ export function WorkersView() {
     () =>
       sortByName(state.workers).filter(
         (w) =>
-          (situacao === 'todos' || (situacao === 'ativos') === w.ativo) && matchesSearch(w.nome, query),
+          (situacao === 'todos' ||
+            (situacao === 'contrato' ? !w.apoio : situacao === 'apoio' ? !!w.apoio : (situacao === 'ativos') === w.ativo)) &&
+          matchesSearch(w.nome, query),
       ),
     [state.workers, situacao, query],
   );
@@ -66,9 +69,10 @@ export function WorkersView() {
       }))
     )
       return;
-    dispatch({ type: 'worker/add', id: newId(), nome: n, funcao: funcaoValida, matricula });
+    dispatch({ type: 'worker/add', id: newId(), nome: n, funcao: funcaoValida, matricula, apoio });
     setNome('');
     setMatricula('');
+    setApoio(false);
     toast('Colaborador adicionado');
   };
 
@@ -111,7 +115,9 @@ export function WorkersView() {
         </div>
         <div className="row between">
           <span className="muted small tabnum">
-            {active} ativo(s) · {state.workers.length - active} inativo(s)
+            {active} ativo(s) · {state.workers.length - active} inativo(s) ·{' '}
+            <b>{state.workers.filter((w) => w.ativo && !w.apoio).length}</b> do contrato ·{' '}
+            {state.workers.filter((w) => w.ativo && w.apoio).length} de apoio
           </span>
         </div>
         <form className="form-row" onSubmit={add}>
@@ -139,6 +145,9 @@ export function WorkersView() {
               <option key={f}>{f}</option>
             ))}
           </select>
+          <label className="check small apoio-check">
+            <input type="checkbox" checked={apoio} onChange={(e) => setApoio(e.target.checked)} /> Apoio de outro contrato
+          </label>
           <button className="btn primary" type="submit" disabled={!nome.trim()}>
             Adicionar
           </button>
@@ -164,6 +173,8 @@ export function WorkersView() {
             <option value="todos">Todas as situações</option>
             <option value="ativos">Só ativos</option>
             <option value="inativos">Só inativos</option>
+            <option value="contrato">Só do contrato AMT</option>
+            <option value="apoio">Só apoio de outros contratos</option>
           </select>
         </div>
         <div className="worker-grid">
@@ -177,6 +188,7 @@ export function WorkersView() {
                   <div className="worker-meta">
                     <span>{w.funcao}</span>
                     {w.matricula && <span className="tabnum">Mat. {w.matricula}</span>}
+                    {w.apoio && <span className="tag-apoio">Apoio</span>}
                     <span className={'status-dot' + (w.ativo ? '' : ' off')}>{w.ativo ? 'Ativo' : 'Inativo'}</span>
                   </div>
                 </div>
@@ -215,6 +227,7 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
   const [nome, setNome] = useState(worker.nome);
   const [funcao, setFuncao] = useState<Funcao>(worker.funcao);
   const [matricula, setMatricula] = useState(worker.matricula ?? '');
+  const [apoio, setApoio] = useState(!!worker.apoio);
   const [error, setError] = useState<string | null>(null);
 
   const save = (e: FormEvent) => {
@@ -225,7 +238,7 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
       setError(`${n} já está cadastrado.`);
       return;
     }
-    dispatch({ type: 'worker/update', id: worker.id, nome: n, funcao, matricula });
+    dispatch({ type: 'worker/update', id: worker.id, nome: n, funcao, matricula, apoio });
     toast('Colaborador atualizado');
     onDone();
   };
@@ -256,6 +269,9 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
           <option key={f}>{f}</option>
         ))}
       </select>
+      <label className="check small">
+        <input type="checkbox" checked={apoio} onChange={(e) => setApoio(e.target.checked)} /> Apoio de outro contrato (não conta no efetivo do contrato)
+      </label>
       {error && (
         <p className="text-danger small" role="alert">
           {error}

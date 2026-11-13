@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useSomenteLeitura, useStore } from "../../state/store";
 import { newId } from "../../domain/ids";
-import { WEEKDAYS, formatDate } from "../../domain/isoWeek";
+import { WEEKDAYS, formatDate, toIsoDate } from "../../domain/isoWeek";
 import {
   allocatedIds,
   dayHasData,
@@ -16,6 +16,7 @@ import { useToast } from "../../ui/Toast";
 import { ActivityCard } from "./ActivityCard";
 import { AbsencePicker } from "./AbsencePicker";
 import { PendingWorkerDialog } from "./PendingWorkerDialog";
+import { ProgDoDia } from "./ProgDoDia";
 
 interface Props {
   weekKey: string;
@@ -167,6 +168,15 @@ export function DayBlock({
                 ✓ Todo o efetivo ativo está alocado ou com ausência registrada.
               </div>
             ))}
+
+          {!ro && (
+            <ProgDoDia
+              data={toIsoDate(date)}
+              day={day}
+              weekKey={weekKey}
+              dayIndex={dayIndex}
+            />
+          )}
 
           {!ro && (
             <form className="row nowrap" onSubmit={addActivity}>
