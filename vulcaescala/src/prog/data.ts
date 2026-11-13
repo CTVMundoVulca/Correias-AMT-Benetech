@@ -442,3 +442,68 @@ export function ouvirRelatoriosEmenda(api: FirebaseApi, de: string, ate: string,
     onErr,
   );
 }
+
+// ------------------------------------------------------------------ limpeza do histórico da planilha
+
+export interface ResumoLimpeza {
+  atividades: number;
+  meses: string[];
+  oms: number;
+  /** atividades lançadas no próprio app antes do corte (são mantidas) */
+  doAppMantidas: number;
+}
+
+/**
+ * Remove o que veio da PLANILHA com data anterior ao corte (atividades e OMs só da planilha).
+ * Nunca toca no que foi lançado no app, nos retornos do supervisor nem nas solicitações.
+ * `simular` só conta, sem gravar.
+ */
+export async function limparPlanilhaAntes(api: FirebaseApi, corte: string, por: string, simular: boolean): Promise<ResumoLimpeza> {
+  const { fsMod, fs } = api;
+  const anoCorte = Number(corte.slice(0, 4));
+  const meses: string[] = [];
+  for (let y = anoCorte - 1; y <= anoCorte; y++) for (let m = 1; m <= 12; m++) {
+    const ym = `${y}-${String(m).padStart(2, '0')}`;
+    if (ym <= corte.slice(0, 7)) meses.push(ym);
+  }
+  const r: ResumoLimpeza = { atividades: 0, meses: [], oms: 0, doAppMantidas: 0 };
+  const b = fsMod.writeBatch(fs);
+  let escritas = 0;
+  for (const mes of meses) {
+    const snap = await fsMod.getDocFromServer(fsMod.doc(fs, COL_MES, mes));
+    const itens = (snap.data()?.itens ?? {}) as Record<string, { data?: string; origem?: string }>;
+    const apagar: Record<string, unknown> = {};
+    for (const [id, a] of Object.entries(itens)) {
+      if (!a || typeof a.data !== 'string' || a.data >= corte) continue;
+      if (a.origem === 'planilha') apagar[id] = fsMod.deleteField();
+      else r.doAppMantidas++;
+    }
+    const n = Object.keys(apagar).length;
+    if (!n) continue;
+    r.atividades += n;
+    r.meses.push(mes);
+    if (!simular) {
+      b.set(fsMod.doc(fs, COL_MES, mes), { itens: apagar, ...carimbo(por) }, { merge: true });
+      escritas++;
+    }
+  }
+  for (const ano of [String(anoCorte - 1), String(anoCorte)]) {
+    const snap = await fsMod.getDocFromServer(fsMod.doc(fs, COL_OMS, ano));
+    const oms = (snap.data()?.oms ?? {}) as Record<string, unknown>;
+    const apagar: Record<string, unknown> = {};
+    for (const [om, v] of Object.entries(oms)) {
+      const o = completarOm(om, v);
+      // só OMs encerradas antes do corte e sem nenhum registro feito no app
+      if (o.ultimaData && o.ultimaData < corte && !o.retornoEm && !o.baixaEm) apagar[om] = fsMod.deleteField();
+    }
+    const n = Object.keys(apagar).length;
+    if (!n) continue;
+    r.oms += n;
+    if (!simular) {
+      b.set(fsMod.doc(fs, COL_OMS, ano), { oms: apagar, ...carimbo(por) }, { merge: true });
+      escritas++;
+    }
+  }
+  if (!simular && escritas) await b.commit();
+  return r;
+}

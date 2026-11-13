@@ -10,6 +10,7 @@ import { AreasDialog } from './AreasDialog';
 import { Importar } from './Importar';
 import { RecusarDialog } from './RecusarDialog';
 import { ApontarDialog } from './ApontarDialog';
+import { SeletorSemana } from './SeletorSemana';
 import { BarraAreas, LinhaAtividade, curtoDia, diasDaSemana, fatiasDoDia, rotuloDia, segundaDe } from './Painel';
 
 const CHAVE_ABERTOS = 'prog:dias-abertos';
@@ -60,7 +61,6 @@ export function Programar() {
   const daSemana = useMemo(() => ordenarAtividades((lista ?? []).filter((a) => a.data >= dias[0] && a.data <= dias[6])), [lista, dias]);
   const r = resumir(daSemana);
   const semanaNum = isoWeekOf(fromIsoDate(segunda)!).week;
-  const mudar = (n: number) => setSegunda(toIsoDate(addDays(fromIsoDate(segunda)!, 7 * n)));
 
   if (!pode.programar) return <p className="muted">Só a programação monta e altera a programação.</p>;
 
@@ -120,20 +120,7 @@ export function Programar() {
       )}
 
       <section className="card pad">
-        <div className="row between nowrap">
-          <button className="btn" onClick={() => mudar(-1)} aria-label="Semana anterior">
-            ‹
-          </button>
-          <div className="center">
-            <b>Semana {semanaNum}</b>
-            <div className="small muted">
-              {curtoDia(dias[0])} a {curtoDia(dias[6])}
-            </div>
-          </div>
-          <button className="btn" onClick={() => mudar(1)} aria-label="Próxima semana">
-            ›
-          </button>
-        </div>
+        <SeletorSemana segunda={segunda} onEscolher={setSegunda} />
         <p className="small muted center">
           {r.total} atividade{r.total === 1 ? '' : 's'} · {r.classes.programada} programada{r.classes.programada === 1 ? '' : 's'} · {r.classes.nao_programada} não
           programada{r.classes.nao_programada === 1 ? '' : 's'} · {r.classes.emergencia} emergência{r.classes.emergencia === 1 ? '' : 's'} · {r.classes.cancelada}{' '}

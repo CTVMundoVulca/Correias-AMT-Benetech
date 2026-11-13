@@ -85,3 +85,14 @@ describe('relatórios de emenda', () => {
     expect(c.semAtividade.map((r) => r.id)).toEqual(['orf']);
   });
 });
+
+describe('importação a partir do corte', () => {
+  it('só entram atividades a partir da data e as OMs delas', async () => {
+    const { aPartirDe } = await import('../prog/Importar');
+    const om = (n: string) => ({ om: n } as unknown as import('../prog/model').OmInfo);
+    const p = { origem: 'x', atividades: [at('a', '2026-11-01', { om: '111' }), at('b', '2026-11-02', { om: '222' }), at('c', '2026-11-20')], oms: [om('111'), om('222')] };
+    const f = aPartirDe(p, '2026-11-02');
+    expect(f.atividades.map((x) => x.id)).toEqual(['b', 'c']);
+    expect(f.oms.map((o) => o.om)).toEqual(['222']);
+  });
+});
