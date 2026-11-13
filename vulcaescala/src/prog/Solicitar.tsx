@@ -96,11 +96,18 @@ export function Solicitar() {
       atualizadoEm: new Date().toISOString(),
       atualizadoPor: 'anônimo',
     };
+    // campos obrigatórios, na ordem do formulário (leva o cursor ao primeiro que falta)
+    const falta = (id: string, msg: string) => {
+      document.getElementById(id)?.focus();
+      toast(msg, 'warn');
+    };
     if (!s.area) return toast('Escolha a área.', 'warn');
-    if (!s.descricao) return toast('Descreva o serviço.', 'warn');
-    if (!s.solicitante) return toast('Informe seu nome.', 'warn');
-    if (s.om && s.om.length < 6) return toast('Número da OM incompleto.', 'warn');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.dataDesejada)) return toast('Informe a data desejada.', 'warn');
+    if (!s.equipamento) return falta('sol-equip', 'Informe o equipamento / TAG.');
+    if (s.om && s.om.length < 6) return falta('sol-om', 'Número da OM incompleto.');
+    if (!s.descricao) return falta('sol-desc', 'Descreva o serviço.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.dataDesejada)) return falta('sol-data', 'Informe a data desejada.');
+    if (!s.solicitante) return falta('sol-nome', 'Informe seu nome.');
+    if ((s.contato.match(/\d/g) ?? []).length < 3) return falta('sol-tel', 'Informe o ramal ou telefone para contato.');
     guardarSolicitante(s.solicitante, s.contato, s.area);
     gravarSolicitacao(api, s).catch(() => toast('A nuvem recusou a solicitação. Confira os campos.', 'danger'));
     toast('Solicitação enviada à programação');
@@ -131,21 +138,31 @@ export function Solicitar() {
         <p className="small muted">
           Antes de pedir para um dia específico, veja no <a href="#/painel">Painel</a> em quais áreas o efetivo já está.
         </p>
-        <CampoArea rotulo="Área solicitante" value={area} onChange={setArea} />
+        <CampoArea
+          rotulo={
+            <>
+              Área solicitante <span className="obrig" aria-hidden>*</span>
+            </>
+          }
+          value={area}
+          onChange={setArea}
+        />
         <div className="two-cols">
           <label className="field">
-            Equipamento / TAG
-            <input className="input" value={equipamento} maxLength={EQUIP_MAX} placeholder="Ex.: C-3" onChange={(e) => setEquipamento(e.target.value)} />
+            <span>Equipamento / TAG <span className="obrig" aria-hidden>*</span></span>
+            <input id="sol-equip" aria-required="true" className="input" value={equipamento} maxLength={EQUIP_MAX} placeholder="Ex.: C-3" onChange={(e) => setEquipamento(e.target.value)} />
           </label>
           <label className="field">
             Nº da OM (se houver)
-            <input className="input num" inputMode="numeric" value={om} placeholder="9000…" onChange={(e) => setOm(e.target.value)} />
+            <input id="sol-om" className="input num" inputMode="numeric" value={om} placeholder="9000…" onChange={(e) => setOm(e.target.value)} />
           </label>
         </div>
         {omLimpa && !omPadrao(omLimpa) && <p className="small text-pend">A OM costuma ter 12 dígitos começando por 9 (ex.: 900033269317). Confira.</p>}
         <label className="field">
-          Serviço
+          <span>Serviço <span className="obrig" aria-hidden>*</span></span>
           <textarea
+            id="sol-desc"
+            aria-required="true"
             className="input"
             rows={3}
             maxLength={DESCRICAO_SOLIC_MAX}
@@ -164,8 +181,8 @@ export function Solicitar() {
         </div>
         <p className="small muted">{URGENCIAS.find((u) => u.id === urgencia)?.dica}</p>
         <label className="field">
-          Data desejada
-          <input className="input" type="date" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
+          <span>Data desejada <span className="obrig" aria-hidden>*</span></span>
+          <input id="sol-data" aria-required="true" className="input" type="date" value={dataDesejada} onChange={(e) => setDataDesejada(e.target.value)} />
         </label>
         <span className="field">Estimativa (opcional): quantas pessoas da vulcanização e por quantos dias</span>
         <div className="two-cols">
@@ -180,15 +197,17 @@ export function Solicitar() {
         </div>
         <div className="two-cols">
           <label className="field">
-            Seu nome
-            <input className="input" value={solicitante} maxLength={SOLICITANTE_MAX} autoComplete="name" onChange={(e) => setSolicitante(e.target.value)} />
+            <span>Seu nome <span className="obrig" aria-hidden>*</span></span>
+            <input id="sol-nome" aria-required="true" className="input" value={solicitante} maxLength={SOLICITANTE_MAX} autoComplete="name" onChange={(e) => setSolicitante(e.target.value)} />
           </label>
           <label className="field">
-            Ramal / telefone (opcional)
-            <input className="input" value={contato} maxLength={CONTATO_MAX} onChange={(e) => setContato(e.target.value)} />
+            <span>Ramal / telefone <span className="obrig" aria-hidden>*</span></span>
+            <input id="sol-tel" aria-required="true" className="input" inputMode="tel" value={contato} maxLength={CONTATO_MAX} placeholder="Ex.: 2345 ou (27) 99999-0000" onChange={(e) => setContato(e.target.value)} />
           </label>
         </div>
-        <p className="small muted">As solicitações ficam visíveis para todos que usam o app (nome e contato incluídos).</p>
+        <p className="small muted">
+          <span className="obrig">*</span> Campos obrigatórios. As solicitações ficam visíveis para todos que usam o app (nome e contato incluídos).
+        </p>
         <button className="btn primary" type="submit">
           Enviar solicitação
         </button>

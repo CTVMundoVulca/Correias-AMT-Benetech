@@ -700,3 +700,6 @@
 .sel-hoje { position: absolute; top: 6px; right: 8px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: var(--accent-strong); }
 .sel-sem.on .sel-hoje { color: inherit; }
 .limpeza { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+
+/* campo obrigatório */
+.obrig { color: var(--red-ink); font-weight: 700; }
