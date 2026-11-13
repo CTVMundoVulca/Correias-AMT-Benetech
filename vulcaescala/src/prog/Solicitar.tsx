@@ -20,6 +20,8 @@ import {
   omPadrao,
   type Solicitacao,
   type StatusSolicitacao,
+  formatarTelefone,
+  telefoneValido,
 } from './model';
 
 const LEMBRAR = 'prog:solicitante';
@@ -65,7 +67,7 @@ export function Solicitar() {
   const [estPessoas, setEstPessoas] = useState('');
   const [estDias, setEstDias] = useState('');
   const [solicitante, setSolicitante] = useState(salvo.solicitante);
-  const [contato, setContato] = useState(salvo.contato);
+  const [contato, setContato] = useState(() => (telefoneValido(salvo.contato) ? formatarTelefone(salvo.contato) : ''));
   const [lista, setLista] = useState<Solicitacao[] | null>(null);
   const [filtro, setFiltro] = useState<'minhas' | 'todas'>('minhas');
 
@@ -107,7 +109,7 @@ export function Solicitar() {
     if (!s.descricao) return falta('sol-desc', 'Descreva o serviço.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(s.dataDesejada)) return falta('sol-data', 'Informe a data desejada.');
     if (!s.solicitante) return falta('sol-nome', 'Informe seu nome.');
-    if ((s.contato.match(/\d/g) ?? []).length < 3) return falta('sol-tel', 'Informe o ramal ou telefone para contato.');
+    if (!telefoneValido(s.contato)) return falta('sol-tel', 'Informe o telefone de contato com DDD, ex.: (27) 99999-0000.');
     guardarSolicitante(s.solicitante, s.contato, s.area);
     gravarSolicitacao(api, s).catch(() => toast('A nuvem recusou a solicitação. Confira os campos.', 'danger'));
     toast('Solicitação enviada à programação');
@@ -201,8 +203,19 @@ export function Solicitar() {
             <input id="sol-nome" aria-required="true" className="input" value={solicitante} maxLength={SOLICITANTE_MAX} autoComplete="name" onChange={(e) => setSolicitante(e.target.value)} />
           </label>
           <label className="field">
-            <span>Ramal / telefone <span className="obrig" aria-hidden>*</span></span>
-            <input id="sol-tel" aria-required="true" className="input" inputMode="tel" value={contato} maxLength={CONTATO_MAX} placeholder="Ex.: 2345 ou (27) 99999-0000" onChange={(e) => setContato(e.target.value)} />
+            <span>Telefone de contato <span className="obrig" aria-hidden>*</span></span>
+            <input
+              id="sol-tel"
+              aria-required="true"
+              className="input num"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={contato}
+              maxLength={16}
+              placeholder="(27) 99999-0000"
+              onChange={(e) => setContato(formatarTelefone(e.target.value))}
+            />
           </label>
         </div>
         <p className="small muted">

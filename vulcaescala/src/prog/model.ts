@@ -357,6 +357,25 @@ export function mesesEntre(de: string, ate: string): string[] {
 // ------------------------------------------------------------------ OM
 
 /** Só dígitos; a OM do SAP do AMT tem 12 dígitos (ex.: 900033269317). */
+/** Telefone com DDD, formatado enquanto digita: (27) 3333-4444 ou (27) 99999-0000. */
+export function formatarTelefone(s: string): string {
+  const d = s.replace(/\D/g, '').slice(0, 11);
+  if (!d) return '';
+  if (d.length <= 2) return `(${d}`;
+  const ddd = d.slice(0, 2);
+  const n = d.slice(2);
+  if (n.length <= 4) return `(${ddd}) ${n}`;
+  const meio = n.length === 9 ? 5 : 4;
+  return `(${ddd}) ${n.slice(0, meio)}-${n.slice(meio)}`;
+}
+
+/** Telefone válido: DDD (11–99) + 8 dígitos (fixo) ou 9 dígitos começando por 9 (celular). */
+export function telefoneValido(s: string): boolean {
+  const d = s.replace(/\D/g, '');
+  if (!/^[1-9][1-9]/.test(d)) return false;
+  return d.length === 10 || (d.length === 11 && d[2] === '9');
+}
+
 export function limparOm(s: string): string {
   return s.replace(/\D+/g, '').slice(0, 14);
 }

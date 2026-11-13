@@ -96,3 +96,19 @@ describe('importação a partir do corte', () => {
     expect(f.oms.map((o) => o.om)).toEqual(['222']);
   });
 });
+
+describe('telefone de contato', () => {
+  it('formata enquanto digita e valida DDD + número', async () => {
+    const { formatarTelefone, telefoneValido } = await import('../prog/model');
+    expect(formatarTelefone('27')).toBe('(27');
+    expect(formatarTelefone('2733334444')).toBe('(27) 3333-4444');
+    expect(formatarTelefone('27999990000')).toBe('(27) 99999-0000');
+    expect(formatarTelefone('(27) 9 9999-0000 ramal')).toBe('(27) 99999-0000');
+    expect(telefoneValido('(27) 99999-0000')).toBe(true);
+    expect(telefoneValido('(27) 3333-4444')).toBe(true);
+    expect(telefoneValido('2345')).toBe(false);
+    expect(telefoneValido('Ramal 1234')).toBe(false);
+    expect(telefoneValido('(27) 89999-0000')).toBe(false);
+    expect(telefoneValido('(07) 3333-4444')).toBe(false);
+  });
+});
