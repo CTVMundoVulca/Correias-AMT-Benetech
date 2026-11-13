@@ -1,4 +1,6 @@
 import type { FirebaseApi } from '../cloud/firebase';
+import { COL_EMENDAS } from '../emenda/data';
+import type { RelResumo } from './relEmenda';
 import {
   AREAS_PADRAO,
   anoDaOm,
@@ -420,4 +422,23 @@ export function ouvirPedidosParada(api: FirebaseApi, desde: string, cb: (l: Pedi
 export function gravarPedidoParada(api: FirebaseApi, p: PedidoParada): Promise<void> {
   const { fsMod, fs } = api;
   return fsMod.setDoc(fsMod.doc(fs, COL_PEDIDOS_PARADA, p.id), p);
+}
+
+// ------------------------------------------------------------------ relatórios de emenda
+
+/** Relatórios do app Registro de Emenda com data no intervalo (só o que o cruzamento usa). */
+export function ouvirRelatoriosEmenda(api: FirebaseApi, de: string, ate: string, cb: (l: RelResumo[]) => void, onErr: (e: unknown) => void = () => {}): Unsub {
+  const { fsMod, fs } = api;
+  const q = fsMod.query(fsMod.collection(fs, COL_EMENDAS), fsMod.where('data', '>=', de), fsMod.where('data', '<=', ate));
+  return fsMod.onSnapshot(
+    q,
+    (snap) =>
+      cb(
+        snap.docs.map((d) => {
+          const x = d.data() ?? {};
+          return { id: d.id, tag: String(x.tag ?? ''), data: String(x.data ?? ''), om: String(x.om ?? ''), numero: String(x.numero ?? '') };
+        }),
+      ),
+    onErr,
+  );
 }

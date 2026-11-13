@@ -228,6 +228,10 @@ export interface Atividade {
   /** solicitação de origem ('' = lançada direto pelo programador) */
   solicitacaoId: string;
   origem: 'app' | 'planilha';
+  /** relatórios de emenda vinculados à mão (ids do app Registro de Emenda) */
+  relEmendas: string[];
+  /** motivo para dispensar o relatório de emenda ('' = exige, se o tipo exigir) */
+  relDispensa: string;
   /** posição no dia */
   ordem: number;
   criadoEm: string;
@@ -270,6 +274,8 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     reprogramacoes: 0,
     solicitacaoId: '',
     origem: 'app',
+    relEmendas: [],
+    relDispensa: '',
     ordem: Date.now(),
     criadoEm: agora,
     criadoPor: por,
@@ -311,6 +317,8 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     reprogramacoes: typeof a.reprogramacoes === 'number' && a.reprogramacoes > 0 ? Math.min(99, Math.round(a.reprogramacoes)) : 0,
     solicitacaoId: str(a.solicitacaoId, 60),
     origem: a.origem === 'planilha' ? 'planilha' : 'app',
+    relEmendas: Array.isArray(a.relEmendas) ? a.relEmendas.filter((x): x is string => typeof x === 'string').slice(0, 10).map((x) => x.slice(0, 60)) : [],
+    relDispensa: str(a.relDispensa, MOTIVO_MAX),
     ordem: typeof a.ordem === 'number' ? a.ordem : 0,
     criadoEm: str(a.criadoEm, 40),
     criadoPor: str(a.criadoPor, 120),

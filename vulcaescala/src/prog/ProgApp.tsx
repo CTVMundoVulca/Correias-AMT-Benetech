@@ -9,6 +9,7 @@ import { AREAS_PADRAO, PAPEIS_VAZIOS, permissoes, type Area, type Papeis } from 
 import { Painel } from './Painel';
 import { Solicitar } from './Solicitar';
 import { Programar } from './Programar';
+import { RelatoriosEmenda } from './RelatoriosEmenda';
 import { Oms } from './Oms';
 import { Dashboard } from './Dashboard';
 import { Central } from './Central';
@@ -40,6 +41,7 @@ const GESTAO: TelaDef[] = [
   { id: 'programar', label: 'Programação', ico: '🗓', papeis: ['programar'] },
   { id: 'paradas', label: 'Paradas', ico: '⛔', papeis: ['programar'] },
   { id: 'oms', label: 'OMs', ico: '🧾', papeis: ['programar', 'retorno'] },
+  { id: 'relemenda', label: 'Relatórios de emenda', ico: '📝', papeis: ['programar'] },
   { id: 'equipe', label: 'Equipe e papéis', ico: '👥', papeis: ['administrar'] },
 ];
 
@@ -307,6 +309,7 @@ export function ProgApp({ linkAreas = false }: { linkAreas?: boolean } = {}) {
               {atual === 'programar' && <Programar />}
               {atual === 'paradas' && <ParadasGestao />}
               {atual === 'oms' && <Oms />}
+              {atual === 'relemenda' && <RelatoriosEmenda />}
               {atual === 'equipe' && <Equipe />}
             </>
           ) : (

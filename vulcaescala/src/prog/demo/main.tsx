@@ -7,6 +7,7 @@ import { ProgApp } from '../ProgApp';
 import { lerPacote } from '../Importar';
 import { anoDaOm, hojeIso, mesDe } from '../model';
 import { locateDay, toUtcDay } from '../../domain/isoWeek';
+import { TIPOS_COM_RELATORIO } from '../relEmenda';
 import { semear } from './firebaseFalso';
 import '../../styles/fonts.css';
 import '../../styles/tokens.css';
@@ -136,6 +137,19 @@ if (window.__DEMO_DADOS__) {
       });
   }
   const em = (id: string, tag: string, dias: number) => semear(`emendas/${id}`, { id, tag, data: dIso(-dias), numero: '1' });
+  // relatórios de emenda das trocas/emendas executadas: uns pela OM, uns pela TAG, alguns pendentes
+  let nRel = 100;
+  p.atividades
+    .filter((a) => a.data >= desde30 && a.data < hoje && TIPOS_COM_RELATORIO.includes(a.tipo) && a.classe !== 'cancelada')
+    .forEach((a, i) => {
+      const r = i % 4;
+      if (r === 2) return; // pendente
+      const id = `rel${i}`;
+      const data = r === 1 ? iso(new Date(new Date(a.data + 'T12:00').getTime() + 86_400_000)) : a.data;
+      semear(`emendas/${id}`, { id, tag: r === 1 ? a.equipamento.replace('-', ' ') : a.equipamento, data, om: r === 0 ? a.om : '', numero: String(nRel++) });
+    });
+  semear('emendas/orf1', { id: 'orf1', tag: 'BC-999', data: dIso(-3), om: '', numero: '98' });
+  semear('emendas/orf2', { id: 'orf2', tag: 'TR-7', data: dIso(-12), om: '4455667', numero: '99' });
   em('em1', 'L-21', 200); em('em2', 'L-21', 120); em('em3', 'L 21', 40); em('em4', 'B-9R', 150); em('em5', 'B-9R', 10); em('em6', 'C-3', 90);
 }
 
