@@ -34,7 +34,7 @@ const PAINEL: TelaDef[] = [
   { id: 'dashboard', label: 'Relatórios', ico: '📊' },
 ];
 /** Link exclusivo das áreas do cliente (ArcelorMittal): só o que interessa a quem pede serviço. */
-const TELAS_AREAS = ['central', 'painel', 'paradas', 'solicitar'];
+const TELAS_AREAS = ['central', 'painel', 'paradas', 'solicitar', 'dashboard'];
 /** BACK-END: Gestão (login + papel). */
 const GESTAO: TelaDef[] = [
   { id: 'programar', label: 'Programação', ico: '🗓', papeis: ['programar'] },

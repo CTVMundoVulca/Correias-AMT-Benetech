@@ -313,12 +313,8 @@ export function AcoesRapidas({ linkAreas = false }: { linkAreas?: boolean }) {
     { href: '#/solicitar', ico: '➕', nome: 'Nova solicitação', destaque: true },
     { href: '#/paradas', ico: '⛔', nome: 'Informar parada' },
     { href: '#/painel', ico: '📍', nome: 'Dia a dia' },
-    ...(linkAreas
-      ? []
-      : [
-          { href: '#/dashboard', ico: '📊', nome: 'Relatórios' },
-          { href: '#/g', ico: '⚙', nome: 'Gestão' },
-        ]),
+    { href: '#/dashboard', ico: '📊', nome: 'Relatórios' },
+    ...(linkAreas ? [] : [{ href: '#/g', ico: '⚙', nome: 'Gestão' }]),
   ];
   return (
     <nav className="acoes-rapidas" aria-label="Ações rápidas">
