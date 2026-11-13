@@ -678,3 +678,25 @@
 .rel-emenda .kpi::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); opacity: 0.7; }
 .rel-emenda .kpi.kpi-alerta::before { background: var(--red-ink); opacity: 1; }
 .rel-sinal { color: var(--accent-strong); font-weight: 600; }
+
+/* ---------- seletor de semana (calendário de meses e semanas) ---------- */
+.sel-semana { width: 100%; min-width: 0; }
+.sel-linha { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sel-semana-tit { flex: 1; min-width: 0; }
+.sel-semana-tit { background: none; border: 1px solid transparent; border-radius: 10px; padding: 4px 10px; cursor: pointer; color: inherit; font: inherit; display: flex; flex-direction: column; align-items: center; min-height: var(--tap); }
+.sel-semana-tit:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.sel-painel { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; animation: gb-in 0.18s ease; }
+.sel-ano { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.sel-meses { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.sel-mes { flex: 0 0 auto; scroll-snap-align: center; min-width: 56px; min-height: 38px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 999px; cursor: pointer; font-weight: 600; }
+.sel-mes.atual { border-color: var(--accent); }
+.sel-mes.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sel-mes-nome { text-align: center; }
+.sel-semanas { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.sel-sem { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; font: inherit; font-size: 0.85rem; }
+.sel-sem:hover { border-color: var(--accent); }
+.sel-sem.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sel-sem.atual:not(.on) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sel-hoje { position: absolute; top: 6px; right: 8px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: var(--accent-strong); }
+.sel-sem.on .sel-hoje { color: inherit; }
+.limpeza { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
