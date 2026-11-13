@@ -10,6 +10,12 @@ export { diasEntre };
 /** Tipos de serviço que exigem relatório de emenda. */
 export const TIPOS_COM_RELATORIO = ['Troca de correia', 'Emenda / intercalação'];
 
+/** O controle começa nesta data (antes disso o relatório pelo app não era obrigatório). */
+export const INICIO_CONTROLE = '2026-11-01';
+
+/** Tipos listados na tela para sinalizar "exige relatório" (qualquer atividade pode ser sinalizada no formulário). */
+export const TIPOS_SINALIZAVEIS = ['Preparação de correia'];
+
 /** Motivos para dispensar o relatório de uma atividade. */
 export const MOTIVOS_DISPENSA = [
   'Emenda mecânica (grampo), sem vulcanização',
@@ -48,7 +54,7 @@ export const normOm = (o: string) => o.replace(/\D/g, '').replace(/^0+/, '');
 
 /** A atividade exige relatório? (tipo certo, não cancelada, não deixou de ser executada) */
 export function exigeRelatorio(a: Atividade): boolean {
-  return TIPOS_COM_RELATORIO.includes(a.tipo) && a.classe !== 'cancelada' && a.execucao !== 'nao_executada' && a.execucao !== 'reprogramada';
+  return (TIPOS_COM_RELATORIO.includes(a.tipo) || a.relExige) && a.classe !== 'cancelada' && a.execucao !== 'nao_executada' && a.execucao !== 'reprogramada';
 }
 
 /** Relatórios que correspondem à atividade, e por qual critério (o primeiro que achar). */
@@ -84,10 +90,10 @@ export interface Cruzamento {
  * Cruza atividades × relatórios. Atividades futuras ficam de fora; as de hoje aparecem
  * como "hoje" (ainda no prazo). `rels` deve cobrir o período com folga da janela.
  */
-export function cruzar(ativs: Atividade[], rels: RelResumo[], hoje: string): Cruzamento {
+export function cruzar(ativs: Atividade[], rels: RelResumo[], hoje: string, inicio = INICIO_CONTROLE): Cruzamento {
   const linhas: LinhaRel[] = [];
   for (const a of ativs) {
-    if (!exigeRelatorio(a) || a.data > hoje) continue;
+    if (!exigeRelatorio(a) || a.data > hoje || a.data < inicio) continue;
     const m = relatoriosDa(a, rels);
     const sit: SitRel = m.rels.length ? 'feito' : a.relDispensa ? 'dispensado' : a.data === hoje ? 'hoje' : 'pendente';
     linhas.push({ a, sit, rels: m.rels, como: m.como, dias: diasEntre(a.data, hoje) });
@@ -95,7 +101,8 @@ export function cruzar(ativs: Atividade[], rels: RelResumo[], hoje: string): Cru
   // relatório "órfão": não bate com NENHUMA atividade (de qualquer tipo) do período
   const usados = new Set<string>();
   for (const a of ativs) for (const r of relatoriosDa(a, rels).rels) usados.add(r.id);
-  const de = ativs.reduce((m, a) => (a.data < m ? a.data : m), '9999-99-99');
+  const de0 = ativs.reduce((m, a) => (a.data < m ? a.data : m), '9999-99-99');
+  const de = de0 > inicio ? de0 : inicio;
   const semAtividade = rels.filter((r) => !usados.has(r.id) && r.data >= de && r.data <= hoje).sort((x, y) => y.data.localeCompare(x.data));
   linhas.sort((x, y) => x.a.data.localeCompare(y.a.data));
   return {

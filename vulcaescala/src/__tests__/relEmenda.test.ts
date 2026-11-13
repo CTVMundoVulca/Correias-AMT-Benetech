@@ -26,6 +26,14 @@ describe('relatórios de emenda', () => {
     expect(exigeRelatorio(at('a', '2026-11-01', { execucao: 'reprogramada' }))).toBe(false);
   });
 
+  it('preparação só exige quando sinalizada; antes do início do controle não entra', () => {
+    expect(exigeRelatorio(at('a', '2026-11-01', { tipo: 'Preparação de correia' }))).toBe(false);
+    expect(exigeRelatorio(at('a', '2026-11-01', { tipo: 'Preparação de correia', relExige: true }))).toBe(true);
+    const c = cruzar([at('velha', '2026-10-31'), at('nova', '2026-11-03')], [], '2026-11-10');
+    expect(c.linhas.map((l) => l.a.id)).toEqual(['nova']);
+    expect(cruzar([at('velha', '2026-10-31')], [], '2026-11-10', '2026-10-01').linhas).toHaveLength(1);
+  });
+
   it('OM ignora zeros à esquerda e texto', () => {
     expect(normOm('OM 0012345')).toBe('12345');
   });

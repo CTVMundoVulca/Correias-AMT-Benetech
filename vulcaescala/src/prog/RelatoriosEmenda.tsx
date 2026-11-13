@@ -6,18 +6,13 @@ import { gravarAtividade, ouvirRelatoriosEmenda } from './data';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
 import { AREA_INTERNA, hojeIso, mesesEntre, pct, semAcento, type Atividade } from './model';
-import { JANELA, MOTIVOS_DISPENSA, TIPOS_COM_RELATORIO, cruzar, diasEntre, normTag, type LinhaRel, type RelResumo } from './relEmenda';
+import { INICIO_CONTROLE, JANELA, MOTIVOS_DISPENSA, TIPOS_COM_RELATORIO, TIPOS_SINALIZAVEIS, cruzar, diasEntre, normTag, type LinhaRel, type RelResumo } from './relEmenda';
 
-type Periodo = 'mes' | 'tri' | 'ano';
-type Filtro = 'pendente' | 'feito' | 'dispensado' | 'hoje' | 'orfao' | 'todas';
+type Periodo = 'mes' | 'tudo';
+type Filtro = 'pendente' | 'feito' | 'dispensado' | 'hoje' | 'orfao' | 'prep' | 'todas';
 
 const COMO = { manual: 'vinculado à mão', om: 'pela OM', tag: 'pela TAG e data' } as const;
 
-function somaMeses(ym: string, n: number): string {
-  const [y, m] = ym.split('-').map(Number);
-  const d = new Date(y, m - 1 + n, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
 const menosDias = (iso: string, n: number) => {
   const [y, m, d] = iso.split('-').map(Number);
   const x = new Date(Date.UTC(y, m - 1, d - n));
@@ -35,17 +30,21 @@ export function RelatoriosEmenda() {
   const toast = useToast();
   const hoje = hojeIso();
   const atual = hoje.slice(0, 7);
-  const [periodo, setPeriodo] = useState<Periodo>('tri');
+  const [periodo, setPeriodo] = useState<Periodo>('tudo');
   const [filtro, setFiltro] = useState<Filtro>('pendente');
   const [busca, setBusca] = useState('');
   const [vincular, setVincular] = useState<Atividade | null>(null);
   const [dispensar, setDispensar] = useState<Atividade | null>(null);
 
-  const ini = periodo === 'mes' ? atual : periodo === 'tri' ? somaMeses(atual, -2) : `${atual.slice(0, 4)}-01`;
-  const meses = mesesEntre(`${ini}-01`, `${atual}-01`);
+  const inicioMes = INICIO_CONTROLE.slice(0, 7);
+  const ini = periodo === 'mes' && atual > inicioMes ? atual : inicioMes;
+  // o mês seguinte entra para as preparações já programadas (sinalizar antes)
+  const [ay, am] = atual.split('-').map(Number);
+  const proximo = am === 12 ? `${ay + 1}-01` : `${ay}-${String(am + 1).padStart(2, '0')}`;
+  const meses = mesesEntre(`${ini}-01`, `${proximo}-01`);
   const ativs = useAtividades(meses);
   const [rels, setRels] = useState<RelResumo[] | null>(null);
-  const relDe = menosDias(`${ini}-01`, JANELA.antes);
+  const relDe = menosDias(ini === inicioMes ? INICIO_CONTROLE : `${ini}-01`, JANELA.antes);
   useEffect(() => {
     setRels(null);
     return ouvirRelatoriosEmenda(api, relDe, hoje, setRels, () => setRels([]));
@@ -62,6 +61,10 @@ export function RelatoriosEmenda() {
     .filter((l) => bate(l.a.equipamento, l.a.om, l.a.area, l.a.descricao));
   const orfaos = (c?.semAtividade ?? []).filter((r) => bate(r.tag, r.om, r.numero));
   const exigem = c ? c.total - c.dispensados : 0;
+  const preps = (ativs ?? [])
+    .filter((a) => TIPOS_SINALIZAVEIS.includes(a.tipo) && a.classe !== 'cancelada' && a.data >= INICIO_CONTROLE)
+    .filter((a) => bate(a.equipamento, a.om, a.area, a.descricao))
+    .sort((x, y) => y.data.localeCompare(x.data));
 
   const salvar = (a: Atividade, msg: string) => {
     gravarAtividade(api, a, por).catch(() => toast('A nuvem recusou a alteração.', 'danger'));
@@ -74,6 +77,7 @@ export function RelatoriosEmenda() {
     ['hoje', '🕐 Hoje', c?.linhas.filter((l) => l.sit === 'hoje').length],
     ['dispensado', '🚫 Dispensadas', c?.dispensados],
     ['orfao', '❓ Relatório sem atividade', c?.semAtividade.length],
+    ['prep', '🧩 Preparações sinalizadas', preps.filter((a) => a.relExige).length],
     ['todas', 'Todas', c?.linhas.length],
   ];
 
@@ -84,14 +88,14 @@ export function RelatoriosEmenda() {
         <p className="small muted">
           Toda atividade de <b>{TIPOS_COM_RELATORIO.join(' ou ').toLowerCase()}</b> executada precisa do relatório no app Registro de Emenda. O controle procura o
           relatório pela <b>OM</b> e, sem OM, pela <b>TAG</b> com data de {JANELA.antes} dia antes a {JANELA.depois} dias depois da programada. Canceladas,
-          não executadas e reprogramadas não entram. Só a Gestão vê esta tela.
+          não executadas e reprogramadas não entram. O controle vale a partir de {dataBr(INICIO_CONTROLE)}. Preparações que precisam de relatório são
+          sinalizadas em <b>🧩 Preparações</b> (ou no formulário da atividade). Só a Gestão vê esta tela.
         </p>
         <div className="segmented">
           {(
             [
+              ['tudo', `Desde o início (${dataBr(INICIO_CONTROLE)})`],
               ['mes', 'Mês atual'],
-              ['tri', 'Últimos 3 meses'],
-              ['ano', 'Ano'],
             ] as [Periodo, string][]
           ).map(([id, nome]) => (
             <button key={id} type="button" className={'seg' + (periodo === id ? ' on' : '')} onClick={() => setPeriodo(id)}>
@@ -138,7 +142,48 @@ export function RelatoriosEmenda() {
             </div>
             <input className="input" type="search" placeholder="Buscar TAG, OM ou área" value={busca} onChange={(e) => setBusca(e.target.value)} />
 
-            {filtro === 'orfao' ? (
+            {filtro === 'prep' ? (
+              preps.length === 0 ? (
+                <p className="small muted">Nenhuma preparação de correia no período.</p>
+              ) : (
+                <>
+                  <p className="small muted">
+                    Preparações de correia do período (inclusive as já programadas). Toque em “Exige relatório” nas que precisam: a partir do dia da
+                    atividade elas entram no controle, pendentes até o relatório aparecer.
+                  </p>
+                  <ul className="plain-list rel-lista">
+                    {preps.map((a) => (
+                      <li key={a.id} className={'rel-item' + (a.relExige ? ' rel-feito' : '')}>
+                        <div className="rel-topo">
+                          <span className="num rel-data">{dataBr(a.data).slice(0, 5)}</span>
+                          <span className={'sw-area ' + corDaArea(a.area || AREA_INTERNA)} aria-hidden />
+                          <b className="grow rel-tag">
+                            {a.equipamento || '—'} <span className="muted rel-area">· {a.area || AREA_INTERNA}</span>
+                          </b>
+                          {a.data > hoje && <span className="badge neutral">programada</span>}
+                          {a.relExige && <span className="badge rel-ok">📝 exige relatório</span>}
+                        </div>
+                        <div className="small rel-desc">
+                          {a.tipo}
+                          {a.descricao && <span className="muted"> — {a.descricao}</span>}
+                        </div>
+                        <div className="rel-acoes">
+                          {a.relExige ? (
+                            <button type="button" className="btn small" onClick={() => salvar({ ...a, relExige: false }, 'Sinalização removida')}>
+                              Não exige relatório
+                            </button>
+                          ) : (
+                            <button type="button" className="btn small" onClick={() => salvar({ ...a, relExige: true }, 'Preparação sinalizada: exige relatório')}>
+                              📝 Exige relatório
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
+            ) : filtro === 'orfao' ? (
               orfaos.length === 0 ? (
                 <p className="small muted">Todos os relatórios do período batem com alguma atividade da programação.</p>
               ) : (
@@ -171,6 +216,7 @@ export function RelatoriosEmenda() {
                     l={l}
                     onVincular={() => setVincular(l.a)}
                     onDispensar={() => setDispensar(l.a)}
+                    onNaoExige={() => salvar({ ...l.a, relExige: false }, 'Sinalização removida')}
                     onDesfazer={() =>
                       salvar(
                         { ...l.a, relDispensa: '', relEmendas: l.como === 'manual' ? [] : l.a.relEmendas },
@@ -210,7 +256,7 @@ export function RelatoriosEmenda() {
   );
 }
 
-function Linha({ l, onVincular, onDispensar, onDesfazer }: { l: LinhaRel; onVincular: () => void; onDispensar: () => void; onDesfazer: () => void }) {
+function Linha({ l, onVincular, onDispensar, onDesfazer, onNaoExige }: { l: LinhaRel; onVincular: () => void; onDispensar: () => void; onDesfazer: () => void; onNaoExige: () => void }) {
   const a = l.a;
   const area = a.area || AREA_INTERNA;
   return (
@@ -231,6 +277,7 @@ function Linha({ l, onVincular, onDispensar, onDesfazer }: { l: LinhaRel; onVinc
         {a.descricao && <span className="muted"> — {a.descricao}</span>}
       </div>
       <div className="small muted rel-meta">
+        {a.relExige && !TIPOS_COM_RELATORIO.includes(a.tipo) && <span className="rel-sinal">📝 sinalizada: exige relatório</span>}
         {a.om ? <span className="num">OM {a.om}</span> : <span>sem OM</span>}
         {a.execucao === 'executada' ? <span>✓ executada</span> : a.execucao === '' && <span>sem apontamento de execução</span>}
       </div>
@@ -258,6 +305,11 @@ function Linha({ l, onVincular, onDispensar, onDesfazer }: { l: LinhaRel; onVinc
               Abrir app de emenda ↗
             </a>
           </>
+        )}
+        {a.relExige && !TIPOS_COM_RELATORIO.includes(a.tipo) && l.sit !== 'feito' && (
+          <button type="button" className="btn small" onClick={onNaoExige}>
+            Não exige relatório
+          </button>
         )}
         {l.sit === 'feito' && l.como === 'manual' && (
           <button type="button" className="btn small" onClick={onDesfazer}>

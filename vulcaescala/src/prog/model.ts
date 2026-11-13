@@ -232,6 +232,8 @@ export interface Atividade {
   relEmendas: string[];
   /** motivo para dispensar o relatório de emenda ('' = exige, se o tipo exigir) */
   relDispensa: string;
+  /** sinalizada à mão como "exige relatório de emenda" (ex.: algumas preparações de correia) */
+  relExige: boolean;
   /** posição no dia */
   ordem: number;
   criadoEm: string;
@@ -276,6 +278,7 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     origem: 'app',
     relEmendas: [],
     relDispensa: '',
+    relExige: false,
     ordem: Date.now(),
     criadoEm: agora,
     criadoPor: por,
@@ -319,6 +322,7 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     origem: a.origem === 'planilha' ? 'planilha' : 'app',
     relEmendas: Array.isArray(a.relEmendas) ? a.relEmendas.filter((x): x is string => typeof x === 'string').slice(0, 10).map((x) => x.slice(0, 60)) : [],
     relDispensa: str(a.relDispensa, MOTIVO_MAX),
+    relExige: a.relExige === true,
     ordem: typeof a.ordem === 'number' ? a.ordem : 0,
     criadoEm: str(a.criadoEm, 40),
     criadoPor: str(a.criadoPor, 120),

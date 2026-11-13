@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useProg } from './context';
+import { TIPOS_COM_RELATORIO, TIPOS_SINALIZAVEIS } from './relEmenda';
 import { CampoArea } from './CampoArea';
 import { excluirAtividade, gravarAtividade, gravarOms, gravarSolicitacao, omDaAtividade } from './data';
 import {
@@ -203,6 +204,14 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
             {!TIPOS.includes(a.tipo as (typeof TIPOS)[number]) && <option>{a.tipo}</option>}
           </select>
         </label>
+        {TIPOS_COM_RELATORIO.includes(a.tipo) ? (
+          <p className="small muted">📝 Este tipo exige relatório de emenda (controle na Gestão).</p>
+        ) : (
+          <label className="check">
+            <input type="checkbox" checked={a.relExige} onChange={(e) => set('relExige', e.target.checked)} />
+            📝 {TIPOS_SINALIZAVEIS.includes(a.tipo) ? 'Esta preparação' : 'Esta atividade'} exige relatório de emenda
+          </label>
+        )}
         <div className="two-cols">
           <label className="field">
             Pessoas
