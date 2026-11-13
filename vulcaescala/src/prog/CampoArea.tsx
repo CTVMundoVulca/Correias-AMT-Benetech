@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AreasDialog } from './AreasDialog';
 import { useProg } from './context';
@@ -14,7 +14,7 @@ export function CampoArea({
   opcoes,
   vazio = 'Escolha…',
 }: {
-  rotulo?: string;
+  rotulo?: ReactNode;
   value: string;
   onChange: (v: string) => void;
   /** padrão: as áreas cadastradas */
