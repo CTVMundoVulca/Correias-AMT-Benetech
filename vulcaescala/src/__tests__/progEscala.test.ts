@@ -180,3 +180,17 @@ describe('OM programada para depois de hoje', () => {
     expect(omFutura(om('2026-11-12'), H, [{ data: '2026-11-12' }, { data: '2026-11-19' }])).toBe(false);
   });
 });
+
+describe('tempo parado pela hora de início e fim', () => {
+  it('calcula a duração, inclusive passando da meia-noite', async () => {
+    const { duracaoHoras, fmtDuracao, completarAtividade } = await import('../prog/model');
+    expect(duracaoHoras('07:10', '09:00')).toBeCloseTo(110 / 60);
+    expect(fmtDuracao(duracaoHoras('07:10', '09:00'))).toBe('1h50');
+    expect(duracaoHoras('22:30', '01:00')).toBe(2.5);
+    expect(duracaoHoras('07:00', '')).toBe(0);
+    expect(duracaoHoras('25:00', '09:00')).toBe(0);
+    const d = completarAtividade('a', { ...at('a', '2026-11-16'), classe: 'cancelada', mobilizada: true, mobInicio: '07:15', mobFim: '10:45', horasMobilizadas: 3.5 });
+    expect(d).toMatchObject({ mobInicio: '07:15', mobFim: '10:45', horasMobilizadas: 3.5 });
+    expect(completarAtividade('a', { ...at('a', '2026-11-16'), classe: 'programada', mobInicio: '07:15' })?.mobInicio).toBe('');
+  });
+});
