@@ -3,8 +3,8 @@ import { newId } from '../domain/ids';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { irPara, podeExcluir, useEmenda } from './context';
-import { buscarTag, excluirEmenda, ouvirMes } from './data';
-import { emendaVazia, fmtData, hojeIso, mesAtual, nomeMes, ordenar, somaMes, type Emenda } from './model';
+import { buscarTag, excluirEmenda, gravarCampos, ouvirMes } from './data';
+import { concluido, emendaVazia, fmtData, hojeIso, mesAtual, nomeMes, ordenar, pendenciasConclusao, somaMes, type Emenda } from './model';
 import { ouvirFotos } from './data';
 import { ListasDialog } from './ListasDialog';
 import { buscaBate } from '../prog/model';
@@ -38,6 +38,22 @@ export function EmendaLista() {
   const [global, setGlobal] = useState<Emenda[] | null>(null);
   const [listasOpen, setListasOpen] = useState(false);
   const [efetivoOpen, setEfetivoOpen] = useState(false);
+  // separação: em preenchimento × concluídos (a escolha fica na sessão)
+  const [aba, setAba] = useState<'preench' | 'concl'>(() => {
+    try {
+      return sessionStorage.getItem('vulcaescala:emenda-aba') === 'concl' ? 'concl' : 'preench';
+    } catch {
+      return 'preench';
+    }
+  });
+  const trocarAba = (a: 'preench' | 'concl') => {
+    setAba(a);
+    try {
+      sessionStorage.setItem('vulcaescala:emenda-aba', a);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
     try {
@@ -61,10 +77,9 @@ export function EmendaLista() {
   }, [api, ym, setPendencia, toast]);
 
   const q = busca.trim();
-  const filtrada = useMemo(
-    () => (lista ?? []).filter((e) => !q || buscaBate(q, e.tag, e.numero, e.om)),
-    [lista, q],
-  );
+  const doMes = useMemo(() => (lista ?? []).filter((e) => !q || buscaBate(q, e.tag, e.numero, e.om)), [lista, q]);
+  const nConcl = doMes.filter(concluido).length;
+  const filtrada = useMemo(() => doMes.filter((e) => (aba === 'concl') === concluido(e)), [doMes, aba]);
 
   const excluiveis = filtrada.filter((e) => podeExcluir(ctx, e));
   const sairSelecao = () => {
@@ -210,6 +225,15 @@ export function EmendaLista() {
             <hr />
           </div>
         )}
+        <div className="segmented" role="tablist" aria-label="Situação dos relatórios">
+          <button role="tab" aria-selected={aba === 'preench'} className={'seg' + (aba === 'preench' ? ' on' : '')} onClick={() => trocarAba('preench')}>
+            📝 Em preenchimento ({doMes.length - nConcl})
+          </button>
+          <button role="tab" aria-selected={aba === 'concl'} className={'seg' + (aba === 'concl' ? ' on' : '')} onClick={() => trocarAba('concl')}>
+            ✓ Concluídos ({nConcl})
+          </button>
+        </div>
+        {lideranca && lista && aba === 'preench' && <ConcluirProntos lista={doMes} />}
         <div className="row between">
           <p className="small muted tabnum">
             {lista === null ? 'Carregando…' : `${filtrada.length} de ${lista.length} emenda(s) em ${nomeMes(ym)}`}
@@ -249,10 +273,54 @@ export function EmendaLista() {
           ))}
         </ul>
         {lista && lista.length === 0 && <p className="muted small">Nenhuma emenda neste mês.</p>}
+        {lista && lista.length > 0 && filtrada.length === 0 && (
+          <p className="muted small">{aba === 'concl' ? 'Nenhum relatório concluído neste mês.' : 'Nenhum relatório em preenchimento neste mês.'}</p>
+        )}
       </div>
       {listasOpen && <ListasDialog onClose={() => setListasOpen(false)} />}
       {efetivoOpen && <EfetivoDialog onClose={() => setEfetivoOpen(false)} />}
     </section>
+  );
+}
+
+/** Liderança: conclui de uma vez os relatórios do mês que já têm tudo o que é obrigatório. */
+function ConcluirProntos({ lista }: { lista: Emenda[] }) {
+  const { api, por, uid } = useEmenda();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const prontos = lista.filter((e) => !concluido(e) && !emendaVazia(e) && pendenciasConclusao(e).length === 0);
+  if (!prontos.length) return null;
+  const concluirTodos = async () => {
+    const ok = await confirm({
+      title: `Concluir ${prontos.length} relatório(s) completo(s)?`,
+      message: (
+        <>
+          <p>Eles têm todos os itens obrigatórios preenchidos e as duas liberações assinadas. Depois de concluídos, ficam somente leitura.</p>
+          <ul className="small">
+            {prontos.slice(0, 8).map((e) => (
+              <li key={e.id}>
+                Emenda nº {e.numero || '?'} — TAG {e.tag || '?'} ({fmtData(e.data)})
+              </li>
+            ))}
+            {prontos.length > 8 && <li>… e mais {prontos.length - 8}</li>}
+          </ul>
+        </>
+      ),
+      confirmLabel: 'Concluir',
+    });
+    if (!ok) return;
+    const agora = new Date().toISOString();
+    const r = await Promise.allSettled(prontos.map((e) => gravarCampos(api, e.id, { concluidoEm: agora, concluidoPor: por, concluidoUid: uid }, por)));
+    const n = r.filter((x) => x.status === 'fulfilled').length;
+    toast(n === prontos.length ? `${n} relatório(s) concluído(s)` : `${n} de ${prontos.length} concluído(s); confira a conexão`, n === prontos.length ? 'ok' : 'warn');
+  };
+  return (
+    <div className="banner ok row between">
+      <span className="small">{prontos.length} relatório(s) completo(s), pronto(s) para concluir</span>
+      <button className="btn small" onClick={() => void concluirTodos()}>
+        Concluir prontos
+      </button>
+    </div>
   );
 }
 
@@ -362,9 +430,24 @@ function EmendaItem({ e, selecao }: { e: Emenda; selecao?: { marcado: boolean; a
             {e.om ? ` · OM ${e.om}` : ''}
           </span>
         </span>
-        <span className={'badge ' + (assinaturas === 2 ? 'ok' : 'neutral')} title="Liberações assinadas">
-          ✍ {assinaturas}/2
-        </span>
+        {concluido(e) ? (
+          <span className="badge ok" title={`Concluído${e.concluidoPor ? ` por ${e.concluidoPor}` : ''}`}>
+            ✓ Concluído
+          </span>
+        ) : (
+          (() => {
+            const n = pendenciasConclusao(e).length;
+            return n ? (
+              <span className="badge neutral" title="Itens obrigatórios ainda não preenchidos">
+                ✍ {assinaturas}/2 · faltam {n}
+              </span>
+            ) : (
+              <span className="badge pend" title="Tudo preenchido: falta só concluir">
+                Pronto para concluir
+              </span>
+            );
+          })()
+        )}
       </button>
       {pode && (
         <button className="icon-btn danger" onClick={() => void excluir(e)} aria-label={`Excluir emenda nº ${e.numero || '?'} — TAG ${e.tag || '?'}`} title="Excluir">

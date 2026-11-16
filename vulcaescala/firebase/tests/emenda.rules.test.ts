@@ -171,4 +171,27 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(as(lider).doc('escala_efetivo/w3').set({ id: 'w3', nome: 'B', funcao: 'Vulcanizador', ativo: true, matricula: '98765' }));
     await assertFails(as(lider).doc('escala_efetivo/w4').set({ id: 'w4', nome: 'C', funcao: 'Vulcanizador', ativo: true, matricula: 'X'.repeat(31) }));
   });
+
+  it('relatório concluído: somente leitura; reabre quem concluiu ou a liderança', async () => {
+    const outro = env.authenticatedContext('outro-uid', { firebase: { sign_in_provider: 'anonymous' } } as never).firestore();
+    await assertSucceeds(anon().doc('emendas/c1').set({ ...emenda, id: 'c1', criadoUid: 'anon-uid' }));
+    // concluir em nome de outra sessão: recusado
+    await assertFails(anon().doc('emendas/c1').set({ concluidoEm: 'x', concluidoPor: 'FULANO', concluidoUid: 'outro-uid' }, { merge: true }));
+    await assertSucceeds(anon().doc('emendas/c1').set({ concluidoEm: '2026-11-16T10:00:00Z', concluidoPor: 'FULANO', concluidoUid: 'anon-uid' }, { merge: true }));
+    // travado: não edita, não apaga, não mexe nas fotos
+    await assertFails(anon().doc('emendas/c1').set({ tag: 'OUTRA' }, { merge: true }));
+    await assertFails(outro.doc('emendas/c1').set({ tag: 'OUTRA' }, { merge: true }));
+    await assertFails(anon().doc('emendas/c1').delete());
+    await assertFails(anon().doc('emendas/c1/fotos/f1').set(foto));
+    // reabrir junto com outra alteração: recusado
+    await assertFails(anon().doc('emendas/c1').set({ concluidoEm: '', concluidoUid: '', tag: 'OUTRA' }, { merge: true }));
+    // outra sessão (não é liderança) não reabre
+    await assertFails(outro.doc('emendas/c1').set({ concluidoEm: '', concluidoPor: '', concluidoUid: '', reabertoEm: 'x', reabertoPor: 'y' }, { merge: true }));
+    // quem concluiu reabre; depois edita de novo
+    await assertSucceeds(anon().doc('emendas/c1').set({ concluidoEm: '', concluidoPor: '', concluidoUid: '', reabertoEm: 'x', reabertoPor: 'FULANO' }, { merge: true }));
+    await assertSucceeds(anon().doc('emendas/c1').set({ tag: 'OUTRA' }, { merge: true }));
+    // liderança reabre relatório concluído por outra sessão
+    await assertSucceeds(outro.doc('emendas/c2').set({ ...emenda, id: 'c2', criadoUid: 'outro-uid', concluidoEm: 'x', concluidoPor: 'B', concluidoUid: 'outro-uid' }));
+    await assertSucceeds(as(ADMIN).doc('emendas/c2').set({ concluidoEm: '', concluidoPor: '', concluidoUid: '', reabertoEm: 'x', reabertoPor: ADMIN }, { merge: true }));
+  });
 });

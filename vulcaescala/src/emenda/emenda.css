@@ -163,3 +163,16 @@
 /* dica no campo de foto: tirar com o celular deitado */
 .foto-dica { font-size: 11px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 2px; }
 .celular-deitado { display: inline-block; transform: rotate(-90deg); font-size: 14px; }
+
+/* situação do relatório: em preenchimento × concluído */
+.emenda-trava { border: 0; padding: 0; margin: 0; min-width: 0; display: contents; }
+.emenda-trava:disabled .input,
+.emenda-trava:disabled input,
+.emenda-trava:disabled textarea,
+.emenda-trava:disabled select { opacity: 0.85; cursor: default; }
+.emenda-concluir { border: 2px solid var(--ok-line, var(--accent)); }
+.falta-lista { margin: 0; padding-left: 20px; columns: 2; column-gap: 24px; }
+@media (max-width: 560px) { .falta-lista { columns: 1; } }
+.rel-situacao { margin: 6px 0 10px; padding: 6px 10px; border-radius: 6px; font-weight: 700; font-size: 0.9rem; text-align: center; }
+.rel-situacao.ok { background: #e6f4ea; color: #1e6b34; border: 1px solid #9fd3ae; }
+.rel-situacao.pend { background: #fff4d6; color: #7a5300; border: 1px solid #f0c75e; }

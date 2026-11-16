@@ -114,3 +114,28 @@ describe('nova emenda com base em outra', () => {
     expect(proximoNumero('')).toBe('');
   });
 });
+
+describe('conclusão do relatório de emenda', () => {
+  it('lista o que falta e libera quando tudo está preenchido', async () => {
+    const { novaEmenda, pendenciasConclusao, concluido } = await import('../emenda/model');
+    const e = novaEmenda('x', '2026-11-16', 'p', []);
+    const falta = pendenciasConclusao(e);
+    expect(falta).toContain('TAG');
+    expect(falta).toContain('Efetivo da troca');
+    expect(falta).toContain('Liberação do supervisor de área: assinatura');
+    const lib = { workerId: '', nome: 'ANA', matricula: '1', data: '2026-11-16', assinatura: 'data:image/jpeg;base64,A' };
+    const ok = {
+      ...e, tag: 'L-21', numero: '3', om: '9000', efetivo: [{ workerId: '', nome: 'JOÃO', matricula: '1' }],
+      especificacao: 'EP 1000', largura: '1200', qtdLona: '4', qtdPasses: '3', comprPasse: '300', fechamento: '50', comprTotal: '1500',
+      ckLixada: 'Sim' as const, ckLimpa: 'Sim' as const, ckUmidadeOleo: 'Não' as const, ckAlinhada: 'N/A' as const,
+      tempAmbiente: '30', umidade: '70', tempSuperficie: '35', clima: 'Seco' as const, rodilhada: 'Sim' as const,
+      tempVulc: '145', tempoVulc: '40', pressaoVulc: '8', dureza: '60', ckBolha: 'Não' as const, ckAcabamento: 'Sim' as const, ckFaltouMaterial: 'Não' as const,
+      libTecnico: lib, libSupervisor: lib,
+    };
+    expect(pendenciasConclusao(ok)).toEqual([]);
+    // cabo de aço exige os estágios
+    expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', estagio1: '', estagio2: '', estagio3: '', chanfro: '' })).toEqual(['1º estágio', '2º estágio', '3º estágio', 'Chanfro']);
+    expect(concluido(ok)).toBe(false);
+    expect(concluido({ ...ok, concluidoEm: '2026-11-16T10:00:00Z' })).toBe(true);
+  });
+});

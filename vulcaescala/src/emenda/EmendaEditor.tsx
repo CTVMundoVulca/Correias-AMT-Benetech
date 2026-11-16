@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '../ui/Toast';
-import { irPara, podeExcluir, useEmenda } from './context';
+import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
 import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
 import { newId } from '../domain/ids';
 import { emendaComBase, hojeIso } from './model';
+import { useConfirm } from '../ui/ConfirmDialog';
 import {
-  fmtData,
+  concluido,
+  pendenciasConclusao,
   liberacaoVazia,
   margemOrvalho,
   MARGEM_ORVALHO,
@@ -39,6 +41,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
   const ctx = useEmenda();
   const { api, por, uid, setPendencia } = ctx;
   const toast = useToast();
+  const confirm = useConfirm();
   const excluirEmenda = useExcluirEmenda();
   const [remoto, setRemoto] = useState<Emenda | null | undefined>(undefined);
   // relatório novo ainda não gravado: modelo local (com a data escolhida)
@@ -134,7 +137,9 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
 
   const e: Emenda = { ...atual, ...draft };
   const vazio = !criado.current;
+  const travado = concluido(e);
   const set: SetFn = (campos) => {
+    if (travado) return; // concluído: somente leitura (a nuvem também recusa)
     const base = { ...e, ...campos };
     const patch = { ...campos, ...recalcular(base, Object.keys(campos) as (keyof Emenda)[]) };
     setDraft((d) => ({ ...d, ...patch }));
@@ -198,6 +203,24 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         </div>
       )}
 
+      {travado && (
+        <SituacaoConcluido
+          e={e}
+          podeReabrir={podeReabrir(ctx, e)}
+          onReabrir={async () => {
+            const ok = await confirm({
+              title: 'Reabrir este relatório?',
+              message: <p>Ele volta para “em preenchimento” e pode ser alterado. Fica registrado quem reabriu e quando.</p>,
+              confirmLabel: 'Reabrir',
+            });
+            if (!ok) return;
+            gravarCampos(api, id, { concluidoEm: '', concluidoPor: '', concluidoUid: '', reabertoEm: new Date().toISOString(), reabertoPor: por && por !== 'anônimo' ? por : `aparelho de quem concluiu (${e.concluidoPor || '?'})` }, por)
+              .then(() => toast('Relatório reaberto'))
+              .catch(() => toast('Não foi possível reabrir: só quem concluiu (mesmo aparelho) ou a liderança.', 'danger'));
+          }}
+        />
+      )}
+      <fieldset className="emenda-trava" disabled={travado}>
       <Sec n="1" t="Identificação">
         <div className="g2">
           <Txt e={e} set={set} c="tag" label="Equipamento (TAG)" upper />
@@ -346,9 +369,25 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <LiberacaoSection e={e} set={set} c="libSupervisor" />
       </Sec>
 
+      </fieldset>
+      {/* fora do bloqueio geral: no concluído as fotos ainda abrem (ampliar/baixar) */}
       <Sec n="📷" t="Etapas do processo (registro fotográfico)">
-        <FotosSection emendaId={id} antesDeGravar={() => void garantirCriado()} />
+        <FotosSection emendaId={id} antesDeGravar={() => void garantirCriado()} travado={travado} />
       </Sec>
+
+      {!travado && !vazio && (
+        <Concluir
+          e={e}
+          onConcluir={(nome) => {
+            flush(); // o que ainda estava na fila vai antes (o Firestore mantém a ordem)
+            const quem = por && por !== 'anônimo' ? `${nome} (${por})` : nome;
+            gravarCampos(api, id, { concluidoEm: new Date().toISOString(), concluidoPor: quem, concluidoUid: uid }, por)
+              .then(() => toast('Relatório concluído'))
+              .finally(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
+              .catch(() => toast('A nuvem recusou a conclusão.', 'danger'));
+          }}
+        />
+      )}
 
       <div className="card pad stack">
         <button className="btn primary" onClick={abrirPdf}>
@@ -369,7 +408,8 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
           </button>
         )}
         <p className="small muted">
-          Alterações são salvas automaticamente. Última: {fmtData(e.atualizadoEm.slice(0, 10))} {e.atualizadoEm.slice(11, 16)}
+          {travado ? 'Relatório concluído: somente leitura.' : 'Alterações são salvas automaticamente.'} Última:{' '}
+          {e.atualizadoEm ? new Date(e.atualizadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
           {e.atualizadoPor && e.atualizadoPor !== 'anônimo' ? ` por ${e.atualizadoPor}` : ''}
         </p>
       </div>
@@ -720,6 +760,80 @@ function AvisoOrvalho({ e }: { e: Emenda }) {
       <b>⚠ Risco de condensação:</b> a superfície está só {m.diff.toFixed(1).replace('.', ',')} °C acima do ponto de orvalho
       (mínimo {MARGEM_ORVALHO} °C). Umidade pode condensar na emenda e prejudicar a aderência da cola. Registre a
       justificativa nas observações.
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- conclusão
+
+function SituacaoConcluido({ e, podeReabrir, onReabrir }: { e: Emenda; podeReabrir: boolean; onReabrir: () => void }) {
+  return (
+    <div className="banner ok row between">
+      <span>
+        <b>✓ Relatório concluído</b> em {new Date(e.concluidoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+        {e.concluidoPor ? ` por ${e.concluidoPor}` : ''}. Somente leitura.
+      </span>
+      {podeReabrir && (
+        <button className="btn small" onClick={onReabrir}>
+          Reabrir
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Concluir: só com tudo o que é obrigatório preenchido; pede o nome de quem conclui. */
+function Concluir({ e, onConcluir }: { e: Emenda; onConcluir: (nome: string) => void }) {
+  const falta = pendenciasConclusao(e);
+  const [abrir, setAbrir] = useState(false);
+  const [nome, setNome] = useState('');
+  return (
+    <div className="card pad stack emenda-concluir">
+      <h2 className="sec-title">
+        <span className="sec-n">✓</span> Concluir relatório
+      </h2>
+      {falta.length ? (
+        <>
+          <p className="small">
+            Faltam <b>{falta.length}</b> item(ns) obrigatório(s) para concluir:
+          </p>
+          <ul className="small falta-lista">
+            {falta.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </>
+      ) : !abrir ? (
+        <>
+          <p className="small">Tudo o que é obrigatório está preenchido. Depois de concluído, o relatório fica somente leitura.</p>
+          <button className="btn primary" onClick={() => setAbrir(true)}>
+            ✓ Concluir relatório
+          </button>
+        </>
+      ) : (
+        <form
+          className="stack"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            const n = nome.replace(/\s+/g, ' ').trim().toUpperCase();
+            if (n.length < 3) return;
+            onConcluir(n);
+          }}
+        >
+          <label className="field">
+            Quem está concluindo (nome)
+            <input className="input" value={nome} maxLength={80} onChange={(ev) => setNome(ev.target.value)} aria-label="Nome de quem conclui" autoFocus />
+          </label>
+          <div className="row">
+            <button type="button" className="btn" onClick={() => setAbrir(false)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn primary" disabled={nome.trim().length < 3}>
+              Confirmar conclusão
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

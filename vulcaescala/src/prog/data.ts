@@ -459,7 +459,7 @@ export function ouvirRelatoriosEmenda(api: FirebaseApi, de: string, ate: string,
       cb(
         snap.docs.map((d) => {
           const x = d.data() ?? {};
-          return { id: d.id, tag: String(x.tag ?? ''), data: String(x.data ?? ''), om: String(x.om ?? ''), numero: String(x.numero ?? '') };
+          return { id: d.id, tag: String(x.tag ?? ''), data: String(x.data ?? ''), om: String(x.om ?? ''), numero: String(x.numero ?? ''), concluido: !!x.concluidoEm };
         }),
       ),
     onErr,
