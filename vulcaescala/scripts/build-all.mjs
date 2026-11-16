@@ -17,7 +17,7 @@ const mode = process.argv[2] === 'pages' ? 'pages' : 'production';
 const raiz = join(root, '..');
 const shared = join(root, 'public', 'shared');
 
-for (const app of ['escala', 'emenda', 'programacao', 'areas']) {
+for (const app of ['escala', 'emenda', 'programacao', 'areas', 'ponte']) {
   process.env.APP = app;
   await build({ root, mode, logLevel: 'warn' });
   const out = mode === 'pages' ? join(raiz, app) : join(root, 'dist', app);

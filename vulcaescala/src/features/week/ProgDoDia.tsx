@@ -97,7 +97,14 @@ export function ProgDoDia({ data, day, weekKey, dayIndex }: { data: string; day:
         {faltam.map((a) => (
           <li key={a.id} className="row between nowrap prog-strip-item">
             <span className="grow">
-              <b>{a.area || AREA_INTERNA}</b> · {a.descricao}
+              <b>{a.area || AREA_INTERNA}</b>
+              {a.equipamento && (
+                <>
+                  {' '}
+                  · <b>{a.equipamento}</b>
+                </>
+              )}{' '}
+              · {a.descricao}
               {a.pessoas > 0 && <span className="muted"> · 👷 {a.pessoas}</span>}
             </span>
             <button className="btn small" onClick={() => incluir(a)}>
