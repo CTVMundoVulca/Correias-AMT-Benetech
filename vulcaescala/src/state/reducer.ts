@@ -24,6 +24,8 @@ export type Action =
   | ({ type: 'activity/add'; id: string; nome: string } & DayRef)
   | ({ type: 'activity/rename'; activityId: string; nome: string } & DayRef)
   | ({ type: 'activity/remove'; activityId: string } & DayRef)
+  /** coloca a atividade com a equipe (usado para mudar de dia: remove de um, põe no outro) */
+  | ({ type: 'activity/put'; id: string; nome: string; workerIds: string[] } & DayRef)
   | ({ type: 'activity/setWorker'; activityId: string; workerId: string; allocated: boolean } & DayRef)
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
 
@@ -207,6 +209,16 @@ export function reducer(state: AppState, action: Action): AppState {
         ...d,
         activities: d.activities.filter((a) => a.id !== action.activityId),
       }));
+    case 'activity/put': {
+      // atividade completa (com a equipe) vinda de outro dia: quem está ausente aqui fica de fora
+      const nome = cleanName(action.nome);
+      if (!nome) return state;
+      return updateDay(state, action, (d) => {
+        if (d.activities.some((a) => a.id === action.id)) return d;
+        const ausentes = new Set(d.absences.map((a) => a.workerId));
+        return { ...d, activities: [...d.activities, { id: action.id, nome, workerIds: action.workerIds.filter((w) => !ausentes.has(w)) }] };
+      });
+    }
     case 'activity/setWorker':
       return updateDay(state, action, (d) => {
         // ausente não pode ser alocado: a ausência precisa ser retirada antes
