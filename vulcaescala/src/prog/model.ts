@@ -654,6 +654,23 @@ export function semAcento(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+/** Texto só com letras e números, sem acento, em maiúsculas ("F-1" = "f1" = "F 1"). */
+export const chaveBusca = (s: string) => semAcento(s).toUpperCase().replace(/[^A-Z0-9]+/g, '');
+
+/**
+ * Busca tolerante: ignora maiúsculas/minúsculas, acentos, hífens, pontos, barras e espaços.
+ * Cada palavra digitada precisa aparecer em algum dos textos (ex.: "correia f1" acha
+ * "TROCAR CORREIA F-1"; "n 11" acha "N-11").
+ */
+export function buscaBate(busca: string, ...textos: string[]): boolean {
+  const termos = busca.split(/\s+/).map(chaveBusca).filter(Boolean);
+  if (!termos.length) return true;
+  const alvos = textos.map((t) => chaveBusca(t ?? ''));
+  // a busca inteira junta (ex.: "N 11" = "N11") ou cada palavra em algum dos campos
+  const junto = termos.join('');
+  return alvos.some((a) => a.includes(junto)) || termos.every((t) => alvos.some((a) => a.includes(t)));
+}
+
 export function limparTexto(s: string, max: number): string {
   return s.replace(/\s+/g, ' ').trim().slice(0, max);
 }

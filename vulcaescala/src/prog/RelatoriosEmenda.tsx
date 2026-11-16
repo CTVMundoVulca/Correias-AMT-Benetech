@@ -5,7 +5,7 @@ import { useAtividades, useProg } from './context';
 import { gravarAtividade, ouvirRelatoriosEmenda } from './data';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { AREA_INTERNA, hojeIso, mesesEntre, pct, semAcento, type Atividade } from './model';
+import { AREA_INTERNA, buscaBate, hojeIso, mesesEntre, pct, type Atividade } from './model';
 import { INICIO_CONTROLE, JANELA, MOTIVOS_DISPENSA, TIPOS_COM_RELATORIO, TIPOS_SINALIZAVEIS, cruzar, diasEntre, normTag, type LinhaRel, type RelResumo } from './relEmenda';
 
 type Periodo = 'mes' | 'tudo';
@@ -54,8 +54,7 @@ export function RelatoriosEmenda() {
 
   if (!pode.programar) return <p className="muted">Só programadores e administradores veem o controle dos relatórios de emenda.</p>;
 
-  const q = semAcento(busca.trim().toUpperCase());
-  const bate = (...t: string[]) => !q || t.some((x) => semAcento(x.toUpperCase()).includes(q) || (normTag(x) && normTag(x).includes(normTag(q))));
+  const bate = (...t: string[]) => buscaBate(busca, ...t);
   const linhas = (c?.linhas ?? [])
     .filter((l) => filtro === 'todas' || l.sit === filtro)
     .filter((l) => bate(l.a.equipamento, l.a.om, l.a.area, l.a.descricao));
@@ -336,10 +335,9 @@ function VincularDialog({ a, rels, onClose, onSalvar }: { a: Atividade; rels: Re
   const [sel, setSel] = useState<string[]>(a.relEmendas);
   const [busca, setBusca] = useState('');
   const tag = normTag(a.equipamento);
-  const q = normTag(busca);
   // mesma TAG primeiro, depois a data mais próxima
   const lista = [...rels]
-    .filter((r) => !q || normTag(r.tag).includes(q) || r.om.includes(busca.trim()) || r.numero === busca.trim())
+    .filter((r) => buscaBate(busca, r.tag, r.om, r.numero))
     .sort((x, y) => Number(normTag(y.tag) === tag) - Number(normTag(x.tag) === tag) || Math.abs(diasEntre(a.data, x.data)) - Math.abs(diasEntre(a.data, y.data)))
     .slice(0, 30);
   return (

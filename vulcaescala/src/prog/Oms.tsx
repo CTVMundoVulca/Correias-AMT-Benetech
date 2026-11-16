@@ -6,7 +6,7 @@ import { gravarOms, gravarRetornos } from './data';
 import { useRecolhiveis } from './recolher';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { INICIO_CONTROLE_OMS, SITUACOES, cancelamentoDasOms, contarOms, diasEntre, hojeIso, mesesEntre, semAcento, type Atividade, type OmInfo, type SituacaoOm } from './model';
+import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contarOms, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
 
 type Filtro = SituacaoOm | 'pendentes' | 'todas';
 
@@ -57,14 +57,14 @@ export function Oms() {
   }, [ajustes, api, por, pode.programar]);
   const cont = contarOms(todas);
   const lista = useMemo(() => {
-    const q = semAcento(busca.trim().toUpperCase());
+    const q = busca.trim();
     return todas
       .filter((o) => !o.cancelada || filtro === 'todas' || !!q)
       // com busca, procura em todas as situações (a OM aparece mesmo fora da aba aberta)
       .filter((o) =>
         q || filtro === 'todas' ? true : filtro === 'pendentes' ? o.situacao === 'aberta' || o.situacao === 'retornada' : o.situacao === filtro,
       )
-      .filter((o) => !q || semAcento(`${o.om} ${o.equipamento} ${o.area} ${o.descricao}`.toUpperCase()).includes(q))
+      .filter((o) => !q || buscaBate(q, o.om, o.equipamento, o.area, o.descricao))
       .sort((a, b) => a.ultimaData.localeCompare(b.ultimaData) || a.om.localeCompare(b.om));
   }, [todas, filtro, busca]);
 
