@@ -486,3 +486,7 @@ input.input[type='month'], input.input[type='date'], input.input[type='time'], i
   -webkit-appearance: none; appearance: none; display: block; max-width: 100%; box-sizing: border-box;
 }
 input.input::-webkit-date-and-time-value { text-align: left; }
+
+/* integração com a programação */
+.aviso-prog { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 6px 0; padding: 6px 10px; border-radius: 8px; background: var(--pend-bg); color: var(--pend-ink); border: 1px solid var(--pend-line); font-size: 0.85rem; font-weight: 600; }
+.chip.conflito { border-color: var(--pend-line); background: var(--pend-bg); }

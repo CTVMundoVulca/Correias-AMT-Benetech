@@ -227,7 +227,13 @@ export interface Atividade {
   reprogramacoes: number;
   /** solicitação de origem ('' = lançada direto pelo programador) */
   solicitacaoId: string;
-  origem: 'app' | 'planilha';
+  origem: 'app' | 'planilha' | 'escala';
+  /** nome da atividade na Escala na última sincronização ('' = nunca esteve na escala) */
+  escalaNome: string;
+  /** lançada direto na Escala: a programação confere área, TAG e OM */
+  revisarEscala: boolean;
+  /** estava na Escala e foi removida de lá (aviso para a programação; nada é apagado) */
+  foraDaEscala: boolean;
   /** relatórios de emenda vinculados à mão (ids do app Registro de Emenda) */
   relEmendas: string[];
   /** motivo para dispensar o relatório de emenda ('' = exige, se o tipo exigir) */
@@ -276,6 +282,9 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     reprogramacoes: 0,
     solicitacaoId: '',
     origem: 'app',
+    escalaNome: '',
+    revisarEscala: false,
+    foraDaEscala: false,
     relEmendas: [],
     relDispensa: '',
     relExige: false,
@@ -319,7 +328,10 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     dataOriginal: /^\d{4}-\d{2}-\d{2}$/.test(str(a.dataOriginal, 10)) ? str(a.dataOriginal, 10) : data,
     reprogramacoes: typeof a.reprogramacoes === 'number' && a.reprogramacoes > 0 ? Math.min(99, Math.round(a.reprogramacoes)) : 0,
     solicitacaoId: str(a.solicitacaoId, 60),
-    origem: a.origem === 'planilha' ? 'planilha' : 'app',
+    origem: a.origem === 'planilha' ? 'planilha' : a.origem === 'escala' ? 'escala' : 'app',
+    escalaNome: str(a.escalaNome, 300),
+    revisarEscala: a.revisarEscala === true,
+    foraDaEscala: a.foraDaEscala === true,
     relEmendas: Array.isArray(a.relEmendas) ? a.relEmendas.filter((x): x is string => typeof x === 'string').slice(0, 10).map((x) => x.slice(0, 60)) : [],
     relDispensa: str(a.relDispensa, MOTIVO_MAX),
     relExige: a.relExige === true,
@@ -733,7 +745,12 @@ export interface Retorno {
  * Situação que vale para a OM: a baixa (programação) manda; senão, o retorno marcado pelo
  * supervisor; senão, o que veio da planilha/cadastro.
  */
-export function situacaoEfetiva(o: OmInfo, r: Retorno | undefined): OmInfo {
+/** A partir desta data o retorno e a baixa das OMs são controlados no app (antes: planilha). */
+export const INICIO_CONTROLE_OMS = '2026-11-02';
+
+export function situacaoEfetiva(o0: OmInfo, r: Retorno | undefined): OmInfo {
+  // OM do período do app que veio da planilha sem as colunas de retorno: aguarda o retorno normalmente
+  const o: OmInfo = o0.situacao === 'sem_registro' && o0.ultimaData >= INICIO_CONTROLE_OMS ? { ...o0, situacao: 'aberta' } : o0;
   if (o.situacao === 'baixada') return o;
   if (!r) return o;
   return r.realizada

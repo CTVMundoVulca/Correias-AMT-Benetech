@@ -486,6 +486,7 @@ export function CartaoArea({
 }
 
 export function LinhaAtividade({ a, onClick, mostrarArea }: { a: Atividade; onClick?: () => void; mostrarArea?: boolean }) {
+  const { gestao } = useProg();
   const corpo = (
     <>
       {mostrarArea && <div className="ativ-area small">{a.area || AREA_INTERNA}</div>}
@@ -505,6 +506,8 @@ export function LinhaAtividade({ a, onClick, mostrarArea }: { a: Atividade; onCl
         <span className={'classe ' + (a.classe || 'sem')}>{nomeClasse(a.classe)}</span>
         {a.retrabalho && <span className="classe retra">Retrabalho</span>}
         {a.classe === 'cancelada' && a.motivo && <span>Motivo: {a.motivo}</span>}
+        {gestao && a.revisarEscala && <span className="exec escala">📝 Lançada pela escala · revisar</span>}
+        {gestao && a.foraDaEscala && <span className="exec nao">⚠ Removida da escala</span>}
         {a.execucao === 'executada' && <span className="exec ok">✓ Executada</span>}
         {a.execucao === 'nao_executada' && <span className="exec nao">✕ Não executada{a.execMotivo ? ` — ${a.execMotivo}` : ''}</span>}
         {a.execucao === 'reprogramada' && <span className="exec reprog">↷ Reprogramada{a.execMotivo ? ` — ${a.execMotivo}` : ''}</span>}

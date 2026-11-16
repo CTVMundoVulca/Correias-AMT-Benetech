@@ -646,6 +646,7 @@ export class CloudSync {
         return;
       }
       case 'activity/add':
+      case 'activity/put':
       case 'activity/rename':
       case 'activity/remove':
       case 'activity/setWorker':

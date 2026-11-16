@@ -70,6 +70,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     horario: limparTexto(base.horario, HORARIO_MAX),
     motivo: base.classe === 'cancelada' ? limparTexto(base.motivo, MOTIVO_MAX) : '',
     pessoas: Math.max(0, Math.min(PESSOAS_MAX, Math.round(base.pessoas || 0))),
+    // salvar pela programação conta como revisão da atividade lançada na escala
+    revisarEscala: false,
   });
 
   /** grava a atividade e mantém o cadastro da OM (sem mudar a situação já registrada) */
@@ -160,6 +162,15 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
       }
     >
       <form id="form-ativ" className="stack" onSubmit={(e) => void salvar(e)}>
+        {a.revisarEscala && (
+          <p className="banner warn small">
+            📝 <b>Lançada direto na Escala</b> por {a.criadoPor || 'um administrador'}. Confira a área, a TAG, a OM e o tipo; ao salvar, ela deixa de
+            aparecer como “a revisar”.
+          </p>
+        )}
+        {a.foraDaEscala && (
+          <p className="banner warn small">⚠ Esta atividade foi <b>removida da escala</b>. Se não vai mais acontecer, cancele (classificação “Cancelada”).</p>
+        )}
         <div className="two-cols">
           <label className="field">
             Data

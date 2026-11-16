@@ -7,6 +7,7 @@ import { useToast } from "../../ui/Toast";
 import { useConfirm } from "../../ui/ConfirmDialog";
 import { AllocationPicker } from "./AllocationPicker";
 import { AtrasosAtividade } from "../atrasos/AtrasosAtividade";
+import { useAvisoProg } from "./ProgDoDia";
 
 interface Props {
   dayRef: DayRef;
@@ -23,6 +24,10 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(activity.nome);
   const byId = new Map(state.workers.map((w) => [w.id, w]));
+  const aviso = useAvisoProg(dayRef, activity.id);
+  // quem também está em outra atividade do mesmo dia (ex.: a atividade mudou de dia com a equipe)
+  const outras = state.weeks[dayRef.weekKey]?.days[dayRef.dayIndex]?.activities.filter((a) => a.id !== activity.id) ?? [];
+  const tambemEm = (wid: string) => outras.find((a) => a.workerIds.includes(wid))?.nome;
   const allocated = sortByName(
     activity.workerIds
       .map((id) => byId.get(id))
@@ -127,6 +132,16 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
           )}
         </div>
       )}
+      {aviso && (
+        <div className="aviso-prog">
+          <span>⚠ {aviso}</span>
+          {!ro && (
+            <button className="btn small ghost-danger" onClick={remove}>
+              Remover da escala
+            </button>
+          )}
+        </div>
+      )}
       {allocated.length === 0 ? (
         <p className="muted small">Ninguém alocado.</p>
       ) : (
@@ -134,10 +149,13 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
           {allocated.map((w) => (
             <span
               key={w.id}
-              className={"chip" + (w.ativo ? "" : " inactive")}
-              title={w.ativo ? w.funcao : `${w.funcao} · inativo`}
+              className={"chip" + (w.ativo ? "" : " inactive") + (tambemEm(w.id) ? " conflito" : "")}
+              title={tambemEm(w.id) ? `Também em: ${tambemEm(w.id)}` : w.ativo ? w.funcao : `${w.funcao} · inativo`}
             >
-              <span className="chip-label">{w.nome}</span>
+              <span className="chip-label">
+                {tambemEm(w.id) && <span aria-label="também em outra atividade">⚠ </span>}
+                {w.nome}
+              </span>
               {!ro && (
                 <button
                   className="chip-x"

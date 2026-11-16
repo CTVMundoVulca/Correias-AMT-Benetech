@@ -703,3 +703,4 @@
 
 /* campo obrigatório */
 .obrig { color: var(--red-ink); font-weight: 700; }
+.exec.escala { color: var(--accent-strong); }

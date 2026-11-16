@@ -119,6 +119,28 @@ export function Programar() {
         </section>
       )}
 
+      {daSemana.some((x) => x.revisarEscala || x.foraDaEscala) && (
+        <div className="banner warn small">
+          {(() => {
+            const rev = daSemana.filter((x) => x.revisarEscala).length;
+            const fora = daSemana.filter((x) => x.foraDaEscala && x.classe !== 'cancelada').length;
+            return (
+              <>
+                {rev > 0 && (
+                  <span>
+                    📝 <b>{rev}</b> atividade(s) lançada(s) direto na Escala nesta semana: abra e confira área, TAG e OM.{' '}
+                  </span>
+                )}
+                {fora > 0 && (
+                  <span>
+                    ⚠ <b>{fora}</b> atividade(s) removida(s) da Escala: cancele se não forem mais acontecer.
+                  </span>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
       <section className="card pad">
         <SeletorSemana segunda={segunda} onEscolher={setSegunda} />
         <p className="small muted center">
