@@ -624,6 +624,24 @@ export const porEquipamento = (l: Atividade[], n = 10) =>
     .sort(porTotal)
     .slice(0, n);
 
+/**
+ * Cancelamento das OMs do período do app (a partir de INICIO_CONTROLE_OMS), decidido pelas
+ * atividades: sem nenhuma atividade ativa (todas canceladas ou excluídas) a OM fica cancelada;
+ * voltando a ter atividade ativa, deixa de estar. OMs já retornadas/baixadas e as de antes do
+ * período (cancelamento vindo da planilha) não são mexidas. Devolve só as OMs que mudam.
+ */
+export function cancelamentoDasOms(oms: OmInfo[], ativs: Atividade[]): OmInfo[] {
+  const ativas = new Set(ativs.filter((a) => a.om && a.classe !== 'cancelada').map((a) => a.om));
+  const out: OmInfo[] = [];
+  for (const o of oms) {
+    if (!o.primeiraData || o.primeiraData < INICIO_CONTROLE_OMS) continue;
+    if (o.situacao === 'baixada' || o.situacao === 'retornada') continue;
+    const cancelada = !ativas.has(o.om);
+    if (cancelada !== o.cancelada) out.push({ ...o, cancelada });
+  }
+  return out;
+}
+
 export function contarOms(oms: OmInfo[]): Record<SituacaoOm, number> {
   const c: Record<SituacaoOm, number> = { aberta: 0, retornada: 0, baixada: 0, sem_registro: 0 };
   for (const o of oms) if (!o.cancelada) c[o.situacao]++;
@@ -634,6 +652,23 @@ export function contarOms(oms: OmInfo[]): Record<SituacaoOm, number> {
 
 export function semAcento(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/** Texto só com letras e números, sem acento, em maiúsculas ("F-1" = "f1" = "F 1"). */
+export const chaveBusca = (s: string) => semAcento(s).toUpperCase().replace(/[^A-Z0-9]+/g, '');
+
+/**
+ * Busca tolerante: ignora maiúsculas/minúsculas, acentos, hífens, pontos, barras e espaços.
+ * Cada palavra digitada precisa aparecer em algum dos textos (ex.: "correia f1" acha
+ * "TROCAR CORREIA F-1"; "n 11" acha "N-11").
+ */
+export function buscaBate(busca: string, ...textos: string[]): boolean {
+  const termos = busca.split(/\s+/).map(chaveBusca).filter(Boolean);
+  if (!termos.length) return true;
+  const alvos = textos.map((t) => chaveBusca(t ?? ''));
+  // a busca inteira junta (ex.: "N 11" = "N11") ou cada palavra em algum dos campos
+  const junto = termos.join('');
+  return alvos.some((a) => a.includes(junto)) || termos.every((t) => alvos.some((a) => a.includes(t)));
 }
 
 export function limparTexto(s: string, max: number): string {

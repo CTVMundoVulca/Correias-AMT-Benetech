@@ -136,3 +136,15 @@ describe('OMs do período do app', () => {
     expect(situacaoEfetiva(om('2026-10-20'), undefined).situacao).toBe('sem_registro');
   });
 });
+
+describe('OM com atividade cancelada ou excluída', () => {
+  it('sem atividade ativa a OM fica cancelada; voltando a ter, deixa de estar', async () => {
+    const { cancelamentoDasOms } = await import('../prog/model');
+    const om = (n: string, d: string, x: Record<string, unknown> = {}) => ({ om: n, area: 'URCP', equipamento: 'N-11', descricao: 'TROCAR CORREIA N-11', primeiraData: d, ultimaData: d, situacao: 'aberta' as const, retornoEm: '', retornoPor: '', baixaEm: '', baixaPor: '', cancelada: false, ...x });
+    const oms = [om('1', '2026-11-10'), om('2', '2026-11-10'), om('3', '2026-10-20'), om('4', '2026-11-10', { situacao: 'retornada' }), om('5', '2026-11-10', { cancelada: true })];
+    const ativs = [at('a', '2026-11-10', { om: '1', classe: 'cancelada' }), at('b', '2026-11-11', { om: '5' })];
+    // 1: só atividade cancelada → cancela; 2: atividade excluída → cancela; 3: antes do período, 4: já retornada → intocadas; 5: voltou a ter atividade
+    expect(cancelamentoDasOms(oms, ativs).map((o) => [o.om, o.cancelada])).toEqual([['1', true], ['2', true], ['5', false]]);
+    expect(cancelamentoDasOms(cancelamentoDasOms(oms, ativs).concat(oms.slice(2, 4)), ativs)).toEqual([]); // idempotente
+  });
+});

@@ -7,6 +7,7 @@ import { buscarTag, excluirEmenda, ouvirMes } from './data';
 import { emendaVazia, fmtData, hojeIso, mesAtual, nomeMes, ordenar, somaMes, type Emenda } from './model';
 import { ouvirFotos } from './data';
 import { ListasDialog } from './ListasDialog';
+import { buscaBate } from '../prog/model';
 import { EfetivoDialog } from './EfetivoDialog';
 
 const MES_KEY = 'vulcaescala:emenda-mes';
@@ -59,9 +60,9 @@ export function EmendaLista() {
     );
   }, [api, ym, setPendencia, toast]);
 
-  const q = busca.trim().toUpperCase();
+  const q = busca.trim();
   const filtrada = useMemo(
-    () => (lista ?? []).filter((e) => !q || e.tag.toUpperCase().includes(q) || e.numero.includes(q) || e.om.toUpperCase().includes(q)),
+    () => (lista ?? []).filter((e) => !q || buscaBate(q, e.tag, e.numero, e.om)),
     [lista, q],
   );
 

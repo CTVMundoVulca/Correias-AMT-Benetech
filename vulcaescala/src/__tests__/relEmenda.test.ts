@@ -112,3 +112,14 @@ describe('telefone de contato', () => {
     expect(telefoneValido('(07) 3333-4444')).toBe(false);
   });
 });
+
+describe('busca tolerante', () => {
+  it('ignora maiúsculas, acentos, hífen, ponto e espaço', async () => {
+    const { buscaBate } = await import('../prog/model');
+    const om = ['900011110001', 'F-1', 'PÁTIO DE MINÉRIO', 'TROCAR CORREIA F-1'];
+    for (const q of ['correia F1', 'f1', 'F-1', 'f 1', 'patio minerio', 'trocar correia f-1', '9000 1111 0001', 'Correia', '']) expect(buscaBate(q, ...om), q).toBe(true);
+    for (const q of ['F2', 'correia c3', 'URCP']) expect(buscaBate(q, ...om), q).toBe(false);
+    expect(buscaBate('n11', 'N-11')).toBe(true);
+    expect(buscaBate('ct135', 'CT-135')).toBe(true);
+  });
+});

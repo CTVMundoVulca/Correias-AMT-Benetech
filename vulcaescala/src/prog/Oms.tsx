@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useAtividades, useOms, useProg } from './context';
@@ -6,7 +6,7 @@ import { gravarOms, gravarRetornos } from './data';
 import { useRecolhiveis } from './recolher';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { INICIO_CONTROLE_OMS, SITUACOES, contarOms, diasEntre, hojeIso, mesesEntre, semAcento, type Atividade, type OmInfo, type SituacaoOm } from './model';
+import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contarOms, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
 
 type Filtro = SituacaoOm | 'pendentes' | 'todas';
 
@@ -26,7 +26,7 @@ export function Oms() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const hoje = hojeIso();
 
-  const todas = useMemo(() => [...(oms?.values() ?? [])], [oms]);
+  const brutas = useMemo(() => [...(oms?.values() ?? [])], [oms]);
   // execução apontada na programação, por OM (do início do controle no app até o mês que vem)
   const meses = useMemo(() => {
     const [y, m] = hoje.slice(0, 7).split('-').map(Number);
@@ -39,16 +39,32 @@ export function Oms() {
     for (const a of ativs ?? []) if (a.om && a.classe !== 'cancelada') m.set(a.om, [...(m.get(a.om) ?? []), a]);
     return m;
   }, [ativs]);
+  // atividade cancelada/excluída: a OM sem nenhuma atividade ativa sai das pendentes
+  const ajustes = useMemo(() => (ativs ? cancelamentoDasOms(brutas, ativs) : []), [brutas, ativs]);
+  const todas = useMemo(() => {
+    if (!ajustes.length) return brutas;
+    const m = new Map(ajustes.map((o) => [o.om, o]));
+    return brutas.map((o) => m.get(o.om) ?? o);
+  }, [brutas, ajustes]);
+  // a programação grava o ajuste no cadastro da OM (uma vez por mudança; vale para o Dashboard)
+  const gravados = useRef(new Set<string>());
+  useEffect(() => {
+    if (!pode.programar || !ajustes.length || !navigator.onLine) return;
+    const novos = ajustes.filter((o) => !gravados.current.has(`${o.om}:${o.cancelada}`));
+    if (!novos.length) return;
+    novos.forEach((o) => gravados.current.add(`${o.om}:${o.cancelada}`));
+    gravarOms(api, novos, por).catch(() => novos.forEach((o) => gravados.current.delete(`${o.om}:${o.cancelada}`)));
+  }, [ajustes, api, por, pode.programar]);
   const cont = contarOms(todas);
   const lista = useMemo(() => {
-    const q = semAcento(busca.trim().toUpperCase());
+    const q = busca.trim();
     return todas
       .filter((o) => !o.cancelada || filtro === 'todas' || !!q)
       // com busca, procura em todas as situações (a OM aparece mesmo fora da aba aberta)
       .filter((o) =>
         q || filtro === 'todas' ? true : filtro === 'pendentes' ? o.situacao === 'aberta' || o.situacao === 'retornada' : o.situacao === filtro,
       )
-      .filter((o) => !q || semAcento(`${o.om} ${o.equipamento} ${o.area} ${o.descricao}`.toUpperCase()).includes(q))
+      .filter((o) => !q || buscaBate(q, o.om, o.equipamento, o.area, o.descricao))
       .sort((a, b) => a.ultimaData.localeCompare(b.ultimaData) || a.om.localeCompare(b.om));
   }, [todas, filtro, busca]);
 
@@ -184,7 +200,7 @@ export function Oms() {
         <h2>Controle de OMs</h2>
         <p className="small muted">
           Fluxo: o <b>supervisor</b> marca a OM como realizada (<b>retorno</b>) e a <b>programação</b> dá a <b>baixa</b> no SAP. “Sem registro” = OMs da
-          planilha anteriores a {dataBr(INICIO_CONTROLE_OMS)}, sem o controle de retorno. A busca procura em todas as situações.
+          planilha anteriores a {dataBr(INICIO_CONTROLE_OMS)}, sem o controle de retorno. OM cuja atividade foi cancelada ou excluída sai das pendentes (pela busca continua aparecendo, marcada como cancelada). A busca procura em todas as situações.
         </p>
         <div className="segmented">
           {filtros.map((f) => (
