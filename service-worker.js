@@ -1,11 +1,11 @@
 /* Service Worker ÚNICO do portal AMT — mesmo esquema dos Apps CTV Campo.
-   Controla todos os módulos (portal, Escala, Emenda, Programação e Medidas) com uma só versão:
+   Controla todos os módulos (portal, Escala, Emenda, Programação, Ponte rolante e Medidas) com uma só versão:
    qualquer publicação muda o CACHE_VERSION e todos os aparelhos se atualizam
    sozinhos (app-update.js). Navegação = network-first com fallback para o cache
    (abre offline); demais arquivos = cache-first.
    CACHE_VERSION é gravado automaticamente no build (vulcaescala/scripts/build-all.mjs),
    a partir do conteúdo de todos os arquivos do APP_SHELL. */
-const CACHE_VERSION = 'amt-19ca4fe63542';
+const CACHE_VERSION = 'amt-f996dfc8fc0b';
 
 const APP_SHELL = [
   './',
@@ -34,6 +34,10 @@ const APP_SHELL = [
   './areas/index.html',
   './areas/manifest.json',
   './areas/logo-benetech.png',
+  // checklist da ponte rolante (QR Code na oficina)
+  './ponte/',
+  './ponte/index.html',
+  './ponte/logo-benetech.png',
   // geração de PDF no aparelho (mesmas bibliotecas dos Apps CTV Campo)
   './vendor/html2canvas.min.js',
   './vendor/jspdf.umd.min.js',

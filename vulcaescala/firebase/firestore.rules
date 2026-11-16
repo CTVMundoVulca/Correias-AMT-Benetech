@@ -335,6 +335,52 @@ service cloud.firestore {
         && request.resource.data.cancelamento.size() <= 60;
     }
 
+    // ═══ PONTE ROLANTE (checklist diário da oficina) ═══
+    // Operadores treinados: só administradores cadastram. Todos veem (painel do QR Code).
+    function operadoresDoc() { return /databases/$(database)/documents/ponte_config/operadores; }
+    match /ponte_config/operadores {
+      allow read: if signedIn();
+      allow write: if isProgAdmin()
+        && request.resource.data.keys().hasOnly(['operadores', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.operadores is map
+        && request.resource.data.operadores.size() <= 200;
+    }
+
+    // Checklist: só o PRÓPRIO operador (conta dele), ativo e com treinamento válido, cria.
+    // Ninguém altera nem apaga (registro de auditoria). recebidoEm = horário do servidor.
+    function checklistValido() {
+      let d = request.resource.data;
+      let op = get(operadoresDoc()).data.operadores[d.operadorId];
+      return emailOk()
+        && d.keys().hasOnly(['data', 'feitoEm', 'recebidoEm', 'operadorId', 'nome', 'matricula', 'modeloVersao',
+                             'itens', 'respostas', 'resultado', 'observacao', 'criadoUid', 'fotos'])
+        && d.data is string && d.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.recebidoEm == request.time
+        && d.criadoUid == request.auth.uid
+        && d.operadorId is string
+        && op.authEmail == email()
+        && op.ativo == true
+        && request.time.toMillis() <= op.validadeAte
+        && d.nome == op.nome && d.matricula == op.matricula
+        && d.itens is list && d.itens.size() <= 200
+        && d.respostas is map && d.respostas.size() <= 200
+        && d.resultado in ['liberada', 'bloqueada']
+        && d.fotos is int && d.fotos <= 20;
+    }
+    match /ponte_checklists/{id} {
+      allow read: if signedIn();
+      allow create: if checklistValido();
+      allow update, delete: if false;
+      match /fotos/{n} {
+        allow read: if signedIn();
+        allow create: if emailOk()
+          && getAfter(/databases/$(database)/documents/ponte_checklists/$(id)).data.criadoUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['itemId', 'dataUrl'])
+          && request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() < 900000;
+        allow update, delete: if false;
+      }
+    }
+
     // Solicitações das áreas: qualquer pessoa com o link pede; quem pediu (mesmo aparelho)
     // pode corrigir ou cancelar enquanto estiver aberta; só administradores programam/recusam.
     function solicitacaoValida(id) {
