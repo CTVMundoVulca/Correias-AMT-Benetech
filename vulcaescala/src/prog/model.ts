@@ -212,6 +212,10 @@ export interface Atividade {
   retrabalho: boolean;
   /** motivo do cancelamento (quando cancelada) */
   motivo: string;
+  /** cancelada com a equipe mobilizada: as horas são apropriadas na OM (a OM segue para retorno e baixa) */
+  mobilizada: boolean;
+  /** horas que a equipe ficou à disposição (por pessoa), quando mobilizada */
+  horasMobilizadas: number;
   /** quando a área comunicou a demanda (ISO); base da regra das 48 h. '' = desconhecido (planilha) */
   comunicadoEm: string;
   /** a classificação foi trocada à mão (diferente da regra automática) */
@@ -254,6 +258,16 @@ export const RECURSOS_MAX = 200;
 export const HORARIO_MAX = 40;
 export const MOTIVO_MAX = 200;
 export const PESSOAS_MAX = 40;
+export const HORAS_MAX = 24;
+/** horas por pessoa (0 a 24, em quartos de hora) */
+export const horasValidas = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(HORAS_MAX, Math.round(v * 4) / 4)) : 0);
+/** homem-hora no formato brasileiro (ex.: 7,5 HH) */
+export const fmtHH = (h: number) => `${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} HH`;
+/** horas-homem apropriadas na OM de uma atividade cancelada com a equipe mobilizada */
+export const horasHomemMobilizadas = (a: Pick<Atividade, 'classe' | 'mobilizada' | 'pessoas' | 'horasMobilizadas'>) =>
+  a.classe === 'cancelada' && a.mobilizada ? a.pessoas * a.horasMobilizadas : 0;
+/** a atividade conta para a OM (não cancelada, ou cancelada com a equipe mobilizada) */
+export const contaParaOm = (a: Pick<Atividade, 'classe' | 'mobilizada'>) => a.classe !== 'cancelada' || a.mobilizada;
 
 export function atividadeVazia(id: string, data: string, por: string): Atividade {
   const agora = new Date().toISOString();
@@ -272,6 +286,8 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     classe: '',
     retrabalho: false,
     motivo: '',
+    mobilizada: false,
+    horasMobilizadas: 0,
     comunicadoEm: agora,
     classeManual: false,
     execucao: '',
@@ -319,6 +335,8 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     classe,
     retrabalho: a.retrabalho === true,
     motivo: str(a.motivo, MOTIVO_MAX),
+    mobilizada: classe === 'cancelada' && a.mobilizada === true,
+    horasMobilizadas: classe === 'cancelada' && a.mobilizada === true ? horasValidas(a.horasMobilizadas) : 0,
     comunicadoEm: str(a.comunicadoEm, 40),
     classeManual: a.classeManual === true,
     execucao: (['executada', 'nao_executada', 'reprogramada'] as const).find((x) => x === a.execucao) ?? '',
@@ -563,6 +581,12 @@ export interface Resumo {
   indiceCancelamento: number | null;
   /** atividades com OM */
   comOm: number;
+  /** canceladas com a equipe mobilizada (horas apropriadas na OM) */
+  mobilizadas: number;
+  /** horas-homem perdidas nessas canceladas (pessoas × horas) */
+  horasPerdidas: number;
+  /** horas-homem perdidas por motivo do cancelamento, maior primeiro */
+  horasPorMotivo: { motivo: string; horas: number; n: number }[];
 }
 
 export function resumir(lista: Atividade[]): Resumo {
@@ -570,8 +594,21 @@ export function resumir(lista: Atividade[]): Resumo {
   let pessoasDia = 0;
   let retrabalho = 0;
   let comOm = 0;
+  let mobilizadas = 0;
+  let horasPerdidas = 0;
+  const porMotivo = new Map<string, { motivo: string; horas: number; n: number }>();
   for (const a of lista) {
     classes[chaveClasse(a.classe)]++;
+    const hh = horasHomemMobilizadas(a);
+    if (a.classe === 'cancelada' && a.mobilizada) {
+      mobilizadas++;
+      horasPerdidas += hh;
+      const k = a.motivo || 'Sem motivo';
+      const g = porMotivo.get(k) ?? { motivo: k, horas: 0, n: 0 };
+      g.horas += hh;
+      g.n++;
+      porMotivo.set(k, g);
+    }
     if (a.classe !== 'cancelada') pessoasDia += a.pessoas;
     if (a.retrabalho) retrabalho++;
     if (a.om) comOm++;
@@ -586,6 +623,9 @@ export function resumir(lista: Atividade[]): Resumo {
     indiceProgramacao: exec ? classes.programada / exec : null,
     indiceCancelamento: classificadas ? classes.cancelada / classificadas : null,
     comOm,
+    mobilizadas,
+    horasPerdidas,
+    horasPorMotivo: [...porMotivo.values()].sort((x, y) => y.horas - x.horas),
   };
 }
 
@@ -631,7 +671,7 @@ export const porEquipamento = (l: Atividade[], n = 10) =>
  * período (cancelamento vindo da planilha) não são mexidas. Devolve só as OMs que mudam.
  */
 export function cancelamentoDasOms(oms: OmInfo[], ativs: Atividade[]): OmInfo[] {
-  const ativas = new Set(ativs.filter((a) => a.om && a.classe !== 'cancelada').map((a) => a.om));
+  const ativas = new Set(ativs.filter((a) => a.om && contaParaOm(a)).map((a) => a.om));
   const out: OmInfo[] = [];
   for (const o of oms) {
     if (!o.primeiraData || o.primeiraData < INICIO_CONTROLE_OMS) continue;
