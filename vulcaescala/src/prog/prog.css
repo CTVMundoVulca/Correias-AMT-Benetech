@@ -706,3 +706,4 @@
 /* campo obrigatório */
 .obrig { color: var(--red-ink); font-weight: 700; }
 .exec.escala { color: var(--accent-strong); }
+.area-ed-campos.motivo-ed { grid-template-columns: minmax(0, 1fr); }

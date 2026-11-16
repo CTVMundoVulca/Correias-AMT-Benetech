@@ -4,8 +4,8 @@ import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { AuthScreen, Splash } from '../cloud/AuthScreens';
 import { souAdmin } from '../emenda/data';
 import { Ctx, type ProgCtx } from './context';
-import { ouvirAbertas, ouvirAreas, ouvirFeriados, ouvirPapeis, ouvirPedidosParada, type Pendencia } from './data';
-import { AREAS_PADRAO, PAPEIS_VAZIOS, permissoes, type Area, type Papeis } from './model';
+import { ouvirAbertas, ouvirAreas, ouvirFeriados, ouvirMotivosCancelamento, ouvirPapeis, ouvirPedidosParada, type Pendencia } from './data';
+import { AREAS_PADRAO, MOTIVOS_CANCELAMENTO, PAPEIS_VAZIOS, permissoes, type Area, type Papeis } from './model';
 import { Painel } from './Painel';
 import { Solicitar } from './Solicitar';
 import { Programar } from './Programar';
@@ -69,6 +69,7 @@ export function ProgApp({ linkAreas = false }: { linkAreas?: boolean } = {}) {
   const [papeis, setPapeis] = useState<Papeis>(PAPEIS_VAZIOS);
   const [login, setLogin] = useState(false);
   const [areas, setAreas] = useState<Area[]>(AREAS_PADRAO);
+  const [motivosCancelamento, setMotivosCancelamento] = useState<string[]>(MOTIVOS_CANCELAMENTO);
   const [feriados, setFeriados] = useState<Record<string, string>>({});
   const [rota0, setRota] = useState(lerRota);
   // link das áreas: nunca entra na Gestão
@@ -144,6 +145,7 @@ export function ProgApp({ linkAreas = false }: { linkAreas?: boolean } = {}) {
   }, [phase]);
 
   useEffect(() => (phase === 'ready' && api ? ouvirAreas(api, setAreas) : undefined), [phase, api]);
+  useEffect(() => (phase === 'ready' && api ? ouvirMotivosCancelamento(api, setMotivosCancelamento) : undefined), [phase, api]);
   useEffect(() => (phase === 'ready' && api ? ouvirFeriados(api, setFeriados) : undefined), [phase, api]);
   // papéis: só quem entrou com e-mail lê
   useEffect(() => {
@@ -186,8 +188,8 @@ export function ProgApp({ linkAreas = false }: { linkAreas?: boolean } = {}) {
   }, [api]);
 
   const ctx = useMemo<ProgCtx | null>(
-    () => (api ? { api, por, uid, pode, gestao: rota.gestao, linkAreas, areas, feriados, entrar: () => setLogin(true), setPendencia } : null),
-    [api, por, uid, pode, rota.gestao, linkAreas, areas, feriados, setPendencia],
+    () => (api ? { api, por, uid, pode, gestao: rota.gestao, linkAreas, areas, motivosCancelamento, feriados, entrar: () => setLogin(true), setPendencia } : null),
+    [api, por, uid, pode, rota.gestao, linkAreas, areas, motivosCancelamento, feriados, setPendencia],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };
