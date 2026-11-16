@@ -624,6 +624,24 @@ export const porEquipamento = (l: Atividade[], n = 10) =>
     .sort(porTotal)
     .slice(0, n);
 
+/**
+ * Cancelamento das OMs do período do app (a partir de INICIO_CONTROLE_OMS), decidido pelas
+ * atividades: sem nenhuma atividade ativa (todas canceladas ou excluídas) a OM fica cancelada;
+ * voltando a ter atividade ativa, deixa de estar. OMs já retornadas/baixadas e as de antes do
+ * período (cancelamento vindo da planilha) não são mexidas. Devolve só as OMs que mudam.
+ */
+export function cancelamentoDasOms(oms: OmInfo[], ativs: Atividade[]): OmInfo[] {
+  const ativas = new Set(ativs.filter((a) => a.om && a.classe !== 'cancelada').map((a) => a.om));
+  const out: OmInfo[] = [];
+  for (const o of oms) {
+    if (!o.primeiraData || o.primeiraData < INICIO_CONTROLE_OMS) continue;
+    if (o.situacao === 'baixada' || o.situacao === 'retornada') continue;
+    const cancelada = !ativas.has(o.om);
+    if (cancelada !== o.cancelada) out.push({ ...o, cancelada });
+  }
+  return out;
+}
+
 export function contarOms(oms: OmInfo[]): Record<SituacaoOm, number> {
   const c: Record<SituacaoOm, number> = { aberta: 0, retornada: 0, baixada: 0, sem_registro: 0 };
   for (const o of oms) if (!o.cancelada) c[o.situacao]++;
