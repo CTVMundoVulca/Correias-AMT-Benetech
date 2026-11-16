@@ -148,7 +148,7 @@ if (window.__DEMO_DADOS__) {
       const data = r === 1 ? iso(new Date(new Date(a.data + 'T12:00').getTime() + 86_400_000)) : a.data;
       semear(`emendas/${id}`, { id, tag: r === 1 ? a.equipamento.replace('-', ' ') : a.equipamento, data, om: r === 0 ? a.om : '', numero: String(nRel++) });
     });
-  semear('emendas/orf1', { id: 'orf1', tag: 'BC-999', data: dIso(-3), om: '', numero: '98' });
+  semear('emendas/orf1', { id: 'orf1', tag: 'BC-999', data: dIso(-3), om: '', numero: '98', concluidoEm: '2026-01-01T00:00:00Z' });
   semear('emendas/orf2', { id: 'orf2', tag: 'TR-7', data: dIso(-12), om: '4455667', numero: '99' });
   em('em1', 'L-21', 200); em('em2', 'L-21', 120); em('em3', 'L 21', 40); em('em4', 'B-9R', 150); em('em5', 'B-9R', 10); em('em6', 'C-3', 90);
 }

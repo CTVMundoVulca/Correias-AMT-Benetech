@@ -43,6 +43,14 @@ export function Relatorio({ id }: { id: string }) {
           <h1>Relatório de Emenda</h1>
         </div>
       </header>
+      {e.concluidoEm ? (
+        <div className="rel-situacao ok">
+          ✓ CONCLUÍDO em {new Date(e.concluidoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+          {e.concluidoPor ? ` por ${e.concluidoPor}` : ''}
+        </div>
+      ) : (
+        <div className="rel-situacao pend">EM PREENCHIMENTO — relatório ainda não concluído</div>
+      )}
 
       <Bloco t="1. Identificação">
         <KV k="Equipamento (TAG)" v={e.tag} />

@@ -13,7 +13,7 @@ import { FOTO_CAMPOS, legendaSugerida, type Foto } from './model';
  * foto, a descrição embaixo pode ser editada. "+ Adicionar mais fotos" cria campos extras.
  * Cada campo é a posição (ordem) da foto; cada foto é comprimida e gravada à parte.
  */
-export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; antesDeGravar?: () => void }) {
+export function FotosSection({ emendaId, antesDeGravar, travado = false }: { emendaId: string; antesDeGravar?: () => void; travado?: boolean }) {
   const { api } = useEmenda();
   const toast = useToast();
   const confirm = useConfirm();
@@ -81,10 +81,13 @@ export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; an
     setVer(null);
   };
 
+  if (travado && !fotos.length) return <p className="small muted">Nenhuma foto registrada.</p>;
   return (
     <>
       <div className="foto-grid">
-        {campos.map((i) => {
+        {campos
+          .filter((i) => !travado || porCampo.has(i))
+          .map((i) => {
           const f = porCampo.get(i);
           return (
             <figure key={i} className={'foto' + (f ? ' com-foto' : '')}>
@@ -106,7 +109,11 @@ export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; an
                   </span>
                 </button>
               )}
-              {f ? (
+              {f && travado ? (
+                <figcaption className="foto-desc">
+                  {i + 1}. {f.legenda}
+                </figcaption>
+              ) : f ? (
                 <LegendaEditavel
                   key={f.id + f.legenda}
                   numero={i + 1}
@@ -123,18 +130,22 @@ export function FotosSection({ emendaId, antesDeGravar }: { emendaId: string; an
         })}
       </div>
       <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void adicionar(e.target.files?.[0])} />
-      <button className="btn" onClick={() => setExtras((n) => n + 1)}>
-        + Adicionar mais fotos
-      </button>
+      {!travado && (
+        <button className="btn" onClick={() => setExtras((n) => n + 1)}>
+          + Adicionar mais fotos
+        </button>
+      )}
       {ver && (
         <Modal
           title={ver.legenda}
           onClose={() => setVer(null)}
           footer={
             <>
-              <button className="btn ghost-danger" onClick={() => remover(ver)}>
-                Remover
-              </button>
+              {!travado && (
+                <button className="btn ghost-danger" onClick={() => remover(ver)}>
+                  Remover
+                </button>
+              )}
               <a className="btn" href={ver.data} download={`emenda-foto-${ver.ordem + 1}.jpg`}>
                 Baixar
               </a>

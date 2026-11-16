@@ -9,7 +9,7 @@ const at = (id: string, data: string, x: Partial<Atividade> = {}): Atividade => 
   area: 'PÁTIO DE MINÉRIO',
   ...x,
 });
-const rel = (id: string, data: string, x: Partial<RelResumo> = {}): RelResumo => ({ id, data, tag: 'L 21', om: '', numero: '1', ...x });
+const rel = (id: string, data: string, x: Partial<RelResumo> = {}): RelResumo => ({ id, data, tag: 'L 21', om: '', numero: '1', concluido: true, ...x });
 
 describe('relatórios de emenda', () => {
   it('diasEntre conta dias de calendário', () => {
@@ -121,5 +121,18 @@ describe('busca tolerante', () => {
     for (const q of ['F2', 'correia c3', 'URCP']) expect(buscaBate(q, ...om), q).toBe(false);
     expect(buscaBate('n11', 'N-11')).toBe(true);
     expect(buscaBate('ct135', 'CT-135')).toBe(true);
+  });
+});
+
+describe('relatório de emenda concluído × em preenchimento', () => {
+  it('só o concluído conta como entregue', async () => {
+    const { cruzar } = await import('../prog/relEmenda');
+    const { atividadeVazia } = await import('../prog/model');
+    const a = { ...atividadeVazia('a1', '2026-11-10', 'x'), tipo: 'Troca de correia', equipamento: 'L-21', classe: 'programada' as const, execucao: 'executada' as const };
+    const r = (concluido: boolean) => ({ id: 'r1', data: '2026-11-10', tag: 'L 21', om: '', numero: '1', concluido });
+    const em = cruzar([a], [r(false)], '2026-11-16', '2026-11-01');
+    expect(em.linhas[0].sit).toBe('preenchimento');
+    expect([em.feitos, em.emPreenchimento, em.pendentes]).toEqual([0, 1, 0]);
+    expect(cruzar([a], [r(true)], '2026-11-16', '2026-11-01').linhas[0].sit).toBe('feito');
   });
 });

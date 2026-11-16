@@ -11,7 +11,7 @@ export { diasEntre };
 export const TIPOS_COM_RELATORIO = ['Troca de correia', 'Emenda / intercalação'];
 
 /** O controle começa nesta data (antes disso o relatório pelo app não era obrigatório). */
-export const INICIO_CONTROLE = '2026-11-01';
+export const INICIO_CONTROLE = '2026-11-02';
 
 /** Tipos listados na tela para sinalizar "exige relatório" (qualquer atividade pode ser sinalizada no formulário). */
 export const TIPOS_SINALIZAVEIS = ['Preparação de correia'];
@@ -34,9 +34,12 @@ export interface RelResumo {
   data: string;
   om: string;
   numero: string;
+  /** relatório concluído no Registro de Emenda (só ele conta como entregue) */
+  concluido: boolean;
 }
 
-export type SitRel = 'feito' | 'pendente' | 'dispensado' | 'hoje';
+/** feito = há relatório CONCLUÍDO; preenchimento = há relatório, mas ainda não concluído */
+export type SitRel = 'feito' | 'preenchimento' | 'pendente' | 'dispensado' | 'hoje';
 export type Como = 'manual' | 'om' | 'tag';
 
 export interface LinhaRel {
@@ -82,6 +85,8 @@ export interface Cruzamento {
   semAtividade: RelResumo[];
   total: number;
   feitos: number;
+  /** com relatório ainda em preenchimento (não conta como entregue) */
+  emPreenchimento: number;
   pendentes: number;
   dispensados: number;
 }
@@ -95,7 +100,15 @@ export function cruzar(ativs: Atividade[], rels: RelResumo[], hoje: string, inic
   for (const a of ativs) {
     if (!exigeRelatorio(a) || a.data > hoje || a.data < inicio) continue;
     const m = relatoriosDa(a, rels);
-    const sit: SitRel = m.rels.length ? 'feito' : a.relDispensa ? 'dispensado' : a.data === hoje ? 'hoje' : 'pendente';
+    const sit: SitRel = m.rels.some((r) => r.concluido)
+      ? 'feito'
+      : m.rels.length
+        ? 'preenchimento'
+        : a.relDispensa
+          ? 'dispensado'
+          : a.data === hoje
+            ? 'hoje'
+            : 'pendente';
     linhas.push({ a, sit, rels: m.rels, como: m.como, dias: diasEntre(a.data, hoje) });
   }
   // relatório "órfão": não bate com NENHUMA atividade (de qualquer tipo) do período
@@ -110,6 +123,7 @@ export function cruzar(ativs: Atividade[], rels: RelResumo[], hoje: string, inic
     semAtividade,
     total: linhas.filter((l) => l.sit !== 'hoje').length,
     feitos: linhas.filter((l) => l.sit === 'feito').length,
+    emPreenchimento: linhas.filter((l) => l.sit === 'preenchimento').length,
     pendentes: linhas.filter((l) => l.sit === 'pendente').length,
     dispensados: linhas.filter((l) => l.sit === 'dispensado').length,
   };

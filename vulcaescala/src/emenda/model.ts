@@ -144,6 +144,14 @@ export interface Emenda {
   // 9–10 liberações
   libTecnico: Liberacao;
   libSupervisor: Liberacao;
+  // situação: concluído (somente leitura) ou em preenchimento ('' = em preenchimento)
+  concluidoEm: string;
+  /** nome de quem concluiu (e e-mail, se logado) */
+  concluidoPor: string;
+  /** sessão (aparelho) que concluiu: ela e a liderança podem reabrir */
+  concluidoUid: string;
+  reabertoEm: string;
+  reabertoPor: string;
 }
 
 export interface Foto {
@@ -271,6 +279,11 @@ export function novaEmenda(id: string, hoje: string, por: string, aparelhos: str
     retomada: 'N/A',
     libTecnico: liberacaoVazia(),
     libSupervisor: liberacaoVazia(),
+    concluidoEm: '',
+    concluidoPor: '',
+    concluidoUid: '',
+    reabertoEm: '',
+    reabertoPor: '',
   };
   return { ...e, ...recalcular(e, ['tipoCorreia']) };
 }
@@ -492,4 +505,75 @@ export function emendaComBase(orig: Emenda, id: string, data: string, por: strin
   const nova = novaEmenda(id, data, por, []);
   const copia = Object.fromEntries(CAMPOS_COPIADOS.map((k) => [k, JSON.parse(JSON.stringify(orig[k] ?? nova[k]))])) as Partial<Emenda>;
   return { ...nova, ...copia, numero: proximoNumero(orig.numero) };
+}
+
+// ---------------------------------------------------------------- conclusão do relatório
+
+export const concluido = (e: Pick<Emenda, 'concluidoEm'>) => !!e.concluidoEm;
+
+/** O controle de conclusão vale para relatórios a partir desta data (antes: histórico, fora do controle). */
+export const INICIO_CONCLUSAO = '2026-11-02';
+export const foraDoControle = (e: Pick<Emenda, 'data' | 'concluidoEm'>) => !!e.data && e.data < INICIO_CONCLUSAO && !e.concluidoEm;
+
+const vazioTxt = (v: unknown) => typeof v !== 'string' || !v.trim();
+/** opções Sim/Não/N/A: N/A é uma resposta; só "" falta */
+const semResposta = (v: unknown) => v === '' || v === undefined;
+
+/**
+ * O que falta para concluir o relatório: identificação, efetivo da troca, dados da emenda,
+ * check lists respondidos, vulcanização, inspeção e as duas liberações assinadas.
+ */
+export function pendenciasConclusao(e: Emenda): string[] {
+  const f: string[] = [];
+  const txt = (v: string, nome: string) => vazioTxt(v) && f.push(nome);
+  const opc = (v: string, nome: string) => semResposta(v) && f.push(nome);
+  // 1 identificação
+  txt(e.tag, 'TAG');
+  txt(e.data, 'Data');
+  txt(e.numero, 'Número da emenda');
+  txt(e.om, 'OM');
+  // 2 efetivo
+  if (!e.efetivo.some((x) => !vazioTxt(x.nome))) f.push('Efetivo da troca');
+  // 5 dados da emenda
+  txt(e.especificacao, 'Especificação da correia');
+  txt(e.largura, 'Largura da correia');
+  if (e.tipoCorreia === 'Cabo Aço') {
+    txt(e.estagio1, '1º estágio');
+    txt(e.estagio2, '2º estágio');
+    txt(e.estagio3, '3º estágio');
+    txt(e.chanfro, 'Chanfro');
+  } else {
+    txt(e.qtdLona, 'Quant. lonas');
+    txt(e.qtdPasses, 'Quant. passes');
+    txt(e.comprPasse, 'Compr. passe');
+    txt(e.fechamento, 'Fechamento');
+  }
+  txt(e.comprTotal, 'Compr. total da emenda');
+  opc(e.ckLixada, 'Emenda lixada?');
+  opc(e.ckLimpa, 'Emenda limpa?');
+  opc(e.ckUmidadeOleo, 'Umidade / óleo?');
+  opc(e.ckAlinhada, 'Alinhada?');
+  // 6 check list da vulcanização
+  txt(e.tempAmbiente, 'Temp. ambiente');
+  txt(e.umidade, 'Umidade relativa');
+  txt(e.tempSuperficie, 'Temp. superfície');
+  opc(e.clima, 'Clima');
+  opc(e.rodilhada, 'Rodilhada?');
+  txt(e.tempVulc, 'Temperatura de vulcanização');
+  txt(e.tempoVulc, 'Tempo de vulcanização');
+  txt(e.pressaoVulc, 'Pressão');
+  txt(e.dureza, 'Dureza Shore A');
+  opc(e.ckBolha, 'Presença de bolha?');
+  opc(e.ckAcabamento, 'Feito acabamento?');
+  opc(e.ckFaltouMaterial, 'Faltou material?');
+  // 9–10 liberações
+  for (const [l, nome] of [
+    [e.libTecnico, 'técnico de área'],
+    [e.libSupervisor, 'supervisor de área'],
+  ] as const) {
+    if (vazioTxt(l.nome)) f.push(`Liberação do ${nome}: nome`);
+    if (vazioTxt(l.data)) f.push(`Liberação do ${nome}: data`);
+    if (vazioTxt(l.assinatura)) f.push(`Liberação do ${nome}: assinatura`);
+  }
+  return f;
 }

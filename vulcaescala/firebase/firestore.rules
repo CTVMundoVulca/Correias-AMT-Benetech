@@ -175,26 +175,46 @@ service cloud.firestore {
         && d.numero is string && d.numero.size() <= 30;
     }
 
+    // Relatório CONCLUÍDO (concluidoEm preenchido) fica somente leitura: só dá para reabrir,
+    // pela mesma sessão que concluiu ou pela liderança (fica registrado quem reabriu).
+    function emendaAberta() { return resource.data.get('concluidoEm', '') == ''; }
+    function concluindoValido() {
+      // ao concluir, quem conclui é a própria sessão
+      return request.resource.data.get('concluidoEm', '') == ''
+        || request.resource.data.get('concluidoUid', '') == request.auth.uid;
+    }
+    function reabrindo() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['concluidoEm', 'concluidoPor', 'concluidoUid', 'reabertoEm', 'reabertoPor', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.get('concluidoEm', '') == ''
+        && (resource.data.get('concluidoUid', '') == request.auth.uid || isMember());
+    }
     match /emendas/{emendaId} {
       allow read: if signedIn();
       // criadoUid = sessão (aparelho) que criou; só pode ser a própria e nunca muda depois
-      allow create: if signedIn() && emendaValida()
+      allow create: if signedIn() && emendaValida() && concluindoValido()
         && request.resource.data.get('criadoUid', request.auth.uid) == request.auth.uid;
       allow update: if signedIn() && emendaValida()
-        && request.resource.data.get('criadoUid', '') == resource.data.get('criadoUid', '');
-      // excluir: quem criou o relatório (mesmo aparelho) ou a liderança (membros e administradores)
+        && request.resource.data.get('criadoUid', '') == resource.data.get('criadoUid', '')
+        && ((emendaAberta() && concluindoValido()) || (!emendaAberta() && reabrindo()));
+      // excluir: quem criou o relatório (mesmo aparelho) ou a liderança; concluído, só a liderança
       allow delete: if isMember()
-        || (signedIn() && resource.data.get('criadoUid', '') != '' && resource.data.criadoUid == request.auth.uid);
+        || (signedIn() && emendaAberta() && resource.data.get('criadoUid', '') != '' && resource.data.criadoUid == request.auth.uid);
 
+      // fotos de relatório concluído também ficam travadas (a liderança ainda pode apagar)
+      function fotosAbertas() {
+        return !exists(/databases/$(database)/documents/emendas/$(emendaId))
+          || get(/databases/$(database)/documents/emendas/$(emendaId)).data.get('concluidoEm', '') == '';
+      }
       match /fotos/{fotoId} {
         allow read: if signedIn();
-        allow create, update: if signedIn()
+        allow create, update: if signedIn() && fotosAbertas()
           && request.resource.data.keys().hasOnly(['id', 'ordem', 'legenda', 'data', 'criadoEm'])
           && request.resource.data.data is string
           && request.resource.data.data.size() < 1000000
           && request.resource.data.legenda is string
           && request.resource.data.legenda.size() <= 60;
-        allow delete: if signedIn();
+        allow delete: if signedIn() && (fotosAbertas() || isMember());
       }
     }
 

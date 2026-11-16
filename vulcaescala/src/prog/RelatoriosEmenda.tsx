@@ -9,7 +9,7 @@ import { AREA_INTERNA, buscaBate, hojeIso, mesesEntre, pct, type Atividade } fro
 import { INICIO_CONTROLE, JANELA, MOTIVOS_DISPENSA, TIPOS_COM_RELATORIO, TIPOS_SINALIZAVEIS, cruzar, diasEntre, normTag, type LinhaRel, type RelResumo } from './relEmenda';
 
 type Periodo = 'mes' | 'tudo';
-type Filtro = 'pendente' | 'feito' | 'dispensado' | 'hoje' | 'orfao' | 'prep' | 'todas';
+type Filtro = 'pendente' | 'preenchimento' | 'feito' | 'dispensado' | 'hoje' | 'orfao' | 'prep' | 'todas';
 
 const COMO = { manual: 'vinculado à mão', om: 'pela OM', tag: 'pela TAG e data' } as const;
 
@@ -72,7 +72,8 @@ export function RelatoriosEmenda() {
 
   const FILTROS: [Filtro, string, number | undefined][] = [
     ['pendente', '⏳ Pendentes', c?.pendentes],
-    ['feito', '✓ Com relatório', c?.feitos],
+    ['preenchimento', '📝 Em preenchimento', c?.emPreenchimento],
+    ['feito', '✓ Concluído', c?.feitos],
     ['hoje', '🕐 Hoje', c?.linhas.filter((l) => l.sit === 'hoje').length],
     ['dispensado', '🚫 Dispensadas', c?.dispensados],
     ['orfao', '❓ Relatório sem atividade', c?.semAtividade.length],
@@ -116,8 +117,11 @@ export function RelatoriosEmenda() {
             </div>
             <div className="kpi">
               <b>{pct(exigem ? c.feitos / exigem : null)}</b>
-              <span>Com relatório</span>
-              <span className="kpi-sub">{c.feitos} de {exigem}</span>
+              <span>Com relatório concluído</span>
+              <span className="kpi-sub">
+                {c.feitos} de {exigem}
+                {c.emPreenchimento ? ` · ${c.emPreenchimento} em preenchimento` : ''}
+              </span>
             </div>
             <div className={'kpi' + (c.pendentes ? ' kpi-alerta' : '')}>
               <b>{c.pendentes}</b>
@@ -268,7 +272,8 @@ function Linha({ l, onVincular, onDispensar, onDesfazer, onNaoExige }: { l: Linh
         </b>
         {l.sit === 'pendente' && <span className={'badge ' + (l.dias > 2 ? 'rel-atraso' : 'rel-pend')}>⏳ há {l.dias} dia{l.dias === 1 ? '' : 's'}</span>}
         {l.sit === 'hoje' && <span className="badge neutral">🕐 hoje</span>}
-        {l.sit === 'feito' && <span className="badge rel-ok">✓ com relatório</span>}
+        {l.sit === 'feito' && <span className="badge rel-ok">✓ relatório concluído</span>}
+        {l.sit === 'preenchimento' && <span className="badge rel-pend">📝 relatório em preenchimento</span>}
         {l.sit === 'dispensado' && <span className="badge neutral">🚫 dispensado</span>}
       </div>
       <div className="small rel-desc">
@@ -280,11 +285,12 @@ function Linha({ l, onVincular, onDispensar, onDesfazer, onNaoExige }: { l: Linh
         {a.om ? <span className="num">OM {a.om}</span> : <span>sem OM</span>}
         {a.execucao === 'executada' ? <span>✓ executada</span> : a.execucao === '' && <span>sem apontamento de execução</span>}
       </div>
-      {l.sit === 'feito' && (
+      {(l.sit === 'feito' || l.sit === 'preenchimento') && (
         <div className="small rel-achados">
           {l.rels.map((r) => (
             <span key={r.id} className="quebra-item">
               📄 {nomeRel(r)}
+              {!r.concluido && <span className="muted"> (em preenchimento)</span>}
             </span>
           ))}
           <span className="muted">({COMO[l.como!]})</span>
@@ -310,12 +316,12 @@ function Linha({ l, onVincular, onDispensar, onDesfazer, onNaoExige }: { l: Linh
             Não exige relatório
           </button>
         )}
-        {l.sit === 'feito' && l.como === 'manual' && (
+        {(l.sit === 'feito' || l.sit === 'preenchimento') && l.como === 'manual' && (
           <button type="button" className="btn small" onClick={onDesfazer}>
             Desvincular
           </button>
         )}
-        {l.sit === 'feito' && l.como !== 'manual' && (
+        {(l.sit === 'feito' || l.sit === 'preenchimento') && l.como !== 'manual' && (
           <button type="button" className="btn small" onClick={onVincular}>
             Corrigir vínculo
           </button>

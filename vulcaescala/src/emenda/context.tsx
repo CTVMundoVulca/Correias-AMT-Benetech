@@ -27,8 +27,12 @@ export function useEmenda(): EmendaCtx {
 }
 
 /** Este aparelho pode excluir o relatório? (a regra do Firestore confere de novo) */
-export const podeExcluir = (c: Pick<EmendaCtx, 'lideranca' | 'uid'>, e: { criadoUid?: string }) =>
-  c.lideranca || (!!e.criadoUid && e.criadoUid === c.uid);
+export const podeExcluir = (c: Pick<EmendaCtx, 'lideranca' | 'uid'>, e: { criadoUid?: string; concluidoEm?: string }) =>
+  c.lideranca || (!e.concluidoEm && !!e.criadoUid && e.criadoUid === c.uid);
+
+/** Este aparelho pode reabrir o relatório concluído? (quem concluiu ou a liderança) */
+export const podeReabrir = (c: Pick<EmendaCtx, 'lideranca' | 'uid'>, e: { concluidoUid?: string }) =>
+  c.lideranca || (!!e.concluidoUid && e.concluidoUid === c.uid);
 
 export const irPara = (hash: string) => {
   window.location.hash = hash;
