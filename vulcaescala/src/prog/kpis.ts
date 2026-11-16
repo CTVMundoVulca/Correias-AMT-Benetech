@@ -6,7 +6,7 @@
  */
 import type { Atraso } from '../cloud/atrasos';
 import { duracaoMin } from '../cloud/atrasos';
-import { AREA_INTERNA, diasEntre, diaUtil, type Atividade, type OmInfo, type Solicitacao } from './model';
+import { AREA_INTERNA, diasEntre, diaUtil, omFutura, type Atividade, type OmInfo, type Solicitacao } from './model';
 
 const media = (l: number[]) => (l.length ? l.reduce((s, x) => s + x, 0) / l.length : null);
 const contar = (l: string[]) => {
@@ -109,7 +109,7 @@ export function backlogSemanas(lista: Atividade[], abertas: Solicitacao[], efeti
 
 /** OMs pendentes por idade (dias desde a última programação) e tempos de ciclo. */
 export function omsIdadeCiclo(oms: OmInfo[], hoje: string) {
-  const pend = oms.filter((o) => !o.cancelada && (o.situacao === 'aberta' || o.situacao === 'retornada'));
+  const pend = oms.filter((o) => !o.cancelada && (o.situacao === 'aberta' || o.situacao === 'retornada') && !omFutura(o, hoje));
   const faixa = { ate7: 0, ate30: 0, mais30: 0 };
   for (const o of pend) {
     const d = diasEntre(o.ultimaData, hoje);

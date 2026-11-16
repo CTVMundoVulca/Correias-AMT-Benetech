@@ -216,6 +216,10 @@ export interface Atividade {
   mobilizada: boolean;
   /** horas que a equipe ficou à disposição (por pessoa), quando mobilizada */
   horasMobilizadas: number;
+  /** horário em que a equipe começou a aguardar ("HH:MM") */
+  mobInicio: string;
+  /** horário do cancelamento / dispensa da equipe ("HH:MM") */
+  mobFim: string;
   /** quando a área comunicou a demanda (ISO); base da regra das 48 h. '' = desconhecido (planilha) */
   comunicadoEm: string;
   /** a classificação foi trocada à mão (diferente da regra automática) */
@@ -260,7 +264,22 @@ export const MOTIVO_MAX = 200;
 export const PESSOAS_MAX = 40;
 export const HORAS_MAX = 24;
 /** horas por pessoa (0 a 24, em quartos de hora) */
-export const horasValidas = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(HORAS_MAX, Math.round(v * 4) / 4)) : 0);
+export const horasValidas = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(HORAS_MAX, Math.round(v * 60) / 60)) : 0);
+const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const horaValida = (v: unknown) => (typeof v === 'string' && HORA_RE.test(v) ? v : '');
+/** horas entre o início e o fim ("HH:MM"); fim antes do início = passou da meia-noite. 0 se faltar algum. */
+export function duracaoHoras(inicio: string, fim: string): number {
+  if (!horaValida(inicio) || !horaValida(fim)) return 0;
+  const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+  let d = min(fim) - min(inicio);
+  if (d < 0) d += 24 * 60;
+  return d / 60;
+}
+/** duração em horas e minutos (ex.: 1,8333 → "1h50") */
+export const fmtDuracao = (h: number) => {
+  const m = Math.round(h * 60);
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+};
 /** homem-hora no formato brasileiro (ex.: 7,5 HH) */
 export const fmtHH = (h: number) => `${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} HH`;
 /** horas-homem apropriadas na OM de uma atividade cancelada com a equipe mobilizada */
@@ -288,6 +307,8 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     motivo: '',
     mobilizada: false,
     horasMobilizadas: 0,
+    mobInicio: '',
+    mobFim: '',
     comunicadoEm: agora,
     classeManual: false,
     execucao: '',
@@ -337,6 +358,8 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     motivo: str(a.motivo, MOTIVO_MAX),
     mobilizada: classe === 'cancelada' && a.mobilizada === true,
     horasMobilizadas: classe === 'cancelada' && a.mobilizada === true ? horasValidas(a.horasMobilizadas) : 0,
+    mobInicio: classe === 'cancelada' && a.mobilizada === true ? horaValida(a.mobInicio) : '',
+    mobFim: classe === 'cancelada' && a.mobilizada === true ? horaValida(a.mobFim) : '',
     comunicadoEm: str(a.comunicadoEm, 40),
     classeManual: a.classeManual === true,
     execucao: (['executada', 'nao_executada', 'reprogramada'] as const).find((x) => x === a.execucao) ?? '',
@@ -680,6 +703,16 @@ export function cancelamentoDasOms(oms: OmInfo[], ativs: Atividade[]): OmInfo[] 
     if (cancelada !== o.cancelada) out.push({ ...o, cancelada });
   }
   return out;
+}
+
+/**
+ * OM ainda por executar: aguardando retorno e com todas as atividades (ativas) depois de hoje.
+ * Sem as atividades carregadas, vale a primeira data programada. Não entra nas pendentes.
+ */
+export function omFutura(o: OmInfo, hoje: string, ativs?: Pick<Atividade, 'data'>[]): boolean {
+  if (o.cancelada || o.situacao !== 'aberta') return false;
+  if (ativs && ativs.length) return ativs.every((a) => a.data > hoje);
+  return !!o.primeiraData && o.primeiraData > hoje;
 }
 
 export function contarOms(oms: OmInfo[]): Record<SituacaoOm, number> {
