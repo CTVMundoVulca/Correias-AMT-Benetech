@@ -8,6 +8,7 @@ import { emendaComBase, hojeIso } from './model';
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
   concluido,
+  foraDoControle,
   pendenciasConclusao,
   liberacaoVazia,
   margemOrvalho,
@@ -375,7 +376,10 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <FotosSection emendaId={id} antesDeGravar={() => void garantirCriado()} travado={travado} />
       </Sec>
 
-      {!travado && !vazio && (
+      {!travado && !vazio && foraDoControle(e) && (
+        <p className="banner info small">Relatório anterior a 02/11/2026: fora do controle de conclusão (continua editável como antes).</p>
+      )}
+      {!travado && !vazio && !foraDoControle(e) && (
         <Concluir
           e={e}
           onConcluir={(nome) => {

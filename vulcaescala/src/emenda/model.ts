@@ -511,6 +511,10 @@ export function emendaComBase(orig: Emenda, id: string, data: string, por: strin
 
 export const concluido = (e: Pick<Emenda, 'concluidoEm'>) => !!e.concluidoEm;
 
+/** O controle de conclusão vale para relatórios a partir desta data (antes: histórico, fora do controle). */
+export const INICIO_CONCLUSAO = '2026-11-02';
+export const foraDoControle = (e: Pick<Emenda, 'data' | 'concluidoEm'>) => !!e.data && e.data < INICIO_CONCLUSAO && !e.concluidoEm;
+
 const vazioTxt = (v: unknown) => typeof v !== 'string' || !v.trim();
 /** opções Sim/Não/N/A: N/A é uma resposta; só "" falta */
 const semResposta = (v: unknown) => v === '' || v === undefined;

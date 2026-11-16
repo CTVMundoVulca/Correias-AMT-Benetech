@@ -139,3 +139,12 @@ describe('conclusão do relatório de emenda', () => {
     expect(concluido({ ...ok, concluidoEm: '2026-11-16T10:00:00Z' })).toBe(true);
   });
 });
+
+describe('corte do controle de conclusão (02/11/2026)', () => {
+  it('relatório anterior fica fora do controle; concluído nunca fica', async () => {
+    const { foraDoControle } = await import('../emenda/model');
+    expect(foraDoControle({ data: '2026-11-01', concluidoEm: '' })).toBe(true);
+    expect(foraDoControle({ data: '2026-11-02', concluidoEm: '' })).toBe(false);
+    expect(foraDoControle({ data: '2026-10-20', concluidoEm: '2026-11-16T10:00:00Z' })).toBe(false);
+  });
+});

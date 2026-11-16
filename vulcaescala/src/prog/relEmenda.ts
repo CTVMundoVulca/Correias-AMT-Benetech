@@ -11,7 +11,7 @@ export { diasEntre };
 export const TIPOS_COM_RELATORIO = ['Troca de correia', 'Emenda / intercalação'];
 
 /** O controle começa nesta data (antes disso o relatório pelo app não era obrigatório). */
-export const INICIO_CONTROLE = '2026-11-01';
+export const INICIO_CONTROLE = '2026-11-02';
 
 /** Tipos listados na tela para sinalizar "exige relatório" (qualquer atividade pode ser sinalizada no formulário). */
 export const TIPOS_SINALIZAVEIS = ['Preparação de correia'];
