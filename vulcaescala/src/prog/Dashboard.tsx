@@ -8,6 +8,7 @@ import { CampoArea } from './CampoArea';
 import {
   AREA_INTERNA,
   contarOms,
+  fmtHH,
   hojeIso,
   mesesEntre,
   pct,
@@ -123,6 +124,11 @@ export function Dashboard() {
               <Kpi v={r.classes.emergencia} t={`Emergências (${pct(r.total - r.classes.sem ? r.classes.emergencia / (r.total - r.classes.sem) : null)})`} />
               <Kpi v={r.classes.nao_programada} t="Não programadas" />
               <Kpi v={r.classes.cancelada} t={`Canceladas (${pct(r.indiceCancelamento)})`} />
+              <Kpi
+                v={fmtHH(r.horasPerdidas)}
+                t="HH em cancelamentos (equipe mobilizada)"
+                dica={`${r.mobilizadas} atividade(s) canceladas com a equipe mobilizada · horas apropriadas na OM (pessoas × horas)`}
+              />
               <Kpi v={r.retrabalho} t="Retrabalhos" />
               {oms ? (
                 <Kpi v={cOms.aberta + cOms.retornada} t="OMs sem baixa" dica={`${cOms.aberta} aguardando retorno · ${cOms.retornada} aguardando baixa`} />
@@ -175,6 +181,19 @@ export function Dashboard() {
                   />
                 </Card>
               )
+            )}
+
+            {r.horasPorMotivo.length > 0 && (
+              <Card titulo="HH em cancelamentos, por motivo" sub="Canceladas com a equipe mobilizada: pessoas × horas à disposição (apropriadas na OM)">
+                <GraficoBarras
+                  unidade="HH"
+                  linhas={r.horasPorMotivo.map((g) => ({ id: g.motivo, nome: g.motivo, v: g.horas }))}
+                  detalhe={(l) => {
+                    const g = r.horasPorMotivo.find((x) => x.motivo === l.id)!;
+                    return <p className="small muted">{g.n} atividade(s) · {fmtHH(g.horas)}</p>;
+                  }}
+                />
+              </Card>
             )}
 
             <Card titulo="Onde o efetivo foi usado" sub="Pessoas × dia por área (soma das pessoas de cada atividade, sem as canceladas)">

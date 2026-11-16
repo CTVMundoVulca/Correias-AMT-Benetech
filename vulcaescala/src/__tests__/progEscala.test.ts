@@ -148,3 +148,20 @@ describe('OM com atividade cancelada ou excluída', () => {
     expect(cancelamentoDasOms(cancelamentoDasOms(oms, ativs).concat(oms.slice(2, 4)), ativs)).toEqual([]); // idempotente
   });
 });
+
+describe('cancelada com a equipe mobilizada (apropriar horas na OM)', () => {
+  it('a OM continua para retorno e baixa; horas entram no KPI', async () => {
+    const { cancelamentoDasOms, resumir, completarAtividade } = await import('../prog/model');
+    const om = { om: '4', area: 'URCP', equipamento: 'D-4', descricao: 'REPARO D-4', primeiraData: '2026-11-12', ultimaData: '2026-11-12', situacao: 'aberta' as const, retornoEm: '', retornoPor: '', baixaEm: '', baixaPor: '', cancelada: true };
+    const d4 = at('d4', '2026-11-12', { om: '4', classe: 'cancelada', motivo: 'Equipamento não liberado (bloqueio)', mobilizada: true, horasMobilizadas: 3.5, pessoas: 4 });
+    expect(cancelamentoDasOms([om], [d4]).map((o) => o.cancelada)).toEqual([false]);
+    expect(cancelamentoDasOms([{ ...om, cancelada: false }], [{ ...d4, mobilizada: false }]).map((o) => o.cancelada)).toEqual([true]);
+    const r = resumir([d4, at('x', '2026-11-12', { classe: 'cancelada', motivo: 'Chuva / condição climática' })]);
+    expect(r.classes.cancelada).toBe(2); // continua cancelada nos indicadores
+    expect([r.mobilizadas, r.horasPerdidas]).toEqual([1, 14]);
+    expect(r.horasPorMotivo).toEqual([{ motivo: 'Equipamento não liberado (bloqueio)', horas: 14, n: 1 }]);
+    // da nuvem: só vale em cancelada; horas limitadas
+    expect(completarAtividade('a', { ...d4, classe: 'programada' })).toMatchObject({ mobilizada: false, horasMobilizadas: 0 });
+    expect(completarAtividade('a', { ...d4, horasMobilizadas: 99 })?.horasMobilizadas).toBe(24);
+  });
+});

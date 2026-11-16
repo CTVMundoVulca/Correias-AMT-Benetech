@@ -426,6 +426,8 @@
 .apontar-motivo { padding-top: 6px; border-top: 1px dashed var(--line); }
 .exec { font-weight: 700; }
 .exec.ok { color: var(--ok-ink); }
+.exec.mob { color: var(--pend-ink); font-weight: 600; }
+.mobilizada { border-left: 3px solid var(--pend-line); padding-left: 10px; }
 .exec.nao { color: var(--red-ink); }
 .exec.reprog { color: var(--pend-ink); }
 

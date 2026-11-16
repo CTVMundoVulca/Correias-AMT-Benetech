@@ -3,7 +3,7 @@ import { MONTHS, WEEKDAYS, WEEKDAYS_SHORT, addDays, formatDate, fromIsoDate, iso
 import { feriadoEm } from '../domain/feriados';
 import { useAtividades, useParadas, useProg } from './context';
 import { useRecolhiveis } from './recolher';
-import { AREA_INTERNA, TIPOS_PARADA, alocacaoDoDia, hojeIso, mesesEntre, nomeClasse, paradasNoDia, type Atividade, type Parada } from './model';
+import { AREA_INTERNA, TIPOS_PARADA, alocacaoDoDia, fmtHH, hojeIso, horasHomemMobilizadas, mesesEntre, nomeClasse, paradasNoDia, type Atividade, type Parada } from './model';
 
 /** Segunda-feira (AAAA-MM-DD) da semana da data. */
 export function segundaDe(data: string): string {
@@ -506,6 +506,7 @@ export function LinhaAtividade({ a, onClick, mostrarArea }: { a: Atividade; onCl
         <span className={'classe ' + (a.classe || 'sem')}>{nomeClasse(a.classe)}</span>
         {a.retrabalho && <span className="classe retra">Retrabalho</span>}
         {a.classe === 'cancelada' && a.motivo && <span>Motivo: {a.motivo}</span>}
+        {a.classe === 'cancelada' && a.mobilizada && <span className="exec mob">⏱ Equipe mobilizada · {fmtHH(horasHomemMobilizadas(a))} na OM</span>}
         {gestao && a.revisarEscala && <span className="exec escala">📝 Lançada pela escala · revisar</span>}
         {gestao && a.foraDaEscala && <span className="exec nao">⚠ Removida da escala</span>}
         {a.execucao === 'executada' && <span className="exec ok">✓ Executada</span>}

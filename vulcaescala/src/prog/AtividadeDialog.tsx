@@ -14,6 +14,9 @@ import {
   EQUIP_MAX,
   HORARIO_MAX,
   MOTIVO_MAX,
+  HORAS_MAX,
+  fmtHH,
+  horasValidas,
   MOTIVOS_CANCELAMENTO,
   PESSOAS_MAX,
   RECURSOS_MAX,
@@ -69,6 +72,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     recursos: limparTexto(base.recursos, RECURSOS_MAX),
     horario: limparTexto(base.horario, HORARIO_MAX),
     motivo: base.classe === 'cancelada' ? limparTexto(base.motivo, MOTIVO_MAX) : '',
+    mobilizada: base.classe === 'cancelada' && base.mobilizada,
+    horasMobilizadas: base.classe === 'cancelada' && base.mobilizada ? horasValidas(base.horasMobilizadas) : 0,
     pessoas: Math.max(0, Math.min(PESSOAS_MAX, Math.round(base.pessoas || 0))),
     // salvar pela programação conta como revisão da atividade lançada na escala
     revisarEscala: false,
@@ -90,6 +95,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     if (!x.classe) return toast('Informe quando a demanda foi comunicada ou escolha a classificação.', 'warn');
     if (x.classe === 'cancelada' && !x.motivo) return toast('Informe o motivo do cancelamento.', 'warn');
     if (x.om && x.om.length < 6) return toast('Número da OM incompleto.', 'warn');
+    if (x.mobilizada && !x.om) return toast('Informe a OM em que as horas serão apropriadas.', 'warn');
+    if (x.mobilizada && (!x.pessoas || !x.horasMobilizadas)) return toast('Informe as pessoas e as horas à disposição para apropriar na OM.', 'warn');
     // mudou a data depois de programada = reprogramação (entra no KPI de estabilidade)
     const reprog = !nova && x.data !== atual.data;
     gravar(reprog ? { ...x, reprogramacoes: x.reprogramacoes + 1, dataOriginal: atual.dataOriginal || atual.data } : x, nova ? undefined : mesDe(atual.data));
@@ -320,6 +327,45 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
               placeholder="Outro motivo (escreva)"
               onChange={(e) => set('motivo', e.target.value)}
             />
+            <label className="check">
+              <input type="checkbox" checked={a.mobilizada} onChange={(e) => set('mobilizada', e.target.checked)} /> Equipe mobilizada — apropriar horas na OM
+            </label>
+            {a.mobilizada && (
+              <div className="stack mobilizada">
+                <div className="row nowrap">
+                  <label className="field grow">
+                    Pessoas
+                    <input
+                      className="input"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={PESSOAS_MAX}
+                      value={a.pessoas || ''}
+                      onChange={(e) => set('pessoas', Number(e.target.value) || 0)}
+                    />
+                  </label>
+                  <label className="field grow">
+                    Horas à disposição (por pessoa)
+                    <input
+                      className="input"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={HORAS_MAX}
+                      step={0.25}
+                      value={a.horasMobilizadas || ''}
+                      onChange={(e) => set('horasMobilizadas', Number(e.target.value.replace(',', '.')) || 0)}
+                    />
+                  </label>
+                </div>
+                <p className="small muted">
+                  Total: {a.pessoas && a.horasMobilizadas ? <b>{fmtHH(a.pessoas * a.horasMobilizadas)}</b> : 'pessoas × horas'} a apropriar
+                  {a.om ? ` na OM ${a.om}` : ' (informe a OM acima)'}. A atividade continua cancelada nos indicadores; a OM segue para retorno do supervisor e
+                  baixa.
+                </p>
+              </div>
+            )}
           </div>
         )}
         <label className="check">

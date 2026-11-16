@@ -6,7 +6,7 @@ import { gravarOms, gravarRetornos } from './data';
 import { useRecolhiveis } from './recolher';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contarOms, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
+import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contaParaOm, contarOms, fmtHH, horasHomemMobilizadas, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
 
 type Filtro = SituacaoOm | 'pendentes' | 'todas';
 
@@ -36,7 +36,7 @@ export function Oms() {
   const ativs = useAtividades(meses);
   const execPorOm = useMemo(() => {
     const m = new Map<string, Atividade[]>();
-    for (const a of ativs ?? []) if (a.om && a.classe !== 'cancelada') m.set(a.om, [...(m.get(a.om) ?? []), a]);
+    for (const a of ativs ?? []) if (a.om && contaParaOm(a)) m.set(a.om, [...(m.get(a.om) ?? []), a]);
     return m;
   }, [ativs]);
   // atividade cancelada/excluída: a OM sem nenhuma atividade ativa sai das pendentes
@@ -158,9 +158,16 @@ export function Oms() {
                   const l = execPorOm.get(o.om) ?? [];
                   if (!l.length) return null;
                   const exec = l.filter((a) => a.execucao === 'executada').map((a) => a.data).sort();
-                  const passadas = l.filter((a) => a.data < hoje && !a.execucao);
+                  const passadas = l.filter((a) => a.classe !== 'cancelada' && a.data < hoje && !a.execucao);
+                  const mob = l.filter((a) => a.classe === 'cancelada' && a.mobilizada);
                   return (
                     <div className="small om-exec">
+                      {mob.map((a) => (
+                        <div key={a.id} className="exec mob">
+                          ⏱ Cancelada em {dataBr(a.data).slice(0, 5)}{a.motivo ? ` (${a.motivo})` : ''} · apropriar <b>{fmtHH(horasHomemMobilizadas(a))}</b> ({a.pessoas} pessoa
+                          {a.pessoas === 1 ? '' : 's'} × {a.horasMobilizadas.toLocaleString('pt-BR')} h)
+                        </div>
+                      ))}
                       {exec.length > 0 ? (
                         <span className="exec ok">✓ Executada {exec.map((d) => dataBr(d).slice(0, 5)).join(', ')} (apontamento da programação)</span>
                       ) : passadas.length > 0 ? (
