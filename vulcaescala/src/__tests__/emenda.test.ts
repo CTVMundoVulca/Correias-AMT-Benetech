@@ -135,6 +135,9 @@ describe('conclusão do relatório de emenda', () => {
     expect(pendenciasConclusao(ok)).toEqual([]);
     // cabo de aço exige os estágios
     expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', estagio1: '', estagio2: '', estagio3: '', chanfro: '' })).toEqual(['1º estágio', '2º estágio', '3º estágio', 'Chanfro']);
+    // dureza: obrigatória só no cabo de aço
+    expect(pendenciasConclusao({ ...ok, dureza: '' })).toEqual([]);
+    expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', dureza: '' })).toContain('Dureza Shore A');
     expect(concluido(ok)).toBe(false);
     expect(concluido({ ...ok, concluidoEm: '2026-11-16T10:00:00Z' })).toBe(true);
   });
