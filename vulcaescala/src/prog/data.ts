@@ -3,6 +3,7 @@ import { COL_EMENDAS } from '../emenda/data';
 import type { RelResumo } from './relEmenda';
 import {
   AREAS_PADRAO,
+  MOTIVOS_CANCELAMENTO,
   anoDaOm,
   completarAtividade,
   completarOm,
@@ -37,6 +38,7 @@ export const COL_MES = 'prog_mes';
 export const COL_OMS = 'prog_oms';
 export const COL_SOLIC = 'prog_solicitacoes';
 export const DOC_AREAS = 'prog_config/areas';
+export const DOC_MOTIVOS = 'prog_config/motivos';
 
 type Unsub = () => void;
 
@@ -274,6 +276,27 @@ export function ouvirAreas(api: FirebaseApi, cb: (l: Area[]) => void): Unsub {
 export function gravarAreas(api: FirebaseApi, lista: Area[]): Promise<void> {
   const { fsMod, fs } = api;
   return fsMod.setDoc(fsMod.doc(fs, DOC_AREAS), { lista });
+}
+
+// ------------------------------------------------------------------ motivos de cancelamento
+
+/** Motivos de cancelamento editáveis (sem cadastro na nuvem: a lista padrão do app). */
+export function ouvirMotivosCancelamento(api: FirebaseApi, cb: (l: string[]) => void): Unsub {
+  const { fsMod, fs } = api;
+  return fsMod.onSnapshot(
+    fsMod.doc(fs, DOC_MOTIVOS),
+    (snap) => {
+      const l = snap.data()?.cancelamento;
+      const ok = Array.isArray(l) ? l.filter((m): m is string => typeof m === 'string' && !!m.trim()) : [];
+      cb(ok.length ? ok : MOTIVOS_CANCELAMENTO);
+    },
+    () => cb(MOTIVOS_CANCELAMENTO),
+  );
+}
+
+export function gravarMotivosCancelamento(api: FirebaseApi, lista: string[]): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, DOC_MOTIVOS), { cancelamento: lista }, { merge: true });
 }
 
 /** Feriados municipais cadastrados na escala (cópia pública: qualquer sessão do app lê). */

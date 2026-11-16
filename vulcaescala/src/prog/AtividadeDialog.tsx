@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { MotivosDialog } from './MotivosDialog';
 import { newId } from '../domain/ids';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
@@ -19,7 +21,6 @@ import {
   horaValida,
   fmtHH,
   horasValidas,
-  MOTIVOS_CANCELAMENTO,
   PESSOAS_MAX,
   RECURSOS_MAX,
   TIPOS,
@@ -48,7 +49,8 @@ interface Props {
 
 /** Lançar / editar uma atividade da programação (administradores). */
 export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Props) {
-  const { api, por, areas, feriados } = useProg();
+  const { api, por, areas, feriados, motivosCancelamento, pode } = useProg();
+  const [editarMotivos, setEditarMotivos] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
   const [a, setA] = useState<Atividade>(() => ({ ...atual, area: atual.area || (nova ? '' : AREA_INTERNA) }));
@@ -321,9 +323,16 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
         </p>
         {a.classe === 'cancelada' && (
           <div className="stack">
-            <span className="field">Motivo do cancelamento</span>
+            <div className="field-cab">
+              <span className="field">Motivo do cancelamento</span>
+              {pode.programar && (
+                <button type="button" className="link-btn" onClick={() => setEditarMotivos(true)}>
+                  ✏️ Editar lista
+                </button>
+              )}
+            </div>
             <div className="opts">
-              {MOTIVOS_CANCELAMENTO.map((m) => (
+              {motivosCancelamento.map((m) => (
                 <button key={m} type="button" className={'opt' + (a.motivo === m ? ' on' : '')} onClick={() => set('motivo', m)}>
                   {m}
                 </button>
@@ -331,7 +340,7 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
             </div>
             <input
               className="input"
-              value={MOTIVOS_CANCELAMENTO.includes(a.motivo) ? '' : a.motivo}
+              value={motivosCancelamento.includes(a.motivo) ? '' : a.motivo}
               maxLength={MOTIVO_MAX}
               placeholder="Outro motivo (escreva)"
               onChange={(e) => set('motivo', e.target.value)}
@@ -407,6 +416,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
           </p>
         )}
       </form>
+      {/* fora do <form>: Enter/botões da lista não enviam o formulário da atividade */}
+      {editarMotivos && createPortal(<MotivosDialog onClose={() => setEditarMotivos(false)} />, document.body)}
     </Modal>
   );
 }

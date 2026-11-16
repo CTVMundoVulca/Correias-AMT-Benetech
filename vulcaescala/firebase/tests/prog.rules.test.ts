@@ -68,6 +68,8 @@ describe('Programação: todos veem, só administradores programam', () => {
     await assertSucceeds(as(ADMIN).doc('prog_mes/2026-11').set({ itens: { a1: atividade }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
     await assertSucceeds(as(ADMIN).doc('prog_oms/2026').set({ oms: { '900033748430': { situacao: 'aberta' } }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
     await assertSucceeds(as(ADMIN).doc('prog_config/areas').set({ lista: [{ nome: 'COQUERIA', contato: 'ramal 1' }] }));
+    await assertSucceeds(as(ADMIN).doc('prog_config/motivos').set({ cancelamento: ['Equipamento não liberado (bloqueio)'] }, { merge: true }));
+    await assertFails(as(ADMIN).doc('prog_config/motivos').set({ cancelamento: ['x'], outro: 1 }));
     await assertSucceeds(as(ADMIN).doc('prog_paradas/2026').set({ paradas: { p1: { tipo: 'geral', inicio: '2026-11-18' } }, atualizadoEm: 'x', atualizadoPor: ADMIN }, { merge: true }));
   });
 
@@ -82,6 +84,7 @@ describe('Programação: todos veem, só administradores programam', () => {
     await env.withSecurityRulesDisabled((ctx) => ctx.firestore().doc('prog_mes/2026-11').set({ itens: { a1: atividade } }));
     await assertSucceeds(anon().doc('prog_mes/2026-11').get());
     await assertSucceeds(anon().doc('prog_config/areas').get());
+    await assertSucceeds(anon().doc('prog_config/motivos').get());
     await assertFails(anon().doc('prog_oms/2026').get());
     await assertFails(as(OUTRO).doc('prog_oms/2026').get());
     await assertSucceeds(as(ADMIN).doc('prog_oms/2026').get());
@@ -93,6 +96,8 @@ describe('Programação: todos veem, só administradores programam', () => {
     await assertFails(as(OUTRO).doc('prog_mes/2026-11').set({ itens: { a1: atividade } }, { merge: true }));
     await assertFails(anon().doc('prog_oms/2026').set({ oms: {} }, { merge: true }));
     await assertFails(anon().doc('prog_config/areas').set({ lista: [] }));
+    await assertFails(anon().doc('prog_config/motivos').set({ cancelamento: [] }));
+    await assertFails(as(OUTRO).doc('prog_config/motivos').set({ cancelamento: ['x'] }));
   });
 
   it('documento do mês: id AAAA-MM e só os campos previstos; ninguém apaga o mês', async () => {

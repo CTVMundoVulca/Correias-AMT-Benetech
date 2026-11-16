@@ -326,6 +326,15 @@ service cloud.firestore {
         && request.resource.data.lista.size() <= 80;
     }
 
+    // Motivos de cancelamento (lista editável do formulário da atividade)
+    match /prog_config/motivos {
+      allow read: if signedIn();
+      allow write: if isProgramador()
+        && request.resource.data.keys().hasOnly(['cancelamento'])
+        && request.resource.data.cancelamento is list
+        && request.resource.data.cancelamento.size() <= 60;
+    }
+
     // Solicitações das áreas: qualquer pessoa com o link pede; quem pediu (mesmo aparelho)
     // pode corrigir ou cancelar enquanto estiver aberta; só administradores programam/recusam.
     function solicitacaoValida(id) {

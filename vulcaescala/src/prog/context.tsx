@@ -15,6 +15,8 @@ export interface ProgCtx {
   /** link exclusivo das áreas do cliente: só Central, Dia a dia, Paradas e Solicitar */
   linkAreas: boolean;
   areas: Area[];
+  /** motivos de cancelamento (lista editável pela programação) */
+  motivosCancelamento: string[];
   /** feriados municipais (Vitória) da escala; os nacionais são calculados */
   feriados: Record<string, string>;
   /** abre a tela de login (administradores) */
