@@ -745,7 +745,12 @@ export interface Retorno {
  * Situação que vale para a OM: a baixa (programação) manda; senão, o retorno marcado pelo
  * supervisor; senão, o que veio da planilha/cadastro.
  */
-export function situacaoEfetiva(o: OmInfo, r: Retorno | undefined): OmInfo {
+/** A partir desta data o retorno e a baixa das OMs são controlados no app (antes: planilha). */
+export const INICIO_CONTROLE_OMS = '2026-11-02';
+
+export function situacaoEfetiva(o0: OmInfo, r: Retorno | undefined): OmInfo {
+  // OM do período do app que veio da planilha sem as colunas de retorno: aguarda o retorno normalmente
+  const o: OmInfo = o0.situacao === 'sem_registro' && o0.ultimaData >= INICIO_CONTROLE_OMS ? { ...o0, situacao: 'aberta' } : o0;
   if (o.situacao === 'baixada') return o;
   if (!r) return o;
   return r.realizada

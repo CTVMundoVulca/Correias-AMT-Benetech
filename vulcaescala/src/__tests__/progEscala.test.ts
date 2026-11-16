@@ -126,3 +126,13 @@ describe('escala: colocar atividade com a equipe em outro dia', () => {
     expect(acts).toEqual([{ id: 'prog-a', nome: 'TROCA', workerIds: ['A'] }]);
   });
 });
+
+describe('OMs do período do app', () => {
+  it('“sem registro” a partir de 02/11/2026 vale como aguardando retorno; antes continua sem registro', async () => {
+    const { situacaoEfetiva } = await import('../prog/model');
+    const om = (d: string) => ({ om: '900039862681', area: 'URCP', equipamento: 'CT-135', descricao: 'TROCAR CORREIA CT-135', primeiraData: d, ultimaData: d, situacao: 'sem_registro' as const, retornoEm: '', retornoPor: '', baixaEm: '', baixaPor: '', cancelada: false });
+    expect(situacaoEfetiva(om('2026-11-12'), undefined).situacao).toBe('aberta');
+    expect(situacaoEfetiva(om('2026-11-12'), { realizada: true, em: 'x', por: 'sup' } as never).situacao).toBe('retornada');
+    expect(situacaoEfetiva(om('2026-10-20'), undefined).situacao).toBe('sem_registro');
+  });
+});

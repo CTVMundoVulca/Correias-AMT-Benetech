@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
-import { useOms, useProg } from './context';
+import { useAtividades, useOms, useProg } from './context';
 import { gravarOms, gravarRetornos } from './data';
 import { useRecolhiveis } from './recolher';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { SITUACOES, contarOms, diasEntre, hojeIso, semAcento, type OmInfo, type SituacaoOm } from './model';
+import { INICIO_CONTROLE_OMS, SITUACOES, contarOms, diasEntre, hojeIso, mesesEntre, semAcento, type Atividade, type OmInfo, type SituacaoOm } from './model';
 
 type Filtro = SituacaoOm | 'pendentes' | 'todas';
 
@@ -27,13 +27,26 @@ export function Oms() {
   const hoje = hojeIso();
 
   const todas = useMemo(() => [...(oms?.values() ?? [])], [oms]);
+  // execução apontada na programação, por OM (do início do controle no app até o mês que vem)
+  const meses = useMemo(() => {
+    const [y, m] = hoje.slice(0, 7).split('-').map(Number);
+    const prox = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    return mesesEntre(INICIO_CONTROLE_OMS, `${prox}-01`);
+  }, [hoje]);
+  const ativs = useAtividades(meses);
+  const execPorOm = useMemo(() => {
+    const m = new Map<string, Atividade[]>();
+    for (const a of ativs ?? []) if (a.om && a.classe !== 'cancelada') m.set(a.om, [...(m.get(a.om) ?? []), a]);
+    return m;
+  }, [ativs]);
   const cont = contarOms(todas);
   const lista = useMemo(() => {
     const q = semAcento(busca.trim().toUpperCase());
     return todas
-      .filter((o) => !o.cancelada || filtro === 'todas')
+      .filter((o) => !o.cancelada || filtro === 'todas' || !!q)
+      // com busca, procura em todas as situações (a OM aparece mesmo fora da aba aberta)
       .filter((o) =>
-        filtro === 'todas' ? true : filtro === 'pendentes' ? o.situacao === 'aberta' || o.situacao === 'retornada' : o.situacao === filtro,
+        q || filtro === 'todas' ? true : filtro === 'pendentes' ? o.situacao === 'aberta' || o.situacao === 'retornada' : o.situacao === filtro,
       )
       .filter((o) => !q || semAcento(`${o.om} ${o.equipamento} ${o.area} ${o.descricao}`.toUpperCase()).includes(q))
       .sort((a, b) => a.ultimaData.localeCompare(b.ultimaData) || a.om.localeCompare(b.om));
@@ -125,6 +138,21 @@ export function Oms() {
                   {o.baixaEm && ` · baixa ${new Date(o.baixaEm).toLocaleDateString('pt-BR')}${o.baixaPor ? ` (${o.baixaPor})` : ''}`}
                   {o.cancelada && ' · cancelada'}
                 </div>
+                {(() => {
+                  const l = execPorOm.get(o.om) ?? [];
+                  if (!l.length) return null;
+                  const exec = l.filter((a) => a.execucao === 'executada').map((a) => a.data).sort();
+                  const passadas = l.filter((a) => a.data < hoje && !a.execucao);
+                  return (
+                    <div className="small om-exec">
+                      {exec.length > 0 ? (
+                        <span className="exec ok">✓ Executada {exec.map((d) => dataBr(d).slice(0, 5)).join(', ')} (apontamento da programação)</span>
+                      ) : passadas.length > 0 ? (
+                        <span className="text-pend">Programada para {passadas.map((a) => dataBr(a.data).slice(0, 5)).join(', ')}: execução ainda não apontada</span>
+                      ) : null}
+                    </div>
+                  );
+                })()}
                 <div className="row">
                   {pode.retorno && o.situacao !== 'baixada' && (o.situacao === 'retornada' ? (
                     <button className="link small" onClick={() => retorno([o], false)}>
@@ -156,7 +184,7 @@ export function Oms() {
         <h2>Controle de OMs</h2>
         <p className="small muted">
           Fluxo: o <b>supervisor</b> marca a OM como realizada (<b>retorno</b>) e a <b>programação</b> dá a <b>baixa</b> no SAP. “Sem registro” = OMs da
-          planilha antes da semana 10, quando o controle de retorno ainda não existia.
+          planilha anteriores a {dataBr(INICIO_CONTROLE_OMS)}, sem o controle de retorno. A busca procura em todas as situações.
         </p>
         <div className="segmented">
           {filtros.map((f) => (
