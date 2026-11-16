@@ -8,6 +8,7 @@ import { CampoArea } from './CampoArea';
 import {
   AREA_INTERNA,
   contarOms,
+  omFutura,
   fmtHH,
   hojeIso,
   mesesEntre,
@@ -69,7 +70,8 @@ export function Dashboard() {
     () => [...(oms?.values() ?? [])].filter((o) => o.ultimaData.slice(0, 7) >= ini && o.primeiraData.slice(0, 7) <= fim && (!area || o.area === area)),
     [oms, ini, fim, area],
   );
-  const cOms = contarOms(omsPeriodo);
+  // OMs programadas para depois de hoje ainda não estão "sem baixa"
+  const cOms = contarOms(omsPeriodo.filter((o) => !omFutura(o, hojeIso())));
   const opcoesArea = useMemo(() => [...new Set([...areas.map((a) => a.nome), ...gArea.map((g) => g.chave)])].sort(), [areas, gArea]);
   const titulo = `Dashboard Vulcanização - ${ini === fim ? nomeMes(ini) : `${curtoMes(ini)} a ${curtoMes(fim)}`}${area ? ` - ${area}` : ''}`;
 

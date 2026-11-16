@@ -682,6 +682,16 @@ export function cancelamentoDasOms(oms: OmInfo[], ativs: Atividade[]): OmInfo[] 
   return out;
 }
 
+/**
+ * OM ainda por executar: aguardando retorno e com todas as atividades (ativas) depois de hoje.
+ * Sem as atividades carregadas, vale a primeira data programada. Não entra nas pendentes.
+ */
+export function omFutura(o: OmInfo, hoje: string, ativs?: Pick<Atividade, 'data'>[]): boolean {
+  if (o.cancelada || o.situacao !== 'aberta') return false;
+  if (ativs && ativs.length) return ativs.every((a) => a.data > hoje);
+  return !!o.primeiraData && o.primeiraData > hoje;
+}
+
 export function contarOms(oms: OmInfo[]): Record<SituacaoOm, number> {
   const c: Record<SituacaoOm, number> = { aberta: 0, retornada: 0, baixada: 0, sem_registro: 0 };
   for (const o of oms) if (!o.cancelada) c[o.situacao]++;

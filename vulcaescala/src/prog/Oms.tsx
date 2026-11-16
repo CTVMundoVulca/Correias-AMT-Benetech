@@ -6,9 +6,9 @@ import { gravarOms, gravarRetornos } from './data';
 import { useRecolhiveis } from './recolher';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contaParaOm, contarOms, fmtHH, horasHomemMobilizadas, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
+import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contaParaOm, contarOms, omFutura, fmtHH, horasHomemMobilizadas, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
 
-type Filtro = SituacaoOm | 'pendentes' | 'todas';
+type Filtro = SituacaoOm | 'pendentes' | 'todas' | 'futuras';
 
 /**
  * Controle das OMs (Gestão): o SUPERVISOR marca o retorno (realizada / pendente) e a
@@ -55,18 +55,24 @@ export function Oms() {
     novos.forEach((o) => gravados.current.add(`${o.om}:${o.cancelada}`));
     gravarOms(api, novos, por).catch(() => novos.forEach((o) => gravados.current.delete(`${o.om}:${o.cancelada}`)));
   }, [ajustes, api, por, pode.programar]);
-  const cont = contarOms(todas);
+  // programadas para depois de hoje: ainda não há o que retornar (aba própria)
+  const futuras = useMemo(() => new Set(todas.filter((o) => omFutura(o, hoje, execPorOm.get(o.om))).map((o) => o.om)), [todas, hoje, execPorOm]);
+  const cont = contarOms(todas.filter((o) => !futuras.has(o.om)));
   const lista = useMemo(() => {
     const q = busca.trim();
     return todas
       .filter((o) => !o.cancelada || filtro === 'todas' || !!q)
       // com busca, procura em todas as situações (a OM aparece mesmo fora da aba aberta)
       .filter((o) =>
-        q || filtro === 'todas' ? true : filtro === 'pendentes' ? o.situacao === 'aberta' || o.situacao === 'retornada' : o.situacao === filtro,
+        q || filtro === 'todas'
+          ? true
+          : filtro === 'futuras'
+            ? futuras.has(o.om)
+            : !futuras.has(o.om) && (filtro === 'pendentes' ? o.situacao === 'aberta' || o.situacao === 'retornada' : o.situacao === filtro),
       )
       .filter((o) => !q || buscaBate(q, o.om, o.equipamento, o.area, o.descricao))
       .sort((a, b) => a.ultimaData.localeCompare(b.ultimaData) || a.om.localeCompare(b.om));
-  }, [todas, filtro, busca]);
+  }, [todas, filtro, busca, futuras]);
 
   /** programação: dá ou desfaz a baixa (documento das OMs) */
   const baixa = (alvo: OmInfo[], baixar: boolean) => {
@@ -88,7 +94,7 @@ export function Oms() {
   };
 
   const emLote = async (acao: 'baixa' | 'retorno') => {
-    const alvo = lista.filter((o) => sel.has(o.om) && o.situacao !== 'baixada');
+    const alvo = lista.filter((o) => sel.has(o.om) && o.situacao !== 'baixada' && !futuras.has(o.om));
     if (!alvo.length) return;
     const ok = await confirm({
       title: acao === 'baixa' ? `Dar baixa em ${alvo.length} OM(s)?` : `Marcar ${alvo.length} OM(s) como realizadas?`,
@@ -107,6 +113,7 @@ export function Oms() {
     { id: 'retornada', nome: 'Aguard. baixa', n: cont.retornada },
     { id: 'baixada', nome: 'Baixadas', n: cont.baixada },
     { id: 'sem_registro', nome: 'Sem registro', n: cont.sem_registro },
+    { id: 'futuras', nome: 'Programadas (futuras)', n: futuras.size },
   ];
 
   // agrupadas por área (recolhíveis); a área com a OM pendente mais antiga vem primeiro
@@ -121,11 +128,13 @@ export function Oms() {
 
   const itemOm = (o: OmInfo) => {
             const atraso = o.situacao !== 'baixada' && o.ultimaData < hoje ? diasEntre(o.ultimaData, hoje) : 0;
+            const futura = futuras.has(o.om);
+            const proximas = futura ? [...new Set((execPorOm.get(o.om) ?? []).map((a) => a.data))].sort() : [];
             return (
               <li key={o.om} className="card pad om-item">
                 <div className="row between nowrap">
                   <label className="row nowrap om-num">
-                    {seleciona && (
+                    {seleciona && !futura && (
                       <input
                         type="checkbox"
                         checked={sel.has(o.om)}
@@ -142,13 +151,19 @@ export function Oms() {
                     )}
                     <b className="num">{o.om}</b>
                   </label>
-                  <span className={'badge sit-' + o.situacao}>{SITUACOES.find((s) => s.id === o.situacao)?.nome}</span>
+                  {futura ? (
+                    <span className="badge neutral">📅 Programada</span>
+                  ) : (
+                    <span className={'badge sit-' + o.situacao}>{SITUACOES.find((s) => s.id === o.situacao)?.nome}</span>
+                  )}
                 </div>
                 <div>
                   <b>{o.equipamento || '—'}</b> · {o.area || 'sem área'} — {o.descricao}
                 </div>
                 <div className="small muted">
-                  Programada {o.primeiraData === o.ultimaData ? `em ${dataBr(o.primeiraData)}` : `de ${dataBr(o.primeiraData)} a ${dataBr(o.ultimaData)}`}
+                  {futura
+                    ? `Programada para ${(proximas.length ? proximas : [o.primeiraData]).map((d) => dataBr(d)).join(', ')} · o retorno fica disponível no dia da execução`
+                    : `Programada ${o.primeiraData === o.ultimaData ? `em ${dataBr(o.primeiraData)}` : `de ${dataBr(o.primeiraData)} a ${dataBr(o.ultimaData)}`}`}
                   {atraso > 0 && (o.situacao === 'aberta' || o.situacao === 'retornada') && <b className="text-pend"> · há {atraso} dia(s)</b>}
                   {o.retornoEm && ` · retorno ${new Date(o.retornoEm).toLocaleDateString('pt-BR')}${o.retornoPor ? ` (${o.retornoPor})` : ''}`}
                   {o.baixaEm && ` · baixa ${new Date(o.baixaEm).toLocaleDateString('pt-BR')}${o.baixaPor ? ` (${o.baixaPor})` : ''}`}
@@ -176,6 +191,7 @@ export function Oms() {
                     </div>
                   );
                 })()}
+                {!futura && (
                 <div className="row">
                   {pode.retorno && o.situacao !== 'baixada' && (o.situacao === 'retornada' ? (
                     <button className="link small" onClick={() => retorno([o], false)}>
@@ -197,6 +213,7 @@ export function Oms() {
                       </button>
                     ))}
                 </div>
+                )}
               </li>
             );
           };
