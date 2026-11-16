@@ -12,7 +12,7 @@
 import type { Action, DayRef } from '../state/reducer';
 import type { Activity, Day } from '../domain/types';
 import { cleanName } from '../domain/names';
-import { atividadeVazia, classificar, maiusculas, mesDe, tipoPelaDescricao, DESCRICAO_MAX, type Atividade } from '../prog/model';
+import { atividadeVazia, chaveBusca, classificar, maiusculas, mesDe, tipoPelaDescricao, DESCRICAO_MAX, type Atividade } from '../prog/model';
 
 /** A sincronização vale para atividades a partir desta data (o histórico anterior não é mexido). */
 export const SYNC_DESDE = '2026-11-16';
@@ -20,17 +20,27 @@ export const SYNC_DESDE = '2026-11-16';
 export const progIdDaEscala = (activityId: string) => (activityId.startsWith('prog-') ? activityId.slice(5) : 'esc-' + activityId);
 export const escalaIdDaProg = (a: Pick<Atividade, 'id'>) => (a.id.startsWith('esc-') ? a.id.slice(4) : 'prog-' + a.id);
 
-/** Nome da atividade na escala: descrição + área (ex.: "TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO"). */
+/** o equipamento (TAG) já aparece na descrição? ("TROCAR CORREIA F1" contém "F-1") */
+const temTag = (descricao: string, tag: string) => !!chaveBusca(tag) && chaveBusca(descricao).includes(chaveBusca(tag));
+
+/**
+ * Nome da atividade na escala: descrição + equipamento (quando a descrição não tem a TAG) + área.
+ * Ex.: "TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO"; "EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO".
+ */
 export function nomeNaEscala(a: Pick<Atividade, 'descricao' | 'equipamento' | 'area'>): string {
-  const base = a.descricao || a.equipamento || 'ATIVIDADE PROGRAMADA';
+  const desc = a.descricao || a.equipamento || 'ATIVIDADE PROGRAMADA';
+  const base = a.descricao && a.equipamento && !temTag(a.descricao, a.equipamento) ? `${desc} (${a.equipamento})` : desc;
   return cleanName(a.area ? `${base} — ${a.area}` : base);
 }
 
-/** Descrição da programação a partir do nome editado na escala (tira o " — ÁREA" do fim). */
-export function descricaoDoNome(nome: string, area: string): string {
+/** Descrição da programação a partir do nome editado na escala (tira o " — ÁREA" e o " (TAG)" do fim). */
+export function descricaoDoNome(nome: string, area: string, equipamento = ''): string {
   const fim = area ? ` — ${cleanName(area)}` : '';
-  const n = cleanName(nome);
-  return maiusculas(fim && n.endsWith(fim) ? n.slice(0, -fim.length) : n, DESCRICAO_MAX);
+  let n = cleanName(nome);
+  if (fim && n.endsWith(fim)) n = n.slice(0, -fim.length);
+  const tag = equipamento ? ` (${cleanName(equipamento)})` : '';
+  if (tag && n.endsWith(tag)) n = n.slice(0, -tag.length);
+  return maiusculas(n, DESCRICAO_MAX);
 }
 
 export interface DiaEscala extends DayRef {
@@ -156,7 +166,7 @@ export function planejar(opts: {
       mudar(a, { ...extra, escalaNome: nomeEsc });
     } else if (base && base === nomeProg && base !== nomeEsc) {
       // só a escala mudou: a programação recebe a nova descrição
-      const descricao = descricaoDoNome(nomeEsc, a.area);
+      const descricao = descricaoDoNome(nomeEsc, a.area, a.equipamento);
       const final = nomeNaEscala({ ...a, descricao });
       mudar(a, { ...extra, descricao, escalaNome: final });
       if (final !== nomeEsc) plano.escala.push({ type: 'activity/rename', weekKey: atual.dia.weekKey, dayIndex: atual.dia.dayIndex, activityId: atual.act.id, nome: final });

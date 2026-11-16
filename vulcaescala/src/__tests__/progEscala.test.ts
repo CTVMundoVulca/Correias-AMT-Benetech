@@ -194,3 +194,20 @@ describe('tempo parado pela hora de início e fim', () => {
     expect(completarAtividade('a', { ...at('a', '2026-11-16'), classe: 'programada', mobInicio: '07:15' })?.mobInicio).toBe('');
   });
 });
+
+describe('equipamento (TAG) no nome da escala', () => {
+  it('entra quando a descrição não tem a TAG e volta certo para a programação', () => {
+    const a = { descricao: 'EQUIPE DIA - TROCA DA CORREIA', equipamento: 'L-203', area: 'PÁTIO DE MINÉRIO' };
+    expect(nomeNaEscala(a)).toBe('EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO');
+    expect(nomeNaEscala({ ...a, descricao: 'TROCAR CORREIA L203' })).toBe('TROCAR CORREIA L203 — PÁTIO DE MINÉRIO'); // já tem a TAG
+    expect(nomeNaEscala({ ...a, equipamento: '' })).toBe('EQUIPE DIA - TROCA DA CORREIA — PÁTIO DE MINÉRIO');
+    expect(descricaoDoNome('EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO', a.area, a.equipamento)).toBe('EQUIPE DIA - TROCA DA CORREIA');
+  });
+
+  it('atividade já sincronizada sem a TAG: a escala recebe o nome novo', () => {
+    const x = at('a', '2026-11-18', { descricao: 'EQUIPE DIA - TROCA DA CORREIA', equipamento: 'L-203', escalaNome: 'EQUIPE DIA - TROCA DA CORREIA — PÁTIO DE MINÉRIO' });
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'EQUIPE DIA - TROCA DA CORREIA — PÁTIO DE MINÉRIO', workerIds: ['w1'] }], 2)], [x]);
+    expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO' }]);
+    expect(p.prog[0].descricao).toBe('EQUIPE DIA - TROCA DA CORREIA'); // a descrição da programação não muda
+  });
+});
