@@ -353,7 +353,7 @@ service cloud.firestore {
       let op = get(operadoresDoc()).data.operadores[d.operadorId];
       return emailOk()
         && d.keys().hasOnly(['data', 'feitoEm', 'recebidoEm', 'operadorId', 'nome', 'matricula', 'modeloVersao',
-                             'itens', 'respostas', 'resultado', 'observacao', 'criadoUid', 'fotos'])
+                             'itens', 'respostas', 'resultado', 'apto', 'observacao', 'criadoUid', 'fotos'])
         && d.data is string && d.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && d.recebidoEm == request.time
         && d.criadoUid == request.auth.uid
@@ -365,6 +365,8 @@ service cloud.firestore {
         && d.itens is list && d.itens.size() <= 200
         && d.respostas is map && d.respostas.size() <= 200
         && d.resultado in ['liberada', 'bloqueada']
+        && d.apto is bool
+        && (d.apto == true || d.resultado == 'bloqueada')
         && d.fotos is int && d.fotos <= 20;
     }
     match /ponte_checklists/{id} {

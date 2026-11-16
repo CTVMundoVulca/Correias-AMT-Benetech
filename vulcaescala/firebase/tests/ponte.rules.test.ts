@@ -36,6 +36,7 @@ const checklist = (x: Record<string, unknown> = {}) => ({
   itens: [{ id: 'p1', grupo: 'G', texto: 'T', bloqueia: true }],
   respostas: { p1: { r: 'C', obs: '' } },
   resultado: 'liberada',
+  apto: true,
   observacao: '',
   criadoUid: OP,
   fotos: 0,
@@ -85,6 +86,9 @@ describe('Ponte rolante: operadores e checklist', () => {
     await assertFails(as(OP).doc('ponte_checklists/c1').set(checklist({ operadorId: 'o2', nome: 'CICRANO VENCIDO', matricula: '999' })));
     await assertFails(as(OP).doc('ponte_checklists/c1').set(checklist({ recebidoEm: Timestamp.fromMillis(0) })));
     await assertFails(as(OP).doc('ponte_checklists/c1').set(checklist({ extra: 1 })));
+    // "não está em condições" precisa sair como interditada
+    await assertFails(as(OP).doc('ponte_checklists/c1').set(checklist({ apto: false, resultado: 'liberada' })));
+    await assertSucceeds(as(OP).doc('ponte_checklists/c9').set(checklist({ apto: false, resultado: 'bloqueada' })));
   });
 
   it('treinamento vencido ou operador desativado: bloqueado', async () => {

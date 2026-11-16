@@ -7,8 +7,11 @@ import { comprimirFoto } from '../emenda/data';
 import { irPara, usePonte } from './context';
 import { gravarChecklist, type FotoItem } from './data';
 import {
+  AREA,
   MODELO,
   OBS_MAX,
+  PERGUNTA_FINAL,
+  criticosNC,
   PIN_TAM,
   RESPOSTAS,
   faltando,
@@ -130,11 +133,13 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
   const confirm = useConfirm();
   const [resp, setResp] = useState<Record<string, RespostaItem>>({});
   const [obsGeral, setObsGeral] = useState('');
+  const [apto, setApto] = useState<boolean | null>(null);
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   const [enviando, setEnviando] = useState(false);
   const sit = situacaoTreinamento(operador, hoje);
   const grupos = useMemo(() => [...new Set(MODELO.itens.map((i) => i.grupo))], []);
-  const resultado = resultadoDe(MODELO.itens, resp);
+  const resultado = resultadoDe(MODELO.itens, resp, apto);
+  const criticos = criticosNC(MODELO.itens, resp);
   const falta = faltando(MODELO.itens, resp);
 
   const marcar = (id: string, r: RespostaItem['r']) => setResp((x) => ({ ...x, [id]: { r, obs: x[id]?.obs ?? '' } }));
@@ -160,9 +165,12 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
     if (sit.s === 'vencido') return toast(textoTreinamento(operador, hoje) + '.', 'danger');
     if (falta.length) return toast(`Responda todos os itens (faltam ${falta.length}).`, 'warn');
     const semObs = MODELO.itens.filter((i) => resp[i.id]?.r === 'NC' && !resp[i.id]?.obs.trim());
-    if (semObs.length) return toast('Descreva o problema nos itens não conformes.', 'warn');
+    if (semObs.length) return toast('Descreva o problema nos itens marcados "N – Não atende".', 'warn');
+    if (apto === null) return toast('Responda a pergunta final: a ponte está em condições de operar?', 'warn');
+    if (apto === true && criticos.length) return toast('Há item crítico marcado "N – Não atende": a ponte não pode operar. Responda "Não" na pergunta final.', 'warn');
+    if (apto === false && !obsGeral.trim()) return toast('Ponte interditada: descreva no relatório o que foi encontrado, para a supervisão.', 'warn');
     const ok = await confirm({
-      title: resultado === 'bloqueada' ? 'Enviar: ponte BLOQUEADA?' : 'Enviar checklist: ponte liberada?',
+      title: resultado === 'bloqueada' ? 'Enviar: ponte INTERDITADA?' : 'Enviar checklist: ponte liberada?',
       message: (
         <p>
           Assinado por <b>{operador.nome}</b> (matrícula {operador.matricula}). Depois de enviado, o checklist não pode ser alterado.
@@ -186,6 +194,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
         itens: MODELO.itens,
         respostas: resp,
         resultado,
+        apto,
         observacao: obsGeral.trim().slice(0, OBS_MAX),
         criadoUid: uid,
         fotos: fotos.length,
@@ -210,7 +219,9 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       <section className="card pad stack">
         <div className="row between">
           <div>
-            <div className="small muted">Checklist de {hojeBr(hoje)}</div>
+            <div className="small muted">
+              {MODELO.versao.replace(' rev.', ' · Rev. ')} · {AREA} · {hojeBr(hoje)}
+            </div>
             <h2>{MODELO.titulo}</h2>
           </div>
           <button className="link small" onClick={() => void sair()}>
@@ -221,7 +232,6 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
           Operador: <b>{operador.nome}</b> · Matrícula {operador.matricula}
         </p>
         {sit.s !== 'ok' && <p className={'banner small ' + (sit.s === 'vencido' ? 'danger' : 'warn')}>{textoTreinamento(operador, hoje)}</p>}
-        {MODELO.versao.startsWith('provisorio') && <p className="banner warn small">Modelo provisório: as perguntas do formulário padrão da empresa ainda serão incluídas.</p>}
       </section>
 
       {grupos.map((g) => (
@@ -235,7 +245,8 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
                 <div key={i.id} className={'ponte-item' + (r?.r === 'NC' ? ' nc' : '')}>
                   <div>
                     {i.texto}
-                    {i.bloqueia && <span className="badge danger ponte-crit">bloqueia o uso</span>}
+                    {i.bloqueia && <span className="badge danger ponte-crit">crítico</span>}
+                    {i.ajuda && <div className="small muted">{i.ajuda}</div>}
                   </div>
                   <div className="segmented" role="radiogroup" aria-label={i.texto}>
                     {RESPOSTAS.map((x) => (
@@ -246,7 +257,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
                   </div>
                   {r?.r === 'NC' && (
                     <div className="stack">
-                      <input className="input" placeholder="Descreva o problema" aria-label={`Problema: ${i.texto}`} maxLength={OBS_MAX} value={r.obs} onChange={(e) => obs(i.id, e.target.value)} />
+                      <input className="input" placeholder="Descreva o que não atende" aria-label={`Problema: ${i.texto}`} maxLength={OBS_MAX} value={r.obs} onChange={(e) => obs(i.id, e.target.value)} />
                       <label className="btn small ponte-foto-btn">
                         📷 Foto ({fotos.filter((f) => f.itemId === i.id).length})
                         <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => void anexar(i.id, e.target.files?.[0])} />
@@ -260,12 +271,25 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       ))}
 
       <section className="card pad stack">
+        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável. Itens “crítico” com N interditam a ponte.</p>
+        <div className="ponte-item">
+          <b>{PERGUNTA_FINAL}</b>
+          <div className="segmented" role="radiogroup" aria-label="Pergunta final">
+            <button type="button" role="radio" aria-checked={apto === true} className={'seg r-C' + (apto === true ? ' on' : '')} onClick={() => setApto(true)}>
+              Sim, pode operar
+            </button>
+            <button type="button" role="radio" aria-checked={apto === false} className={'seg r-NC' + (apto === false ? ' on' : '')} onClick={() => setApto(false)}>
+              Não — interditar
+            </button>
+          </div>
+          {criticos.length > 0 && apto !== false && <p className="banner danger small">Item crítico com N: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. A ponte não pode operar.</p>}
+        </div>
         <label className="field">
-          Observações gerais (opcional)
-          <textarea className="input" rows={2} maxLength={OBS_MAX} value={obsGeral} onChange={(e) => setObsGeral(e.target.value)} />
+          {apto === false ? 'Relatório para a supervisão (obrigatório)' : 'Observações (opcional)'}
+          <textarea className="input" rows={3} maxLength={OBS_MAX} value={obsGeral} onChange={(e) => setObsGeral(e.target.value)} />
         </label>
         <div className={'ponte-resultado ' + resultado}>
-          {falta.length ? `Faltam ${falta.length} item(ns)` : resultado === 'bloqueada' ? '⛔ Resultado: ponte BLOQUEADA' : '✓ Resultado: ponte liberada'}
+          {falta.length ? `Faltam ${falta.length} item(ns)` : apto === null && resultado === 'liberada' ? 'Responda a pergunta final' : resultado === 'bloqueada' ? '⛔ Resultado: ponte INTERDITADA' : '✓ Resultado: ponte liberada'}
         </div>
         <button className="btn primary" disabled={enviando} onClick={() => void enviar()}>
           {enviando ? 'Enviando…' : 'Enviar checklist'}

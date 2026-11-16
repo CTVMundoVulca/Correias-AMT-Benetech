@@ -20,7 +20,16 @@ describe('ponte rolante', () => {
   it('resultado: item crítico não conforme bloqueia; os outros não', () => {
     expect(resultadoDe(itens, { a: { r: 'C', obs: '' }, b: { r: 'NC', obs: 'x' } })).toBe('liberada');
     expect(resultadoDe(itens, { a: { r: 'NC', obs: 'x' }, b: { r: 'C', obs: '' } })).toBe('bloqueada');
+    expect(resultadoDe(itens, { a: { r: 'C', obs: '' }, b: { r: 'C', obs: '' } }, false)).toBe('bloqueada'); // pergunta final "Não"
     expect(faltando(itens, { a: { r: 'NA', obs: '' } }).map((i) => i.id)).toEqual(['b']);
+  });
+
+  it('modelo FOR GTO 071: 21 itens, críticos e pergunta final', async () => {
+    const { MODELO, PERGUNTA_FINAL } = await import('../ponte/model');
+    expect(MODELO.itens).toHaveLength(21);
+    expect(MODELO.itens.filter((i) => i.bloqueia).map((i) => i.id)).toEqual(['i3', 'i7', 'i8', 'i10', 'i11', 'i12', 'i14', 'i15', 'i16', 'i17']);
+    expect(new Set(MODELO.itens.map((i) => i.id)).size).toBe(21);
+    expect(PERGUNTA_FINAL).toContain('interditar o equipamento');
   });
 
   it('PIN de 6 números e conta interna aleatória', () => {

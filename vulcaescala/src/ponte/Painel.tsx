@@ -24,12 +24,16 @@ export function Painel() {
           </>
         ) : (
           <>
-            <h2>{deHoje.resultado === 'bloqueada' ? '⛔ Ponte BLOQUEADA para uso' : '✓ Checklist feito — ponte liberada'}</h2>
+            <h2>{deHoje.resultado === 'bloqueada' ? '⛔ Ponte INTERDITADA' : '✓ Checklist feito — ponte liberada'}</h2>
             <p>
               Por <b>{deHoje.nome}</b> · Matrícula <b>{deHoje.matricula}</b> · às {horaDe(deHoje.feitoEm)}
               {!deHoje.recebidoEm && ' · aguardando envio'}
             </p>
-            {deHoje.resultado === 'bloqueada' && <p>Item crítico não conforme. Não use a ponte até a correção e um novo checklist.</p>}
+            {deHoje.resultado === 'bloqueada' && (
+              <p>
+                Não está em condições de operar{deHoje.observacao ? `: ${deHoje.observacao.replace(/[.\s]+$/, '')}` : ''}. Não use a ponte até a correção e um novo checklist.
+              </p>
+            )}
             <button className="btn" onClick={() => irPara(`#/c/${deHoje.id}`)}>
               Ver checklist
             </button>
@@ -97,7 +101,7 @@ function LinhaDia({ data, c, extras }: { data: string; c: Checklist | null; extr
     <li className="ponte-dia">
       <button className="ponte-dia-btn" onClick={() => irPara(`#/c/${c.id}`)}>
         <span className="num">{dataBr(data).slice(0, 5)}</span> <span className="small muted">{dow}</span>
-        <span className={'badge ' + (c.resultado === 'bloqueada' ? 'danger' : 'ok')}>{c.resultado === 'bloqueada' ? 'Bloqueada' : 'Liberada'}</span>
+        <span className={'badge ' + (c.resultado === 'bloqueada' ? 'danger' : 'ok')}>{c.resultado === 'bloqueada' ? 'Interditada' : 'Liberada'}</span>
         <span className="small">
           {c.nome} · {c.matricula} · {horaDe(c.feitoEm)}
           {extras > 0 && ` (+${extras})`}

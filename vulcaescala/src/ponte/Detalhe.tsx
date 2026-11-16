@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, usePonte } from './context';
 import { ouvirChecklist, ouvirFotos, type FotoItem } from './data';
-import { RESPOSTAS, dataBr, horaDe, type Checklist } from './model';
+import { AREA, PERGUNTA_FINAL, RESPOSTAS, dataBr, horaDe, type Checklist } from './model';
 
 /** Um checklist completo (consulta e PDF para auditoria). */
 export function Detalhe({ id }: { id: string }) {
@@ -30,9 +30,11 @@ export function Detalhe({ id }: { id: string }) {
       <article id="ponte-rel" className="card pad stack ponte-rel">
         <header className="stack">
           <img src="logo-benetech.png" alt="Benetech" className="ponte-rel-logo" />
-          <h2>Checklist diário — Ponte rolante</h2>
-          <div className="small muted">Oficina da vulcanização · Contrato AMT</div>
-          <div className={'ponte-resultado ' + c.resultado}>{c.resultado === 'bloqueada' ? '⛔ BLOQUEADA para uso' : '✓ LIBERADA para uso'}</div>
+          <h2>Check list para operação de ponte rolante</h2>
+          <div className="small muted">
+            {c.modeloVersao.replace(' rev.', ' · Rev. ')} · Área: {AREA} · Contrato AMT
+          </div>
+          <div className={'ponte-resultado ' + c.resultado}>{c.resultado === 'bloqueada' ? '⛔ INTERDITADA' : '✓ LIBERADA para operar'}</div>
           <table className="ponte-cab">
             <tbody>
               <tr>
@@ -69,6 +71,7 @@ export function Detalhe({ id }: { id: string }) {
                         <td>
                           {i.texto}
                           {i.bloqueia && <span className="small muted"> · item crítico</span>}
+                          {i.ajuda && <div className="small muted">{i.ajuda}</div>}
                           {r?.obs && <div className="small">Obs.: {r.obs}</div>}
                           {fs.map((f, k) => (
                             <img key={k} src={f.dataUrl} alt={`Foto do item ${i.texto}`} className="ponte-foto" />
@@ -82,7 +85,22 @@ export function Detalhe({ id }: { id: string }) {
             </table>
           </section>
         ))}
-        {c.observacao && <p>Observações gerais: {c.observacao}</p>}
+        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável.</p>
+        {c.apto !== null && (
+          <table className="ponte-itens">
+            <tbody>
+              <tr className={c.apto ? '' : 'nc'}>
+                <td>{PERGUNTA_FINAL}</td>
+                <td className="ponte-r">{c.apto ? 'Sim' : 'Não — interditada'}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+        {c.observacao && (
+          <p>
+            {c.apto === false ? 'Relatório para a supervisão' : 'Observações'}: {c.observacao}
+          </p>
+        )}
         <p className="small muted">Modelo {c.modeloVersao} · registro {c.id} · assinado com o PIN pessoal do operador.</p>
       </article>
     </div>

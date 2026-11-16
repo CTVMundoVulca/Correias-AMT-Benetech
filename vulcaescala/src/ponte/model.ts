@@ -7,18 +7,21 @@
  */
 
 export type Resposta = 'C' | 'NC' | 'NA';
+/** legenda do formulário FOR GTO 071: S – atende, N – não atende, NA – não aplicável */
 export const RESPOSTAS: { id: Resposta; nome: string; curto: string }[] = [
-  { id: 'C', nome: 'Conforme', curto: 'C' },
-  { id: 'NC', nome: 'Não conforme', curto: 'NC' },
-  { id: 'NA', nome: 'Não se aplica', curto: 'N/A' },
+  { id: 'C', nome: 'S – Atende', curto: 'S' },
+  { id: 'NC', nome: 'N – Não atende', curto: 'N' },
+  { id: 'NA', nome: 'NA – Não aplicável', curto: 'NA' },
 ];
 
 export interface ItemModelo {
   id: string;
   grupo: string;
   texto: string;
-  /** não conforme neste item = ponte bloqueada para uso */
+  /** "N – Não atende" neste item = ponte interditada */
   bloqueia: boolean;
+  /** explicação mostrada junto do item */
+  ajuda?: string;
 }
 
 export interface Modelo {
@@ -27,24 +30,50 @@ export interface Modelo {
   itens: ItemModelo[];
 }
 
+const G = 'Lista de verificação';
+const it = (n: number, texto: string, bloqueia = false, ajuda?: string): ItemModelo => ({ id: `i${n}`, grupo: G, texto: `${n}. ${texto}`, bloqueia, ...(ajuda ? { ajuda } : {}) });
+
 /**
- * MODELO PROVISÓRIO — será substituído pelas perguntas do formulário padrão da empresa
- * (PDF a ser enviado). Os itens abaixo só servem para testar o fluxo.
+ * FOR GTO 071 — Check list para operação de ponte rolante (Benetech, rev. 01), transcrito sem
+ * alteração. Itens críticos (bloqueiam o uso com "N"): escolhidos com a liderança do contrato.
  */
 export const MODELO: Modelo = {
-  versao: 'provisorio-1',
-  titulo: 'Checklist diário — Ponte rolante (oficina da vulcanização)',
+  versao: 'FOR GTO 071 rev.01',
+  titulo: 'Check list para operação de ponte rolante',
   itens: [
-    { id: 'p1', grupo: 'Modelo provisório', texto: 'Pergunta provisória 1 (bloqueia o uso)', bloqueia: true },
-    { id: 'p2', grupo: 'Modelo provisório', texto: 'Pergunta provisória 2', bloqueia: false },
-    { id: 'p3', grupo: 'Modelo provisório', texto: 'Pergunta provisória 3', bloqueia: false },
+    it(1, 'A caixa da botoeira/controle remoto está limpa, enxuta e com sinais de comando bem visíveis.'),
+    it(2, 'Os cabos da botoeira em boas condições.'),
+    it(3, 'O botão de emergência está operante.', true),
+    it(4, 'O alarme sonoro de movimento está operante.'),
+    it(5, 'O percurso da ponte rolante está sem obstáculo.'),
+    it(6, 'A ponte está transladando para frente e para trás.'),
+    it(7, 'Os limites de translação da ponte estão operantes.', true),
+    it(8, 'O freio da ponte está operante.', true),
+    it(9, 'O trolley está transladando para ambos os lados.'),
+    it(10, 'Os limites de translação do trolley estão operantes.', true),
+    it(11, 'O freio do trolley está operante.', true),
+    it(12, 'Os cabos de aço do içamento estão em condições de uso.', true),
+    it(13, 'O içamento principal está operante (sobe e desce sem problemas).'),
+    it(14, 'O limite de fim de curso para içamento principal está atuante.', true),
+    it(15, 'O freio do içamento principal está operante.', true),
+    it(16, 'O gancho do içamento principal está com abertura normal.', true),
+    it(17, 'O gancho do içamento principal está com a trava de segurança operante.', true),
+    it(18, 'O gancho do içamento principal está girando 360º sem problemas.'),
+    it(19, 'Existe algum ruído durante a operação da ponte.', false, 'S – Atende = sem ruído anormal · N – Não atende = há ruído anormal'),
+    it(20, 'A indicação da capacidade máxima da ponte está visível à distância.'),
+    it(21, 'A ponte está limpa e o local onde opera está iluminado o suficiente para enxergar os movimentos da carga.'),
   ],
 };
+
+/** pergunta final do formulário: "Não" = interditar e relatar à supervisão */
+export const PERGUNTA_FINAL =
+  'Diante dos pontos observados nesta inspeção, a ponte rolante está em condições de operar normalmente? Em caso negativo emitir um relatório para a supervisão do setor e interditar o equipamento.';
+export const AREA = 'Oficina da vulcanização';
 
 export const PIN_TAM = 6;
 export const NOME_MAX = 120;
 export const MATRICULA_MAX = 30;
-export const OBS_MAX = 300;
+export const OBS_MAX = 1000;
 /** começa a avisar quantos dias antes do vencimento do treinamento */
 export const AVISO_DIAS = 30;
 
@@ -83,6 +112,8 @@ export interface Checklist {
   itens: ItemModelo[];
   respostas: Record<string, RespostaItem>;
   resultado: 'liberada' | 'bloqueada';
+  /** resposta do operador à pergunta final (null = checklist antigo, sem a pergunta) */
+  apto: boolean | null;
   observacao: string;
   criadoUid: string;
   /** fotos anexadas (subcoleção) */
@@ -161,10 +192,13 @@ export const ordenarOperadores = (l: Operador[]) => [...l].sort((a, b) => a.nome
 
 // ------------------------------------------------------------------ checklist
 
-/** bloqueada se algum item que bloqueia estiver não conforme */
-export function resultadoDe(itens: ItemModelo[], respostas: Record<string, RespostaItem>): 'liberada' | 'bloqueada' {
-  return itens.some((i) => i.bloqueia && respostas[i.id]?.r === 'NC') ? 'bloqueada' : 'liberada';
+/** interditada se o operador disser que não está em condições OU se um item crítico estiver "N" */
+export function resultadoDe(itens: ItemModelo[], respostas: Record<string, RespostaItem>, apto: boolean | null = true): 'liberada' | 'bloqueada' {
+  return apto === false || itens.some((i) => i.bloqueia && respostas[i.id]?.r === 'NC') ? 'bloqueada' : 'liberada';
 }
+
+/** itens críticos marcados "N" */
+export const criticosNC = (itens: ItemModelo[], respostas: Record<string, RespostaItem>) => itens.filter((i) => i.bloqueia && respostas[i.id]?.r === 'NC');
 
 export const faltando = (itens: ItemModelo[], respostas: Record<string, RespostaItem>) => itens.filter((i) => !respostas[i.id]?.r);
 
@@ -173,7 +207,9 @@ export function completarChecklist(id: string, v: unknown): Checklist | null {
   const data = str(c.data, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return null;
   const itens = Array.isArray(c.itens)
-    ? (c.itens as Partial<ItemModelo>[]).filter((i) => i && typeof i.id === 'string').map((i) => ({ id: String(i.id), grupo: str(i.grupo, 120), texto: str(i.texto, 400), bloqueia: i.bloqueia === true }))
+    ? (c.itens as Partial<ItemModelo>[])
+        .filter((i) => i && typeof i.id === 'string')
+        .map((i) => ({ id: String(i.id), grupo: str(i.grupo, 120), texto: str(i.texto, 400), bloqueia: i.bloqueia === true, ...(i.ajuda ? { ajuda: str(i.ajuda, 200) } : {}) }))
     : [];
   const respostas: Record<string, RespostaItem> = {};
   for (const [k, r] of Object.entries((c.respostas ?? {}) as Record<string, Partial<RespostaItem>>))
@@ -191,6 +227,7 @@ export function completarChecklist(id: string, v: unknown): Checklist | null {
     itens,
     respostas,
     resultado: c.resultado === 'bloqueada' ? 'bloqueada' : 'liberada',
+    apto: typeof c.apto === 'boolean' ? c.apto : null,
     observacao: str(c.observacao, OBS_MAX),
     criadoUid: str(c.criadoUid, 128),
     fotos: typeof c.fotos === 'number' ? c.fotos : 0,
