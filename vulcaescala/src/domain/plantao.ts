@@ -5,10 +5,10 @@
  * do cadastro: é quem fica com o telefone.
  * Efetivo exigido: fim de semana = 1 líder + 6 executantes; feriado = 1 líder + 8 executantes.
  * Também se indica quem conduz o veículo de transporte e o caminhão (entre os alocados;
- * contam como executantes).
+ * NÃO contam como executantes, assim como supervisor, encarregado, motorista e eletricista).
  */
 import type { Activity } from './types';
-import { ehLideranca } from './types';
+import { foraDaExecucao } from './types';
 
 export const PLANTAO_ID = 'plantao';
 export const PLANTAO_NOME = 'PLANTÃO';
@@ -51,8 +51,13 @@ export function situacaoPlantao(
 ): SituacaoPlantao {
   const valido = (id: string | undefined) => (id && a.workerIds.includes(id) ? id : null);
   const liderId = valido(a.liderId);
-  const executantes = a.workerIds.filter((id) => id !== liderId && !ehLideranca(funcaoDe(id))).length;
+  const veiculoId = valido(a.veiculoId);
+  const caminhaoId = valido(a.caminhaoId);
+  // executantes: sem o líder, sem quem conduz o veículo/caminhão no dia e sem funções fora da
+  // execução (supervisor, encarregado, motorista, eletricista)
+  const naoConta = new Set([liderId, veiculoId, caminhaoId].filter(Boolean));
+  const executantes = a.workerIds.filter((id) => !naoConta.has(id) && !foraDaExecucao(funcaoDe(id))).length;
   const exigidos = executantesExigidos(feriado);
   const faltamExecutantes = Math.max(0, exigidos - executantes);
-  return { liderId, veiculoId: valido(a.veiculoId), caminhaoId: valido(a.caminhaoId), executantes, exigidos, faltamExecutantes, sobram: Math.max(0, executantes - exigidos), completo: !!liderId && faltamExecutantes === 0 };
+  return { liderId, veiculoId, caminhaoId, executantes, exigidos, faltamExecutantes, sobram: Math.max(0, executantes - exigidos), completo: !!liderId && faltamExecutantes === 0 };
 }

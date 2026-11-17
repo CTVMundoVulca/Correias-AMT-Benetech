@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useStore } from '../../state/store';
 import { isDuplicateName } from '../../state/reducer';
 import { newId } from '../../domain/ids';
-import { Funcao, MATRICULA_MAX, Worker, ehExecucao, ehLideranca } from '../../domain/types';
+import { Funcao, MATRICULA_MAX, Worker, ehExecucao, foraDaExecucao } from '../../domain/types';
 import { FuncoesDialog } from './FuncoesDialog';
 import { AusenciasDialog } from './AusenciasDialog';
 import { cleanName, matchesSearch, similarNames } from '../../domain/names';
@@ -117,7 +117,10 @@ export function WorkersView() {
           <span className="muted small tabnum">
             {active} ativo(s) · {state.workers.length - active} inativo(s) ·{' '}
             <b>{state.workers.filter((w) => w.ativo && ehExecucao(w)).length}</b> de execução ·{' '}
-            {state.workers.filter((w) => w.ativo && !w.apoio && ehLideranca(w.funcao)).length} supervisão/encarregado ·{' '}
+            <span title="Supervisor, encarregado, motorista e eletricista: não contam como efetivo de execução">
+              {state.workers.filter((w) => w.ativo && !w.apoio && foraDaExecucao(w.funcao)).length} fora da execução (supervisão, encarregado, motorista, eletricista)
+            </span>{' '}
+            ·{' '}
             {state.workers.filter((w) => w.ativo && w.apoio).length} de apoio
           </span>
         </div>

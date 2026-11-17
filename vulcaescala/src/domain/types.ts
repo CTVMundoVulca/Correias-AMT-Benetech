@@ -23,18 +23,23 @@ export interface Worker {
   apoio?: boolean;
 }
 
-/**
- * Supervisor e encarregado são liderança: NÃO contam como efetivo de execução (não geram
- * pendência de alocação, não entram na capacidade nem nos executantes do plantão).
- * Podem ser alocados normalmente e designados como líder do plantão.
- */
-export function ehLideranca(funcao: string | undefined): boolean {
-  const f = (funcao ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-  return f.startsWith('supervis') || f.startsWith('encarregad');
-}
+/** Funções fora da execução (início do nome, sem acento): liderança e funções de suporte. */
+export const FUNCOES_FORA_DA_EXECUCAO = ['supervis', 'encarregad', 'motorist', 'eletricist'];
 
-/** efetivo de execução do contrato: ativo para contas, sem apoio de outro contrato e sem liderança */
-export const ehExecucao = (w: { apoio?: boolean; funcao?: string }) => !w.apoio && !ehLideranca(w.funcao);
+/**
+ * Supervisor, encarregado, motorista e eletricista NÃO contam como efetivo de execução (não
+ * geram pendência de alocação, não entram na capacidade nem nos executantes do plantão).
+ * Podem ser alocados normalmente; no plantão, podem ser o líder ou conduzir veículo/caminhão.
+ */
+export function foraDaExecucao(funcao: string | undefined): boolean {
+  const f = (funcao ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return FUNCOES_FORA_DA_EXECUCAO.some((p) => f.startsWith(p));
+}
+/** @deprecated nome antigo de foraDaExecucao */
+export const ehLideranca = foraDaExecucao;
+
+/** efetivo de execução do contrato: sem apoio de outro contrato e fora das funções de suporte/liderança */
+export const ehExecucao = (w: { apoio?: boolean; funcao?: string }) => !w.apoio && !foraDaExecucao(w.funcao);
 
 export const MATRICULA_MAX = 30;
 export function cleanMatricula(s: string | undefined): string {
