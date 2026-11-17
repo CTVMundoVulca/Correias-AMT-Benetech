@@ -72,3 +72,28 @@ describe('supervisor e encarregado não são efetivo de execução', () => {
     expect(pendingWorkers(day, [w('a', 'Vulcanizador'), w('b', 'Vulcanizador'), w('S', 'Supervisor')]).map((x) => x.id)).toEqual(['b']);
   });
 });
+
+describe('período do plantão, réplica e ordem dos nomes', () => {
+  it('fim de semana = sáb e dom; feriado/enforcado emendado entra no mesmo período', async () => {
+    const { periodoPlantao } = await import('../domain/plantao');
+    const d = (s: string) => new Date(s + 'T00:00:00Z');
+    const fds = periodoPlantao({ feriados: {} }, d('2026-11-29'))!; // domingo comum
+    expect(fds.dias.map((x) => x.toISOString().slice(0, 10))).toEqual(['2026-11-28', '2026-11-29']);
+    expect(fds.temFeriado).toBe(false);
+    // 20/11 (sex) é feriado nacional: sex + sáb + dom
+    const fer = periodoPlantao({ feriados: {} }, d('2026-11-21'))!;
+    expect(fer.dias[0].toISOString().slice(0, 10)).toBe('2026-11-20');
+    expect(fer.temFeriado).toBe(true);
+    // enforcado cadastrado como feriado municipal na segunda: sex a seg
+    const enf = periodoPlantao({ feriados: { '2026-11-23': 'Enforcado' } }, d('2026-11-20'))!;
+    expect(enf.dias.map((x) => x.toISOString().slice(0, 10))).toEqual(['2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23']);
+    expect(periodoPlantao({ feriados: {} }, d('2026-11-18'))).toBeNull(); // quarta comum
+  });
+
+  it('ordem: líder, executantes A–Z, caminhão, veículo', async () => {
+    const { ordemPlantao } = await import('../domain/plantao');
+    const p = (id: string, nome: string, funcao = 'Vulcanizador') => ({ id, nome, funcao });
+    const l = ordemPlantao([p('i', 'IRINEU'), p('s', 'SANDRO', 'Motorista'), p('r', 'ROBERT'), p('g', 'GLAUBER', 'Supervisor'), p('c', 'CLÁUDIO'), p('e', 'ERICK')], { liderId: 'g', caminhaoId: 's', veiculoId: 'i' });
+    expect(l.map((x) => x.nome)).toEqual(['GLAUBER', 'CLÁUDIO', 'ERICK', 'ROBERT', 'SANDRO', 'IRINEU']);
+  });
+});

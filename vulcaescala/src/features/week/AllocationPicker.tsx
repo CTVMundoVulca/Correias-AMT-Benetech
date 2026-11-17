@@ -1,3 +1,5 @@
+import { usePlantao } from './usePlantao';
+import { PLANTAO_ID } from '../../domain/plantao';
 import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
@@ -17,6 +19,9 @@ interface Props {
 /** Seleção múltipla: cada toque marca/desmarca e a janela continua aberta até "Concluído". */
 export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Props) {
   const { state, dispatch } = useStore();
+  // plantão: alocar no 1º dia do período repete nos demais dias
+  const plantao = usePlantao(dayRef);
+  const despachar = activityId === PLANTAO_ID ? plantao.despachar : dispatch;
   const toast = useToast();
   const [query, setQuery] = useState('');
   const day = getDay(state, dayRef.weekKey, dayRef.dayIndex);
@@ -70,7 +75,7 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
                 aria-pressed={st.kind === 'here'}
                 title={title}
                 onClick={() => {
-                  dispatch({ type: 'activity/setWorker', allocated: st.kind !== 'here', ...dayRef, activityId, workerId: w.id });
+                  despachar({ type: 'activity/setWorker', allocated: st.kind !== 'here', ...dayRef, activityId, workerId: w.id });
                   toast(st.kind === 'here' ? `${w.nome} retirado` : `${w.nome} alocado`);
                 }}
               >

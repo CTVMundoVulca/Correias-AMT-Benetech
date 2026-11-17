@@ -13,6 +13,7 @@ import {
 } from "../../domain/schedule";
 import { Worker, tipoAusencia } from "../../domain/types";
 import { PLANTAO_ID, PLANTAO_NOME, ehPlantao, executantesExigidos, situacaoPlantao } from "../../domain/plantao";
+import { usePlantao } from "./usePlantao";
 import { useToast } from "../../ui/Toast";
 import { ActivityCard } from "./ActivityCard";
 import { AbsencePicker } from "./AbsencePicker";
@@ -61,10 +62,12 @@ export function DayBlock({
 
   // plantão: fins de semana e feriados (1 líder + 6; feriado: 1 líder + 8)
   const plantao = day.activities.find(ehPlantao);
-  const sitPlantao = plantao ? situacaoPlantao(plantao, !!feriado, (id) => byId.get(id)?.funcao) : null;
+  const per = usePlantao(ref);
+  // exigência pelo PERÍODO (fim de semana emendado com feriado/enforcado conta como feriado)
+  const sitPlantao = plantao ? situacaoPlantao(plantao, per.feriado, (id) => byId.get(id)?.funcao) : null;
   const criarPlantao = () => {
-    dispatch({ type: "activity/add", ...ref, id: PLANTAO_ID, nome: PLANTAO_NOME });
-    toast("Plantão criado: aloque a equipe e defina o líder");
+    per.despachar({ type: "activity/add", ...ref, id: PLANTAO_ID, nome: PLANTAO_NOME });
+    toast(per.primeiro && per.periodo && per.periodo.dias.length > 1 ? `Plantão criado de ${per.descricao}` : "Plantão criado: aloque a equipe e defina o líder");
   };
   // o plantão aparece primeiro no dia
   const atividades = [...day.activities].sort((a, b) => Number(ehPlantao(b)) - Number(ehPlantao(a)));
@@ -223,7 +226,8 @@ export function DayBlock({
           {folgaAuto && !plantao && !ro && (
             <div className="pend-strip plantao-criar">
               <span>
-                <b>📞 Plantão</b> — {feriado ? "feriado" : "fim de semana"}: 1 líder + {executantesExigidos(!!feriado)} executantes.
+                <b>📞 Plantão</b> {per.descricao} — {per.feriado ? "com feriado" : "fim de semana"}: 1 líder + {executantesExigidos(per.feriado)} executantes.
+                {per.primeiro && per.periodo && per.periodo.dias.length > 1 && " O que preencher aqui vale para os demais dias."}
               </span>
               <button className="btn small primary" onClick={criarPlantao}>
                 + Criar plantão

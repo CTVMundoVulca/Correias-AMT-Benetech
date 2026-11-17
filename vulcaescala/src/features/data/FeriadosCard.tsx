@@ -48,7 +48,8 @@ export function FeriadosCard() {
       <h2>Feriados</h2>
       <p className="small muted">
         Nos feriados, quem não estiver em nenhuma atividade fica de <b>folga automaticamente</b> na escala (dá para alocar ou
-        trocar por outra ausência). Os feriados nacionais já vêm marcados; cadastre aqui os municipais de Vitória.
+        trocar por outra ausência). Os feriados nacionais já vêm marcados; cadastre aqui os municipais de Vitória e os{' '}
+        <b>dias enforcados</b> (ex.: “Enforcado”): emendados com o fim de semana, formam um só período de plantão (1 líder + 8).
       </p>
       <form className="stack" onSubmit={add}>
         <div className="two-cols">
