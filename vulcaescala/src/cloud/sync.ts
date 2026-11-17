@@ -650,6 +650,7 @@ export class CloudSync {
       case 'activity/rename':
       case 'activity/remove':
       case 'activity/setWorker':
+      case 'activity/papel':
       case 'absence/set': {
         const id = dayDocId(action.weekKey, action.dayIndex);
         const ref = fsMod.doc(fs, COL_DIAS, id);

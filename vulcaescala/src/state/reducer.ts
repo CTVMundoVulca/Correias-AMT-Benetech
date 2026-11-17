@@ -1,4 +1,4 @@
-import { AbsenceType, AppState, CorAusencia, Day, Funcao, Worker, cleanFuncao, cleanMatricula, cleanNomeAusencia, cleanSigla, emptyWeek } from '../domain/types';
+import { AbsenceType, Activity, AppState, CorAusencia, Day, Funcao, Worker, cleanFuncao, cleanMatricula, cleanNomeAusencia, cleanSigla, emptyWeek } from '../domain/types';
 import { cleanName, nameKey } from '../domain/names';
 import { FERIADO_NOME_MAX, isoValido } from '../domain/feriados';
 
@@ -27,6 +27,8 @@ export type Action =
   /** coloca a atividade com a equipe (usado para mudar de dia: remove de um, põe no outro) */
   | ({ type: 'activity/put'; id: string; nome: string; workerIds: string[] } & DayRef)
   | ({ type: 'activity/setWorker'; activityId: string; workerId: string; allocated: boolean } & DayRef)
+  /** plantão: designa (ou retira, com '') líder / veículo de transporte / caminhão entre os alocados */
+  | ({ type: 'activity/papel'; activityId: string; papel: 'liderId' | 'veiculoId' | 'caminhaoId'; workerId: string } & DayRef)
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
 
 /** Já existe colaborador com o mesmo nome (sem diferenciar maiúsculas nem acentos)? */
@@ -229,13 +231,28 @@ export function reducer(state: AppState, action: Action): AppState {
             if (a.id !== action.activityId) return a;
             const has = a.workerIds.includes(action.workerId);
             if (has === action.allocated) return a;
-            return {
+            const out: Activity = {
               ...a,
               workerIds: action.allocated ? [...a.workerIds, action.workerId] : a.workerIds.filter((id) => id !== action.workerId),
             };
+            // retirado do plantão: perde o papel (líder, veículo, caminhão)
+            if (!action.allocated) for (const k of ['liderId', 'veiculoId', 'caminhaoId'] as const) if (out[k] === action.workerId) delete out[k];
+            return out;
           }),
         };
       });
+
+    case 'activity/papel':
+      return updateDay(state, action, (d) => ({
+        ...d,
+        activities: d.activities.map((a) => {
+          if (a.id !== action.activityId) return a;
+          const out: Activity = { ...a };
+          if (!action.workerId) delete out[action.papel];
+          else if (a.workerIds.includes(action.workerId)) out[action.papel] = action.workerId;
+          return out;
+        }),
+      }));
 
     case 'absence/set':
       return updateDay(state, action, (d) => {

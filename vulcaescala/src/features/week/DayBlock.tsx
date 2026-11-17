@@ -12,6 +12,7 @@ import {
   pendingWorkers,
 } from "../../domain/schedule";
 import { Worker, tipoAusencia } from "../../domain/types";
+import { PLANTAO_ID, PLANTAO_NOME, ehPlantao, executantesExigidos, situacaoPlantao } from "../../domain/plantao";
 import { useToast } from "../../ui/Toast";
 import { ActivityCard } from "./ActivityCard";
 import { AbsencePicker } from "./AbsencePicker";
@@ -58,6 +59,16 @@ export function DayBlock({
   const dayLabel = `${WEEKDAYS[dayIndex]}, ${formatDate(date)}`;
   const bodyId = `dia-${dayIndex}-corpo`;
 
+  // plantão: fins de semana e feriados (1 líder + 6; feriado: 1 líder + 8)
+  const plantao = day.activities.find(ehPlantao);
+  const sitPlantao = plantao ? situacaoPlantao(plantao, !!feriado) : null;
+  const criarPlantao = () => {
+    dispatch({ type: "activity/add", ...ref, id: PLANTAO_ID, nome: PLANTAO_NOME });
+    toast("Plantão criado: aloque a equipe e defina o líder");
+  };
+  // o plantão aparece primeiro no dia
+  const atividades = [...day.activities].sort((a, b) => Number(ehPlantao(b)) - Number(ehPlantao(a)));
+
   const addActivity = (e: FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -103,6 +114,17 @@ export function DayBlock({
                 {" "}
                 <span className="badge feriado" title={feriado}>
                   🎌 {feriado}
+                </span>
+              </>
+            )}
+            {sitPlantao && (
+              <>
+                {" "}
+                <span
+                  className={"badge " + (sitPlantao.completo ? "ok" : "pend")}
+                  title={`Plantão: ${sitPlantao.liderId ? "líder definido" : "sem líder"} · ${sitPlantao.executantes}/${sitPlantao.exigidos} executantes`}
+                >
+                  📞 Plantão {sitPlantao.completo ? "✓" : `${sitPlantao.executantes}/${sitPlantao.exigidos}${sitPlantao.liderId ? "" : " · sem líder"}`}
                 </span>
               </>
             )}
@@ -198,7 +220,18 @@ export function DayBlock({
             </form>
           )}
 
-          {day.activities.map((a) => (
+          {folgaAuto && !plantao && !ro && (
+            <div className="pend-strip plantao-criar">
+              <span>
+                <b>📞 Plantão</b> — {feriado ? "feriado" : "fim de semana"}: 1 líder + {executantesExigidos(!!feriado)} executantes.
+              </span>
+              <button className="btn small primary" onClick={criarPlantao}>
+                + Criar plantão
+              </button>
+            </div>
+          )}
+
+          {atividades.map((a) => (
             <ActivityCard
               key={a.id}
               dayRef={ref}

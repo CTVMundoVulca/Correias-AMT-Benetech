@@ -29,7 +29,7 @@ export interface PubConfig {
 
 export function projetarDia(d: Day): Day {
   return {
-    activities: d.activities.map((a) => ({ id: a.id, nome: a.nome, workerIds: [...a.workerIds] })),
+    activities: d.activities.map((a) => ({ id: a.id, nome: a.nome, workerIds: [...a.workerIds], ...(a.liderId ? { liderId: a.liderId } : {}), ...(a.veiculoId ? { veiculoId: a.veiculoId } : {}), ...(a.caminhaoId ? { caminhaoId: a.caminhaoId } : {}) })),
     absences: d.absences.map((a) => ({ workerId: a.workerId, tipo: AUS_PUBLICAS.has(a.tipo) ? a.tipo : AUS_GENERICA.id })),
   };
 }

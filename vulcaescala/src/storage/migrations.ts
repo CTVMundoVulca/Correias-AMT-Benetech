@@ -13,6 +13,7 @@ import {
   cleanMatricula,
   emptyDay,
   emptyState,
+  type Activity,
 } from '../domain/types';
 import { isValidWeekKey } from '../domain/isoWeek';
 import { FERIADO_NOME_MAX, isoValido } from '../domain/feriados';
@@ -115,11 +116,13 @@ function sanitizeDay(d: any, ids: Set<string>): Day {
   if (!isObj(d)) return emptyDay();
   const activities = (Array.isArray(d.activities) ? d.activities : [])
     .filter((a: any) => isObj(a) && typeof a.id === 'string' && typeof a.nome === 'string')
-    .map((a: any) => ({
-      id: a.id,
-      nome: cleanName(a.nome),
-      workerIds: [...new Set<string>((Array.isArray(a.workerIds) ? a.workerIds : []).filter((x: any) => ids.has(x)))],
-    }));
+    .map((a: any) => {
+      const workerIds = [...new Set<string>((Array.isArray(a.workerIds) ? a.workerIds : []).filter((x: any) => ids.has(x)))];
+      const out: Activity = { id: a.id, nome: cleanName(a.nome), workerIds };
+      // papéis do plantão (líder, veículo, caminhão): só valem se a pessoa continua alocada
+      for (const k of ['liderId', 'veiculoId', 'caminhaoId'] as const) if (typeof a[k] === 'string' && workerIds.includes(a[k])) out[k] = a[k];
+      return out;
+    });
   const seen = new Set<string>();
   const absences = (Array.isArray(d.absences) ? d.absences : []).filter((a: any) => {
     // qualquer tipo (a lista é editável); id desconhecido aparece como "Tipo removido"

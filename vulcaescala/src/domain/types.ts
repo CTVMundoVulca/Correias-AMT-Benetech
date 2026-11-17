@@ -70,6 +70,12 @@ export interface Activity {
   /** sempre em MAIÚSCULAS */
   nome: string;
   workerIds: string[];
+  /** só no PLANTÃO: líder do plantão (fica com o telefone) — um dos alocados */
+  liderId?: string;
+  /** só no PLANTÃO: quem conduz o veículo de transporte — um dos alocados */
+  veiculoId?: string;
+  /** só no PLANTÃO: quem conduz o caminhão — um dos alocados */
+  caminhaoId?: string;
 }
 
 export interface Absence {

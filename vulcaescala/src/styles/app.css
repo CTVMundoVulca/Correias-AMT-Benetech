@@ -490,3 +490,11 @@ input.input::-webkit-date-and-time-value { text-align: left; }
 /* integração com a programação */
 .aviso-prog { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 6px 0; padding: 6px 10px; border-radius: 8px; background: var(--pend-bg); color: var(--pend-ink); border: 1px solid var(--pend-line); font-size: 0.85rem; font-weight: 600; }
 .chip.conflito { border-color: var(--pend-line); background: var(--pend-bg); }
+
+/* plantão (fins de semana e feriados) */
+.activity.plantao { border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.plantao-sit { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 0.9rem; padding: 6px 8px; border-radius: 6px; margin: 4px 0 6px; }
+.plantao-sit.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.plantao-sit.pend { background: var(--pend-bg); color: var(--pend-ink); }
+.plantao-criar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.plantao-papeis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 10px; margin: 0 0 8px; }
