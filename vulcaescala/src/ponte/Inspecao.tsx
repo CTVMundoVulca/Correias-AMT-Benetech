@@ -167,7 +167,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
     if (sit.s === 'vencido') return toast(textoTreinamento(operador, hoje) + '.', 'danger');
     if (falta.length) return toast(`Responda todos os itens (faltam ${falta.length}).`, 'warn');
     const semObs = MODELO.itens.filter((i) => resp[i.id]?.r === 'NC' && !resp[i.id]?.obs.trim());
-    if (semObs.length) return toast('Descreva o problema nos itens marcados "N – Não atende".', 'warn');
+    if (semObs.length) return toast('Descreva o problema nos itens marcados "Não conforme".', 'warn');
     if (apto === null) return toast('Responda a pergunta final: a ponte está em condições de operar?', 'warn');
     if (apto === false && !obsGeral.trim()) return toast('Ponte interditada: descreva no relatório o que foi encontrado, para a supervisão.', 'warn');
     const ok = await confirm({
@@ -272,7 +272,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       ))}
 
       <section className="card pad stack">
-        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável. Itens “crítico” com N pedem atenção: a liberação é decidida na pergunta final.</p>
+        <p className="small muted">Itens “crítico” não conformes pedem atenção: a liberação é decidida na pergunta final.</p>
         <div className="ponte-item">
           <b>{PERGUNTA_FINAL}</b>
           <div className="segmented" role="radiogroup" aria-label="Pergunta final">
@@ -285,7 +285,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
           </div>
           {criticos.length > 0 && apto !== false && (
             <p className="banner warn small">
-              ⚠ Item crítico com N: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. Confirme se, ainda assim, a ponte está em condições de operar; a
+              ⚠ Item crítico não conforme: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. Confirme se, ainda assim, a ponte está em condições de operar; a
               liberação fica registrada com esses itens.
             </p>
           )}

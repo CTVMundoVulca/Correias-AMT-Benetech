@@ -8,6 +8,8 @@ const DIAS_HISTORICO = 30;
 export function Painel() {
   const { checklists, operadores, operadoresFonte, operadoresErro, hoje, admin, operador } = usePonte();
   const deHoje = checklists ? doDia(checklists, hoje) : null;
+  // o status do dia é o do checklist mais recente; os outros do mesmo dia também aparecem
+  const outrosHoje = checklists && deHoje ? checklists.filter((c) => c.data === hoje && c.id !== deHoje.id) : [];
   const ativos = useMemo(() => ordenarOperadores(operadores.filter((o) => o.ativo)), [operadores]);
   const dias = useMemo(() => Array.from({ length: DIAS_HISTORICO }, (_, i) => somaDias(hoje, -i)).filter((d) => d >= INICIO_PONTE), [hoje]);
 
@@ -31,7 +33,7 @@ export function Painel() {
             </p>
             {deHoje.resultado === 'liberada' && criticosNC(deHoje.itens.length ? deHoje.itens : MODELO.itens, deHoje.respostas).length > 0 && (
               <p className="small">
-                ⚠ Liberada pelo operador com item crítico em N:{' '}
+                ⚠ Liberada pelo operador com item crítico não conforme:{' '}
                 {criticosNC(deHoje.itens.length ? deHoje.itens : MODELO.itens, deHoje.respostas)
                   .map((i) => i.texto.split('.')[0])
                   .join(', ')}
@@ -46,6 +48,16 @@ export function Painel() {
             <button className="btn" onClick={() => irPara(`#/c/${deHoje.id}`)}>
               Ver checklist
             </button>
+            {outrosHoje.length > 0 && (
+              <div className="stack ponte-outros">
+                <div className="small muted">Outros checklists de hoje ({outrosHoje.length}):</div>
+                <ul className="plain-list ponte-hist">
+                  {outrosHoje.map((c) => (
+                    <LinhaChecklist key={c.id} c={c} />
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
       </section>
@@ -89,34 +101,43 @@ export function Painel() {
           Histórico <span className="small muted">(últimos {DIAS_HISTORICO} dias, a partir de {dataBr(INICIO_PONTE)})</span>
         </h3>
         <ul className="plain-list ponte-hist">
-          {dias.map((d) => {
-            const c = checklists ? doDia(checklists, d) : null;
-            const outros = checklists ? checklists.filter((x) => x.data === d && x.id !== c?.id) : [];
-            return <LinhaDia key={d} data={d} c={c} extras={outros.length} />;
-          })}
+          {dias.map((d) => (
+            <LinhaDia key={d} data={d} lista={checklists ? checklists.filter((x) => x.data === d).sort((a, b) => b.feitoEm.localeCompare(a.feitoEm)) : []} />
+          ))}
         </ul>
       </section>
     </div>
   );
 }
 
-function LinhaDia({ data, c, extras }: { data: string; c: Checklist | null; extras: number }) {
+function LinhaDia({ data, lista }: { data: string; lista: Checklist[] }) {
   const dow = new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-  if (!c)
-    return (
-      <li className="ponte-dia sem">
-        <span className="num">{dataBr(data).slice(0, 5)}</span> <span className="small muted">{dow}</span>
-        <span className="small text-pend">sem checklist</span>
-      </li>
-    );
   return (
-    <li className="ponte-dia">
-      <button className="ponte-dia-btn" onClick={() => irPara(`#/c/${c.id}`)}>
+    <li className={'ponte-dia' + (lista.length ? '' : ' sem')}>
+      <div className="ponte-dia-cab">
         <span className="num">{dataBr(data).slice(0, 5)}</span> <span className="small muted">{dow}</span>
+        {!lista.length ? <span className="small text-pend">sem checklist</span> : lista.length > 1 && <span className="small muted">{lista.length} checklists</span>}
+      </div>
+      {lista.length > 0 && (
+        <ul className="plain-list">
+          {lista.map((c) => (
+            <LinhaChecklist key={c.id} c={c} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/** Um checklist (abre o detalhe). */
+function LinhaChecklist({ c }: { c: Checklist }) {
+  return (
+    <li>
+      <button className="ponte-dia-btn" onClick={() => irPara(`#/c/${c.id}`)}>
         <span className={'badge ' + (c.resultado === 'bloqueada' ? 'danger' : 'ok')}>{c.resultado === 'bloqueada' ? 'Interditada' : 'Liberada'}</span>
         <span className="small">
-          {c.nome} · {c.matricula} · {horaDe(c.feitoEm)}
-          {extras > 0 && ` (+${extras})`}
+          {horaDe(c.feitoEm)} · {c.nome} · {c.matricula}
+          {!c.recebidoEm && ' · aguardando envio'}
         </span>
       </button>
     </li>

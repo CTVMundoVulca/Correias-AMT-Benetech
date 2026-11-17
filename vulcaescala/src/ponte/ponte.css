@@ -16,7 +16,8 @@
 .ponte-op.inativo { opacity: 0.6; }
 .ponte-hist { display: flex; flex-direction: column; }
 .ponte-dia { border-bottom: 1px solid var(--line); }
-.ponte-dia.sem { display: flex; gap: 8px; align-items: center; padding: 6px 4px; }
+.ponte-dia { padding: 6px 0; }
+.ponte-dia-cab { display: flex; gap: 8px; align-items: center; padding: 0 4px; }
 .ponte-dia-btn { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 4px; width: 100%; }
 .ponte-dia-btn:hover { background: var(--surface-2); }
 .badge.danger { background: var(--red-bg); color: var(--red-ink); }
@@ -35,11 +36,18 @@
 .ponte-resultado { font-weight: 700; padding: 8px 10px; border-radius: 8px; text-align: center; }
 .ponte-resultado.liberada { background: var(--ok-bg); color: var(--ok-ink); }
 .ponte-resultado.bloqueada { background: var(--red-bg); color: var(--red-ink); }
-.ponte-rel { max-width: 820px; margin: 0 auto; }
 .ponte-rel-logo { height: 36px; width: auto; align-self: flex-start; }
-.ponte-cab, .ponte-itens { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-.ponte-cab th, .ponte-cab td, .ponte-itens td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
-.ponte-cab th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
+.ponte-itens { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
+.ponte-itens td { overflow-wrap: anywhere; }
+/* cabeçalho do checklist: grade que quebra linha no celular (nada sai da tela) */
+.ponte-cab { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.ponte-cab > div { padding: 6px 10px; border: 1px solid var(--line); margin: -1px 0 0 -1px; min-width: 0; }
+.ponte-cab > div.largo { grid-column: 1 / -1; }
+.ponte-cab dt { font-size: 0.78rem; color: var(--ink-2); font-weight: 600; }
+.ponte-cab dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.ponte-rel { max-width: 820px; width: 100%; box-sizing: border-box; margin: 0 auto; overflow-wrap: anywhere; }
+.ponte-outros { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+.ponte-itens td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
 .ponte-itens tr.nc td { background: var(--red-bg); }
 .ponte-r { width: 30%; font-weight: 600; }
 .ponte-foto { display: block; max-width: 220px; max-height: 220px; margin-top: 6px; border-radius: 6px; }

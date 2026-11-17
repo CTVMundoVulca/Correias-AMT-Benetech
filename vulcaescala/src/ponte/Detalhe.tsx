@@ -37,29 +37,31 @@ export function Detalhe({ id }: { id: string }) {
           <div className={'ponte-resultado ' + c.resultado}>{c.resultado === 'bloqueada' ? '⛔ INTERDITADA' : '✓ LIBERADA para operar'}</div>
           {c.resultado === 'liberada' && criticosNC(c.itens, c.respostas).length > 0 && (
             <div className="small">
-              ⚠ Liberada pelo operador com item crítico em N: {criticosNC(c.itens, c.respostas).map((i) => i.texto.split('.')[0]).join(', ')}.
+              ⚠ Liberada pelo operador com item crítico não conforme: {criticosNC(c.itens, c.respostas).map((i) => i.texto.split('.')[0]).join(', ')}.
             </div>
           )}
-          <table className="ponte-cab">
-            <tbody>
-              <tr>
-                <th>Data</th>
-                <td>{dataBr(c.data)}</td>
-                <th>Hora</th>
-                <td>{horaDe(c.feitoEm)}</td>
-              </tr>
-              <tr>
-                <th>Operador</th>
-                <td>{c.nome}</td>
-                <th>Matrícula</th>
-                <td>{c.matricula}</td>
-              </tr>
-              <tr>
-                <th>Recebido pela nuvem</th>
-                <td colSpan={3}>{c.recebidoEm ? c.recebidoEm.toLocaleString('pt-BR') : 'aguardando envio do aparelho'}</td>
-              </tr>
-            </tbody>
-          </table>
+          <dl className="ponte-cab">
+            <div>
+              <dt>Data</dt>
+              <dd>{dataBr(c.data)}</dd>
+            </div>
+            <div>
+              <dt>Hora</dt>
+              <dd>{horaDe(c.feitoEm)}</dd>
+            </div>
+            <div className="largo">
+              <dt>Operador</dt>
+              <dd>{c.nome}</dd>
+            </div>
+            <div>
+              <dt>Matrícula</dt>
+              <dd>{c.matricula}</dd>
+            </div>
+            <div>
+              <dt>Recebido pela nuvem</dt>
+              <dd>{c.recebidoEm ? c.recebidoEm.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' }) : 'aguardando envio do aparelho'}</dd>
+            </div>
+          </dl>
         </header>
         {grupos.map((g) => (
           <section key={g} className="stack">
@@ -90,7 +92,6 @@ export function Detalhe({ id }: { id: string }) {
             </table>
           </section>
         ))}
-        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável.</p>
         {c.apto !== null && (
           <table className="ponte-itens">
             <tbody>
