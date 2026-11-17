@@ -9,6 +9,10 @@
  */
 import type { Activity } from './types';
 import { foraDaExecucao } from './types';
+import type { AppState } from './types';
+import { feriadoNaData, folgaAutoNaData } from './schedule';
+import { addDays, toIsoDate } from './isoWeek';
+
 
 export const PLANTAO_ID = 'plantao';
 export const PLANTAO_NOME = 'PLANTÃO';
@@ -60,4 +64,39 @@ export function situacaoPlantao(
   const exigidos = executantesExigidos(feriado);
   const faltamExecutantes = Math.max(0, exigidos - executantes);
   return { liderId, veiculoId, caminhaoId, executantes, exigidos, faltamExecutantes, sobram: Math.max(0, executantes - exigidos), completo: !!liderId && faltamExecutantes === 0 };
+}
+
+// ------------------------------------------------------------------ período e ordem
+
+
+export interface PeriodoPlantao {
+  /** dias consecutivos sem expediente: sábado, domingo, feriados e dias enforcados emendados */
+  dias: Date[];
+  /** há feriado (ou dia enforcado cadastrado como feriado) no período: 1 líder + 8 */
+  temFeriado: boolean;
+}
+
+/** Período de plantão que contém a data (null em dia útil). Máx. 10 dias para cada lado. */
+export function periodoPlantao(state: Pick<AppState, 'feriados'>, data: Date): PeriodoPlantao | null {
+  const folga = (d: Date) => !!folgaAutoNaData(state as AppState, d);
+  if (!folga(data)) return null;
+  let ini = data;
+  for (let i = 0; i < 10 && folga(addDays(ini, -1)); i++) ini = addDays(ini, -1);
+  let fim = data;
+  for (let i = 0; i < 10 && folga(addDays(fim, 1)); i++) fim = addDays(fim, 1);
+  const dias: Date[] = [];
+  for (let d = ini; d.getTime() <= fim.getTime(); d = addDays(d, 1)) dias.push(d);
+  return { dias, temFeriado: dias.some((d) => !!feriadoNaData(state as AppState, d)) };
+}
+
+export const primeiroDoPeriodo = (p: PeriodoPlantao, data: Date) => toIsoDate(p.dias[0]) === toIsoDate(data);
+
+/**
+ * Ordem dos nomes no plantão: líder; executantes em ordem alfabética (e, depois deles, quem é
+ * de função fora da execução); motorista do caminhão; motorista do veículo de transporte.
+ */
+export function ordemPlantao<T extends { id: string; nome: string; funcao?: string }>(pessoas: T[], sit: Pick<SituacaoPlantao, 'liderId' | 'veiculoId' | 'caminhaoId'>): T[] {
+  const grupo = (p: T) =>
+    p.id === sit.liderId ? 0 : p.id === sit.caminhaoId ? 3 : p.id === sit.veiculoId ? 4 : foraDaExecucao(p.funcao) ? 2 : 1;
+  return [...pessoas].sort((a, b) => grupo(a) - grupo(b) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }

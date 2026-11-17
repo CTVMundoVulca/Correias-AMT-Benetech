@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useSomenteLeitura, useStore } from "../../state/store";
 import type { DayRef } from "../../state/reducer";
 import type { Activity, Worker } from "../../domain/types";
-import { feriadoDoDia, sortByName } from "../../domain/schedule";
-import { PAPEIS_PLANTAO, ehPlantao, situacaoPlantao } from "../../domain/plantao";
+import { sortByName } from "../../domain/schedule";
+import { PAPEIS_PLANTAO, ehPlantao, ordemPlantao, situacaoPlantao } from "../../domain/plantao";
+import { usePlantao } from "./usePlantao";
 import { useToast } from "../../ui/Toast";
 import { useConfirm } from "../../ui/ConfirmDialog";
 import { AllocationPicker } from "./AllocationPicker";
@@ -30,16 +31,21 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
   const outras = state.weeks[dayRef.weekKey]?.days[dayRef.dayIndex]?.activities.filter((a) => a.id !== activity.id) ?? [];
   const tambemEm = (wid: string) => outras.find((a) => a.workerIds.includes(wid))?.nome;
   const plantao = ehPlantao(activity);
-  const sit = plantao ? situacaoPlantao(activity, !!feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex), (id) => byId.get(id)?.funcao) : null;
+  const per = usePlantao(dayRef);
+  // plantão: alterações no 1º dia do período são repetidas nos demais dias
+  const despachar = plantao ? per.despachar : dispatch;
+  const sit = plantao ? situacaoPlantao(activity, per.feriado, (id) => byId.get(id)?.funcao) : null;
   const definirPapel = (campo: "liderId" | "veiculoId" | "caminhaoId", wid: string) =>
-    dispatch({ type: "activity/papel", ...dayRef, activityId: activity.id, papel: campo, workerId: wid });
+    despachar({ type: "activity/papel", ...dayRef, activityId: activity.id, papel: campo, workerId: wid });
   /** papéis da pessoa no plantão (☎ líder, 🚐 veículo, 🚚 caminhão) */
   const papeisDe = (wid: string) => (sit ? PAPEIS_PLANTAO.filter((p) => sit[p.campo] === wid) : []);
-  const allocated = sortByName(
+  const alocadosPorNome = sortByName(
     activity.workerIds
       .map((id) => byId.get(id))
       .filter((w): w is Worker => !!w),
   );
+  // plantão: líder, executantes (A–Z), motorista do caminhão, motorista do veículo
+  const allocated = sit ? ordemPlantao(alocadosPorNome, sit) : alocadosPorNome;
 
   const saveName = () => {
     if (draft.trim() && draft.trim().toUpperCase() !== activity.nome) {
@@ -170,6 +176,13 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
           </span>
         </div>
       )}
+      {sit && per.periodo && per.periodo.dias.length > 1 && (
+        <p className="small muted plantao-periodo">
+          {per.primeiro
+            ? `Plantão de ${per.descricao}: o que preencher aqui é repetido nos demais dias.`
+            : `Plantão de ${per.descricao}: preencha no primeiro dia (${per.inicio}) para valer em todos; alterações aqui valem só para este dia.`}
+        </p>
+      )}
       {sit && (
         <div className="plantao-papeis">
           {PAPEIS_PLANTAO.map((p) =>
@@ -223,7 +236,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
                   className="chip-x"
                   aria-label={`Retirar ${w.nome} de ${activity.nome}`}
                   onClick={() => {
-                    dispatch({
+                    despachar({
                       type: "activity/setWorker",
                       allocated: false,
                       ...dayRef,
