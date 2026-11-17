@@ -30,7 +30,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
   const outras = state.weeks[dayRef.weekKey]?.days[dayRef.dayIndex]?.activities.filter((a) => a.id !== activity.id) ?? [];
   const tambemEm = (wid: string) => outras.find((a) => a.workerIds.includes(wid))?.nome;
   const plantao = ehPlantao(activity);
-  const sit = plantao ? situacaoPlantao(activity, !!feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex)) : null;
+  const sit = plantao ? situacaoPlantao(activity, !!feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex), (id) => byId.get(id)?.funcao) : null;
   const definirPapel = (campo: "liderId" | "veiculoId" | "caminhaoId", wid: string) =>
     dispatch({ type: "activity/papel", ...dayRef, activityId: activity.id, papel: campo, workerId: wid });
   /** papéis da pessoa no plantão (☎ líder, 🚐 veículo, 🚚 caminhão) */

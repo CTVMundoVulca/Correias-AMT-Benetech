@@ -1,3 +1,4 @@
+import { ehExecucao } from '../domain/types';
 import { useEffect, useMemo, useState } from 'react';
 import { COL_PUB_DIAS } from '../cloud/publico';
 import { MONTHS, MONTHS_SHORT, WEEKDAYS_SHORT, fromIsoDate, isoWeekOf, locateDay } from '../domain/isoWeek';
@@ -10,7 +11,7 @@ import type { Atividade } from './model';
 function useEscalaDias(dias: string[], efetivo: PubConfig['efetivo'] | null): { aus: Map<string, number>; apoio: Map<string, number> } | null {
   const { api } = useProg();
   const chave = dias.join(',');
-  const contrato = useMemo(() => new Set((efetivo ?? []).filter((w) => !w.apoio).map((w) => w.id)), [efetivo]);
+  const contrato = useMemo(() => new Set((efetivo ?? []).filter((w) => ehExecucao(w)).map((w) => w.id)), [efetivo]);
   const apoioIds = useMemo(() => new Set((efetivo ?? []).filter((w) => w.apoio).map((w) => w.id)), [efetivo]);
   const [m, setM] = useState<{ aus: Map<string, number>; apoio: Map<string, number> } | null>(null);
   useEffect(() => {
@@ -66,7 +67,7 @@ export function CargaCapacidade({
   onDia: (d: string) => void;
 }) {
   const esc = useEscalaDias(dias, efetivo);
-  const contrato = efetivo ? efetivo.filter((w) => w.ativo && !w.apoio).length : null;
+  const contrato = efetivo ? efetivo.filter((w) => w.ativo && ehExecucao(w)).length : null;
   const carga = useMemo(
     () => (lista && contrato !== null && esc ? cargaCapacidade(dias, lista, contrato, esc.aus, esc.apoio) : null),
     [dias, lista, contrato, esc],

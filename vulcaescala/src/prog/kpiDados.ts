@@ -1,3 +1,4 @@
+import { ehExecucao } from '../domain/types';
 import { useEffect, useState } from 'react';
 import type { Atraso } from '../cloud/atrasos';
 import { COL_ATRASOS } from '../cloud/atrasos';
@@ -60,8 +61,9 @@ export function useDadosKpi(de: string, ate: string): DadosKpi | null {
         ler(fsMod.getDocs(fsMod.query(fsMod.collection(fs, COL_ATRASOS), fsMod.where('semana', '>=', semana(de)), fsMod.where('semana', '<=', semana(ate)))), null),
       ]);
       if (!vivo) return;
-      const efetivoLista = (cfg?.data()?.efetivo ?? []) as { id?: string; ativo?: boolean; apoio?: boolean }[];
-      const contrato = new Set(efetivoLista.filter((w) => !w?.apoio).map((w) => String(w?.id)));
+      const efetivoLista = (cfg?.data()?.efetivo ?? []) as { id?: string; ativo?: boolean; apoio?: boolean; funcao?: string }[];
+      // execução do contrato: sem apoio e sem liderança (supervisor/encarregado)
+      const contrato = new Set(efetivoLista.filter((w) => w && ehExecucao(w)).map((w) => String(w?.id)));
       const apoioIds = new Set(efetivoLista.filter((w) => w?.apoio).map((w) => String(w?.id)));
       const escala: DiaEscala[] = [];
       for (const doc of dias?.docs ?? []) {
@@ -85,7 +87,7 @@ export function useDadosKpi(de: string, ate: string): DadosKpi | null {
         solicitacoes: (sol?.docs ?? []).map((x) => completarSolicitacao(x.id, x.data())),
         emendas: (em?.docs ?? []).map((x) => ({ tag: String(x.data()?.tag ?? ''), data: String(x.data()?.data ?? '') })),
         // efetivo DO CONTRATO (apoio de outros contratos não entra na capacidade)
-        efetivo: Array.isArray(efetivoLista) ? efetivoLista.filter((w) => w?.ativo !== false && !w?.apoio).length : 0,
+        efetivo: Array.isArray(efetivoLista) ? efetivoLista.filter((w) => w?.ativo !== false && w && ehExecucao(w)).length : 0,
         escala,
         escalaDesde,
         atrasos: (atr?.docs ?? []).map((x) => ({ ...(x.data() as Atraso), id: x.id })),

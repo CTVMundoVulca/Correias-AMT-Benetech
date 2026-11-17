@@ -61,7 +61,7 @@ export function DayBlock({
 
   // plantão: fins de semana e feriados (1 líder + 6; feriado: 1 líder + 8)
   const plantao = day.activities.find(ehPlantao);
-  const sitPlantao = plantao ? situacaoPlantao(plantao, !!feriado) : null;
+  const sitPlantao = plantao ? situacaoPlantao(plantao, !!feriado, (id) => byId.get(id)?.funcao) : null;
   const criarPlantao = () => {
     dispatch({ type: "activity/add", ...ref, id: PLANTAO_ID, nome: PLANTAO_NOME });
     toast("Plantão criado: aloque a equipe e defina o líder");
