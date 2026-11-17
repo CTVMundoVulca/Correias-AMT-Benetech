@@ -7,10 +7,10 @@
  */
 
 export type Resposta = 'C' | 'NC' | 'NA';
-/** legenda do formulário FOR GTO 071: S – atende, N – não atende, NA – não aplicável */
+/** respostas: Conforme, Não conforme, Não aplicável (o formulário em papel usa S / N / NA) */
 export const RESPOSTAS: { id: Resposta; nome: string; curto: string }[] = [
-  { id: 'C', nome: 'S – Atende', curto: 'S' },
-  { id: 'NC', nome: 'N – Não atende', curto: 'N' },
+  { id: 'C', nome: 'Conforme', curto: 'C' },
+  { id: 'NC', nome: 'Não conforme', curto: 'NC' },
   { id: 'NA', nome: 'NA – Não aplicável', curto: 'NA' },
 ];
 
@@ -18,7 +18,7 @@ export interface ItemModelo {
   id: string;
   grupo: string;
   texto: string;
-  /** "N – Não atende" neste item = ponte interditada */
+  /** item crítico: "Não conforme" pede atenção (a liberação é decidida na pergunta final) */
   bloqueia: boolean;
   /** explicação mostrada junto do item */
   ajuda?: string;
@@ -59,7 +59,7 @@ export const MODELO: Modelo = {
     it(16, 'O gancho do içamento principal está com abertura normal.', true),
     it(17, 'O gancho do içamento principal está com a trava de segurança operante.', true),
     it(18, 'O gancho do içamento principal está girando 360º sem problemas.'),
-    it(19, 'Existe algum ruído durante a operação da ponte.', false, 'S – Atende = sem ruído anormal · N – Não atende = há ruído anormal'),
+    it(19, 'Existe algum ruído durante a operação da ponte.', false, 'Conforme = sem ruído anormal · Não conforme = há ruído anormal'),
     it(20, 'A indicação da capacidade máxima da ponte está visível à distância.'),
     it(21, 'A ponte está limpa e o local onde opera está iluminado o suficiente para enxergar os movimentos da carga.'),
   ],

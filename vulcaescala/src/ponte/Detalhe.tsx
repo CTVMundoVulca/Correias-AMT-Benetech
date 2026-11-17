@@ -37,7 +37,7 @@ export function Detalhe({ id }: { id: string }) {
           <div className={'ponte-resultado ' + c.resultado}>{c.resultado === 'bloqueada' ? '⛔ INTERDITADA' : '✓ LIBERADA para operar'}</div>
           {c.resultado === 'liberada' && criticosNC(c.itens, c.respostas).length > 0 && (
             <div className="small">
-              ⚠ Liberada pelo operador com item crítico em N: {criticosNC(c.itens, c.respostas).map((i) => i.texto.split('.')[0]).join(', ')}.
+              ⚠ Liberada pelo operador com item crítico não conforme: {criticosNC(c.itens, c.respostas).map((i) => i.texto.split('.')[0]).join(', ')}.
             </div>
           )}
           <dl className="ponte-cab">
@@ -92,7 +92,6 @@ export function Detalhe({ id }: { id: string }) {
             </table>
           </section>
         ))}
-        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável.</p>
         {c.apto !== null && (
           <table className="ponte-itens">
             <tbody>

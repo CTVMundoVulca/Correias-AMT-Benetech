@@ -33,7 +33,7 @@ export function Painel() {
             </p>
             {deHoje.resultado === 'liberada' && criticosNC(deHoje.itens.length ? deHoje.itens : MODELO.itens, deHoje.respostas).length > 0 && (
               <p className="small">
-                ⚠ Liberada pelo operador com item crítico em N:{' '}
+                ⚠ Liberada pelo operador com item crítico não conforme:{' '}
                 {criticosNC(deHoje.itens.length ? deHoje.itens : MODELO.itens, deHoje.respostas)
                   .map((i) => i.texto.split('.')[0])
                   .join(', ')}
