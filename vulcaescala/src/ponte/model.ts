@@ -70,6 +70,9 @@ export const PERGUNTA_FINAL =
   'Diante dos pontos observados nesta inspeção, a ponte rolante está em condições de operar normalmente? Em caso negativo emitir um relatório para a supervisão do setor e interditar o equipamento.';
 export const AREA = 'Oficina da vulcanização';
 
+/** primeiro dia de uso do checklist no app: antes disso não há "dia sem checklist" */
+export const INICIO_PONTE = '2026-11-17';
+
 export const PIN_TAM = 6;
 export const NOME_MAX = 120;
 export const MATRICULA_MAX = 30;

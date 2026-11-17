@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { irPara, usePonte } from './context';
-import { MODELO, criticosNC, dataBr, doDia, horaDe, ordenarOperadores, situacaoTreinamento, somaDias, textoTreinamento, type Checklist } from './model';
+import { INICIO_PONTE, MODELO, criticosNC, dataBr, doDia, horaDe, ordenarOperadores, situacaoTreinamento, somaDias, textoTreinamento, type Checklist } from './model';
 
 const DIAS_HISTORICO = 30;
 
@@ -9,7 +9,7 @@ export function Painel() {
   const { checklists, operadores, operadoresFonte, operadoresErro, hoje, admin, operador } = usePonte();
   const deHoje = checklists ? doDia(checklists, hoje) : null;
   const ativos = useMemo(() => ordenarOperadores(operadores.filter((o) => o.ativo)), [operadores]);
-  const dias = useMemo(() => Array.from({ length: DIAS_HISTORICO }, (_, i) => somaDias(hoje, -i)), [hoje]);
+  const dias = useMemo(() => Array.from({ length: DIAS_HISTORICO }, (_, i) => somaDias(hoje, -i)).filter((d) => d >= INICIO_PONTE), [hoje]);
 
   return (
     <div className="stack">
@@ -85,7 +85,9 @@ export function Painel() {
       </section>
 
       <section className="card pad stack">
-        <h3>Histórico ({DIAS_HISTORICO} dias)</h3>
+        <h3>
+          Histórico <span className="small muted">(últimos {DIAS_HISTORICO} dias, a partir de {dataBr(INICIO_PONTE)})</span>
+        </h3>
         <ul className="plain-list ponte-hist">
           {dias.map((d) => {
             const c = checklists ? doDia(checklists, d) : null;
