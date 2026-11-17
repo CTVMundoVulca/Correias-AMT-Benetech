@@ -5,6 +5,11 @@ import { seedState } from '../domain/seed';
 import { planejar } from '../integracao/progEscala';
 
 describe('plantão (fins de semana e feriados)', () => {
+  it('quem conduz veículo/caminhão no plantão não conta como executante', () => {
+    const ids = ['L', 'V', 'C', 'a', 'b', 'c', 'd', 'e', 'f'];
+    expect(situacaoPlantao({ workerIds: ids, liderId: 'L', veiculoId: 'V', caminhaoId: 'C' }, false)).toMatchObject({ executantes: 6, completo: true });
+  });
+
   it('fim de semana: 1 líder + 6; feriado: 1 líder + 8', () => {
     const ids = ['L', 'a', 'b', 'c', 'd', 'e', 'f'];
     expect(situacaoPlantao({ workerIds: ids, liderId: 'L' }, false)).toMatchObject({ executantes: 6, exigidos: 6, faltamExecutantes: 0, completo: true });
@@ -51,7 +56,7 @@ describe('supervisor e encarregado não são efetivo de execução', () => {
   it('não contam como executantes nem geram pendência de alocação', async () => {
     const { ehLideranca, ehExecucao } = await import('../domain/types');
     const { pendingWorkers } = await import('../domain/schedule');
-    expect(['Supervisor', 'supervisora', 'Encarregado', 'ENCARREGADA'].every(ehLideranca)).toBe(true);
+    expect(['Supervisor', 'supervisora', 'Encarregado', 'ENCARREGADA', 'Motorista', 'Eletricista', 'eletricista de manutenção'].every(ehLideranca)).toBe(true);
     expect(ehLideranca('Vulcanizador')).toBe(false);
     expect(ehExecucao({ funcao: 'Encarregado' })).toBe(false);
     expect(ehExecucao({ funcao: 'Vulcanizador', apoio: true })).toBe(false);
@@ -59,6 +64,8 @@ describe('supervisor e encarregado não são efetivo de execução', () => {
     const funcao = (id: string) => (id === 'S' ? 'Supervisor' : 'Vulcanizador');
     expect(situacaoPlantao({ workerIds: ['S', 'a', 'b'] }, false, funcao).executantes).toBe(2);
     expect(situacaoPlantao({ workerIds: ['S', 'a', 'b'], liderId: 'S' }, false, funcao)).toMatchObject({ liderId: 'S', executantes: 2 });
+    // motorista alocado no plantão também não conta
+    expect(situacaoPlantao({ workerIds: ['M', 'a'] }, false, (id) => (id === 'M' ? 'Motorista' : 'Vulcanizador')).executantes).toBe(1);
     // dia útil com atividade: supervisor sem alocação não é pendência
     const w = (id: string, f: string) => ({ id, nome: id, funcao: f, ativo: true });
     const day = { activities: [{ id: 'x', nome: 'X', workerIds: ['a'] }], absences: [] };
