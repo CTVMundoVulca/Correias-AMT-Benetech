@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useSomenteLeitura, useStore } from "../../state/store";
 import type { DayRef } from "../../state/reducer";
 import type { Activity, Worker } from "../../domain/types";
-import { sortByName } from "../../domain/schedule";
+import { feriadoDoDia, sortByName } from "../../domain/schedule";
+import { PAPEIS_PLANTAO, ehPlantao, situacaoPlantao } from "../../domain/plantao";
 import { useToast } from "../../ui/Toast";
 import { useConfirm } from "../../ui/ConfirmDialog";
 import { AllocationPicker } from "./AllocationPicker";
@@ -28,6 +29,12 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
   // quem também está em outra atividade do mesmo dia (ex.: a atividade mudou de dia com a equipe)
   const outras = state.weeks[dayRef.weekKey]?.days[dayRef.dayIndex]?.activities.filter((a) => a.id !== activity.id) ?? [];
   const tambemEm = (wid: string) => outras.find((a) => a.workerIds.includes(wid))?.nome;
+  const plantao = ehPlantao(activity);
+  const sit = plantao ? situacaoPlantao(activity, !!feriadoDoDia(state, dayRef.weekKey, dayRef.dayIndex)) : null;
+  const definirPapel = (campo: "liderId" | "veiculoId" | "caminhaoId", wid: string) =>
+    dispatch({ type: "activity/papel", ...dayRef, activityId: activity.id, papel: campo, workerId: wid });
+  /** papéis da pessoa no plantão (☎ líder, 🚐 veículo, 🚚 caminhão) */
+  const papeisDe = (wid: string) => (sit ? PAPEIS_PLANTAO.filter((p) => sit[p.campo] === wid) : []);
   const allocated = sortByName(
     activity.workerIds
       .map((id) => byId.get(id))
@@ -69,7 +76,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
   };
 
   return (
-    <div className="activity">
+    <div className={"activity" + (plantao ? " plantao" : "")}>
       {editing ? (
         <form
           className="row nowrap"
@@ -100,6 +107,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
       ) : (
         <div className="activity-head">
           <h3 className="activity-name">
+            {plantao && "📞 "}
             {activity.nome}
             <span className="num">{allocated.length}</span>
           </h3>
@@ -111,16 +119,18 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
               >
                 + Colaborador
               </button>
-              <button
-                className="btn small"
-                onClick={() => {
-                  setDraft(activity.nome);
-                  setEditing(true);
-                }}
-                aria-label={`Editar nome de ${activity.nome}`}
-              >
-                Editar
-              </button>
+              {!plantao && (
+                <button
+                  className="btn small"
+                  onClick={() => {
+                    setDraft(activity.nome);
+                    setEditing(true);
+                  }}
+                  aria-label={`Editar nome de ${activity.nome}`}
+                >
+                  Editar
+                </button>
+              )}
               <button
                 className="btn small ghost-danger"
                 onClick={remove}
@@ -142,6 +152,55 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
           )}
         </div>
       )}
+      {sit && (
+        <div className={"plantao-sit " + (sit.completo ? "ok" : "pend")}>
+          <span>
+            {sit.liderId ? (
+              <>
+                ☎ Líder: <b>{byId.get(sit.liderId)?.nome}</b>
+              </>
+            ) : (
+              <b>⚠ Defina o líder do plantão</b>
+            )}
+          </span>
+          <span>
+            Executantes: <b className="num">{sit.executantes}</b>/{sit.exigidos}
+            {sit.faltamExecutantes > 0 && <b> · faltam {sit.faltamExecutantes}</b>}
+            {sit.sobram > 0 && <span className="muted"> · {sit.sobram} a mais</span>}
+          </span>
+        </div>
+      )}
+      {sit && (
+        <div className="plantao-papeis">
+          {PAPEIS_PLANTAO.map((p) =>
+            ro ? (
+              <div key={p.id} className="small">
+                {p.icone} {p.nome}: <b>{sit[p.campo] ? byId.get(sit[p.campo]!)?.nome : "—"}</b>
+              </div>
+            ) : (
+              <label key={p.id} className="field">
+                <span className="small">
+                  {p.icone} {p.nome}
+                </span>
+                <select
+                  className="input"
+                  value={sit[p.campo] ?? ""}
+                  disabled={!allocated.length}
+                  onChange={(e) => definirPapel(p.campo, e.target.value)}
+                  aria-label={`${p.nome} no plantão`}
+                >
+                  <option value="">{allocated.length ? "— escolha entre os alocados —" : "aloque a equipe primeiro"}</option>
+                  {allocated.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ),
+          )}
+        </div>
+      )}
       {allocated.length === 0 ? (
         <p className="muted small">Ninguém alocado.</p>
       ) : (
@@ -154,7 +213,10 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
             >
               <span className="chip-label">
                 {tambemEm(w.id) && <span aria-label="também em outra atividade">⚠ </span>}
+                {papeisDe(w.id).map((p) => p.icone).join("")}
+                {papeisDe(w.id).length > 0 && " "}
                 {w.nome}
+                {sit?.liderId === w.id && <b> · líder</b>}
               </span>
               {!ro && (
                 <button

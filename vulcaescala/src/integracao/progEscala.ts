@@ -12,6 +12,7 @@
 import type { Action, DayRef } from '../state/reducer';
 import type { Activity, Day } from '../domain/types';
 import { cleanName } from '../domain/names';
+import { ehPlantao } from '../domain/plantao';
 import { atividadeVazia, chaveBusca, classificar, maiusculas, mesDe, tipoPelaDescricao, DESCRICAO_MAX, type Atividade } from '../prog/model';
 
 /** A sincronização vale para atividades a partir desta data (o histórico anterior não é mexido). */
@@ -97,6 +98,8 @@ export function planejar(opts: {
   for (const dia of dias) {
     if (dia.data < desde) continue;
     for (const act of dia.day.activities) {
+      // o PLANTÃO é da escala (fim de semana/feriado): não vira atividade da programação
+      if (ehPlantao(act)) continue;
       const pid = progIdDaEscala(act.id);
       ocorr.set(pid, [...(ocorr.get(pid) ?? []), { dia, act }]);
     }
