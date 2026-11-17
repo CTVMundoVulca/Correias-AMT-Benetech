@@ -5,6 +5,7 @@ import { authErrorMsg } from '../cloud/authErrors';
 import { newId } from '../domain/ids';
 import { comprimirFoto } from '../emenda/data';
 import { irPara, usePonte } from './context';
+import { SituacaoLista } from './Painel';
 import { gravarChecklist, type FotoItem } from './data';
 import {
   AREA,
@@ -36,7 +37,7 @@ export function Inspecao() {
 }
 
 function Entrar({ logadoComo }: { logadoComo: string }) {
-  const { api, operadores, hoje } = usePonte();
+  const { api, operadores, operadoresFonte, operadoresErro, hoje } = usePonte();
   const [sel, setSel] = useState('');
   const [pin, setPin] = useState('');
   const [erro, setErro] = useState('');
@@ -70,8 +71,9 @@ function Entrar({ logadoComo }: { logadoComo: string }) {
         <h2>Fazer inspeção</h2>
         <p className="small muted">Só operadores habilitados, com o treinamento válido. Escolha o seu nome e digite o seu PIN pessoal.</p>
         {logadoComo && <p className="banner info small">Este aparelho está com outra sessão ({logadoComo}). Ao entrar com o PIN, ela é encerrada.</p>}
+        <SituacaoLista fonte={operadoresFonte} erro={operadoresErro} vazia={!lista.length} />
         {!lista.length ? (
-          <p className="banner warn">Nenhum operador cadastrado. Um administrador cadastra em Gestão.</p>
+          operadoresFonte === 'nuvem' && <p className="banner warn">Nenhum operador cadastrado. Um administrador cadastra em Gestão.</p>
         ) : (
           <form className="stack" onSubmit={(e) => void entrar(e)}>
             <ul className="plain-list ponte-escolha" role="radiogroup" aria-label="Operador">

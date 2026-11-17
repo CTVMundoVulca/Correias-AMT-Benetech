@@ -12,13 +12,15 @@ export const COL_CHECKLISTS = 'ponte_checklists';
 
 type Unsub = () => void;
 
-export function ouvirOperadores(api: FirebaseApi, cb: (l: Operador[]) => void, onErr: (e: unknown) => void = () => {}): Unsub {
+/** cb recebe a lista e se ela veio só do cache do aparelho (sem confirmação da nuvem) */
+export function ouvirOperadores(api: FirebaseApi, cb: (l: Operador[], soCache: boolean) => void, onErr: (e: unknown) => void = () => {}): Unsub {
   const { fsMod, fs } = api;
   return fsMod.onSnapshot(
     fsMod.doc(fs, DOC_OPERADORES),
+    { includeMetadataChanges: true },
     (snap) => {
       const m = (snap.data()?.operadores ?? {}) as Record<string, unknown>;
-      cb(Object.entries(m).flatMap(([id, v]) => completarOperador(id, v) ?? []));
+      cb(Object.entries(m).flatMap(([id, v]) => completarOperador(id, v) ?? []), snap.metadata.fromCache);
     },
     onErr,
   );
