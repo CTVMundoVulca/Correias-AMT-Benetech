@@ -10,6 +10,7 @@ import { irPara, usePonte } from './context';
 import { gravarOperador } from './data';
 import {
   AVISO_DIAS,
+  INICIO_PONTE,
   MATRICULA_MAX,
   NOME_MAX,
   PIN_TAM,
@@ -37,7 +38,7 @@ export function Gestao() {
   const confirm = useConfirm();
   const lista = useMemo(() => ordenarOperadores(operadores), [operadores]);
   const avisos = lista.filter((o) => o.ativo && situacaoTreinamento(o, hoje).s !== 'ok');
-  const semChecklist = useMemo(() => (checklists ? Array.from({ length: 30 }, (_, i) => somaDias(hoje, -i - 1)).filter((d) => !doDia(checklists, d)) : []), [checklists, hoje]);
+  const semChecklist = useMemo(() => (checklists ? Array.from({ length: 30 }, (_, i) => somaDias(hoje, -i - 1)).filter((d) => d >= INICIO_PONTE && !doDia(checklists, d)) : []), [checklists, hoje]);
 
   const sair = () => void api.authMod.signOut(api.auth).then(() => irPara('#/'));
   if (!admin)
@@ -127,7 +128,7 @@ export function Gestao() {
       <section className="card pad stack">
         <h3>Dias sem checklist (últimos 30)</h3>
         <p className="small">{semChecklist.length ? semChecklist.map((d) => dataBr(d).slice(0, 5)).join(', ') : 'Nenhum: todos os dias têm checklist.'}</p>
-        <p className="small muted">Dias sem uso da ponte também aparecem aqui.</p>
+        <p className="small muted">Conta a partir de {dataBr(INICIO_PONTE)} (início do checklist no app). Dias sem uso da ponte também aparecem aqui.</p>
       </section>
       {ed && createPortal(<OperadorDialog ed={ed} onClose={() => setEd(null)} />, document.body)}
     </div>

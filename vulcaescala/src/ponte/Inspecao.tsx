@@ -5,6 +5,7 @@ import { authErrorMsg } from '../cloud/authErrors';
 import { newId } from '../domain/ids';
 import { comprimirFoto } from '../emenda/data';
 import { irPara, usePonte } from './context';
+import { SituacaoLista } from './Painel';
 import { gravarChecklist, type FotoItem } from './data';
 import {
   AREA,
@@ -36,7 +37,7 @@ export function Inspecao() {
 }
 
 function Entrar({ logadoComo }: { logadoComo: string }) {
-  const { api, operadores, hoje } = usePonte();
+  const { api, operadores, operadoresFonte, operadoresErro, hoje } = usePonte();
   const [sel, setSel] = useState('');
   const [pin, setPin] = useState('');
   const [erro, setErro] = useState('');
@@ -70,8 +71,9 @@ function Entrar({ logadoComo }: { logadoComo: string }) {
         <h2>Fazer inspeção</h2>
         <p className="small muted">Só operadores habilitados, com o treinamento válido. Escolha o seu nome e digite o seu PIN pessoal.</p>
         {logadoComo && <p className="banner info small">Este aparelho está com outra sessão ({logadoComo}). Ao entrar com o PIN, ela é encerrada.</p>}
+        <SituacaoLista fonte={operadoresFonte} erro={operadoresErro} vazia={!lista.length} />
         {!lista.length ? (
-          <p className="banner warn">Nenhum operador cadastrado. Um administrador cadastra em Gestão.</p>
+          operadoresFonte === 'nuvem' && <p className="banner warn">Nenhum operador cadastrado. Um administrador cadastra em Gestão.</p>
         ) : (
           <form className="stack" onSubmit={(e) => void entrar(e)}>
             <ul className="plain-list ponte-escolha" role="radiogroup" aria-label="Operador">
@@ -167,7 +169,6 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
     const semObs = MODELO.itens.filter((i) => resp[i.id]?.r === 'NC' && !resp[i.id]?.obs.trim());
     if (semObs.length) return toast('Descreva o problema nos itens marcados "N – Não atende".', 'warn');
     if (apto === null) return toast('Responda a pergunta final: a ponte está em condições de operar?', 'warn');
-    if (apto === true && criticos.length) return toast('Há item crítico marcado "N – Não atende": a ponte não pode operar. Responda "Não" na pergunta final.', 'warn');
     if (apto === false && !obsGeral.trim()) return toast('Ponte interditada: descreva no relatório o que foi encontrado, para a supervisão.', 'warn');
     const ok = await confirm({
       title: resultado === 'bloqueada' ? 'Enviar: ponte INTERDITADA?' : 'Enviar checklist: ponte liberada?',
@@ -271,7 +272,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       ))}
 
       <section className="card pad stack">
-        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável. Itens “crítico” com N interditam a ponte.</p>
+        <p className="small muted">Legenda: S – Atende ao item · N – Não atende ao item · NA – Não aplicável. Itens “crítico” com N pedem atenção: a liberação é decidida na pergunta final.</p>
         <div className="ponte-item">
           <b>{PERGUNTA_FINAL}</b>
           <div className="segmented" role="radiogroup" aria-label="Pergunta final">
@@ -282,7 +283,12 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
               Não — interditar
             </button>
           </div>
-          {criticos.length > 0 && apto !== false && <p className="banner danger small">Item crítico com N: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. A ponte não pode operar.</p>}
+          {criticos.length > 0 && apto !== false && (
+            <p className="banner warn small">
+              ⚠ Item crítico com N: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. Confirme se, ainda assim, a ponte está em condições de operar; a
+              liberação fica registrada com esses itens.
+            </p>
+          )}
         </div>
         <label className="field">
           {apto === false ? 'Relatório para a supervisão (obrigatório)' : 'Observações (opcional)'}

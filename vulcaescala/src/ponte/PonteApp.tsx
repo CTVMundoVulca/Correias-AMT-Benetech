@@ -40,6 +40,8 @@ export function PonteApp() {
   const [adminEscala, setAdminEscala] = useState(false);
   const [papeis, setPapeis] = useState<Papeis>(PAPEIS_VAZIOS);
   const [operadores, setOperadores] = useState<Operador[]>([]);
+  const [operadoresFonte, setOperadoresFonte] = useState<PonteCtx['operadoresFonte']>('carregando');
+  const [operadoresErro, setOperadoresErro] = useState('');
   const [checklists, setChecklists] = useState<Checklist[] | null>(null);
   const [pendente, setPendente] = useState(false);
   const [rota, setRota] = useState<Rota>(lerRota);
@@ -108,7 +110,18 @@ export function PonteApp() {
   const desde = useMemo(() => somaDias(hoje, -HISTORICO_DIAS), [hoje]);
   useEffect(() => {
     if (phase !== 'ready' || !api) return;
-    const u1 = ouvirOperadores(api, setOperadores);
+    const u1 = ouvirOperadores(
+      api,
+      (l, soCache) => {
+        setOperadores(l);
+        setOperadoresFonte(soCache ? 'cache' : 'nuvem');
+        setOperadoresErro('');
+      },
+      (e) => {
+        setOperadoresFonte('erro');
+        setOperadoresErro(String((e as { code?: string })?.code ?? (e as Error)?.message ?? e));
+      },
+    );
     const u2 = ouvirChecklists(api, desde, (l, p) => {
       setChecklists(l);
       setPendente(p);
@@ -125,8 +138,8 @@ export function PonteApp() {
   const operador = useMemo(() => (email ? (operadores.find((o) => o.authEmail === email) ?? null) : null), [email, operadores]);
 
   const ctx = useMemo<PonteCtx | null>(
-    () => (api ? { api, email, uid, admin, operador, operadores, checklists, pendente, hoje } : null),
-    [api, email, uid, admin, operador, operadores, checklists, pendente, hoje],
+    () => (api ? { api, email, uid, admin, operador, operadores, operadoresFonte, operadoresErro, checklists, pendente, hoje } : null),
+    [api, email, uid, admin, operador, operadores, operadoresFonte, operadoresErro, checklists, pendente, hoje],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };

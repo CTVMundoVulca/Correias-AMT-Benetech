@@ -19,7 +19,9 @@ describe('ponte rolante', () => {
 
   it('resultado: item crítico não conforme bloqueia; os outros não', () => {
     expect(resultadoDe(itens, { a: { r: 'C', obs: '' }, b: { r: 'NC', obs: 'x' } })).toBe('liberada');
-    expect(resultadoDe(itens, { a: { r: 'NC', obs: 'x' }, b: { r: 'C', obs: '' } })).toBe('bloqueada');
+    // item crítico com N: quem decide é a pergunta final
+    expect(resultadoDe(itens, { a: { r: 'NC', obs: 'x' }, b: { r: 'C', obs: '' } }, true)).toBe('liberada');
+    expect(resultadoDe(itens, { a: { r: 'NC', obs: 'x' }, b: { r: 'C', obs: '' } }, false)).toBe('bloqueada');
     expect(resultadoDe(itens, { a: { r: 'C', obs: '' }, b: { r: 'C', obs: '' } }, false)).toBe('bloqueada'); // pergunta final "Não"
     expect(faltando(itens, { a: { r: 'NA', obs: '' } }).map((i) => i.id)).toEqual(['b']);
   });

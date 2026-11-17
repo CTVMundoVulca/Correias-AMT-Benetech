@@ -332,7 +332,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         </div>
         <h3 className="sub">Inspeção pós-vulcanização</h3>
         <div className="g2">
-          <Txt e={e} set={set} c="dureza" label="Menor valor dureza Shore A" mode="numeric" />
+          <Txt e={e} set={set} c="dureza" label={e.tipoCorreia === 'Cabo Aço' ? 'Menor valor dureza Shore A' : 'Menor valor dureza Shore A (opcional na lona)'} mode="numeric" />
           <Opts e={e} set={set} c="ckBolha" label="Presença de bolha?" op={['Não', 'Sim']} />
           <Opts e={e} set={set} c="ckAcabamento" label="Feito acabamento?" op={['Sim', 'Não']} />
           <Opts e={e} set={set} c="ckFaltouMaterial" label="Faltou material?" op={['Não', 'Sim']} />

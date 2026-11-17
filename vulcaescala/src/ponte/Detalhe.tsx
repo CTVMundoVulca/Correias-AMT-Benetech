@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, usePonte } from './context';
 import { ouvirChecklist, ouvirFotos, type FotoItem } from './data';
-import { AREA, PERGUNTA_FINAL, RESPOSTAS, dataBr, horaDe, type Checklist } from './model';
+import { AREA, PERGUNTA_FINAL, RESPOSTAS, criticosNC, dataBr, horaDe, type Checklist } from './model';
 
 /** Um checklist completo (consulta e PDF para auditoria). */
 export function Detalhe({ id }: { id: string }) {
@@ -35,6 +35,11 @@ export function Detalhe({ id }: { id: string }) {
             {c.modeloVersao.replace(' rev.', ' · Rev. ')} · Área: {AREA} · Contrato AMT
           </div>
           <div className={'ponte-resultado ' + c.resultado}>{c.resultado === 'bloqueada' ? '⛔ INTERDITADA' : '✓ LIBERADA para operar'}</div>
+          {c.resultado === 'liberada' && criticosNC(c.itens, c.respostas).length > 0 && (
+            <div className="small">
+              ⚠ Liberada pelo operador com item crítico em N: {criticosNC(c.itens, c.respostas).map((i) => i.texto.split('.')[0]).join(', ')}.
+            </div>
+          )}
           <table className="ponte-cab">
             <tbody>
               <tr>

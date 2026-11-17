@@ -70,6 +70,9 @@ export const PERGUNTA_FINAL =
   'Diante dos pontos observados nesta inspeção, a ponte rolante está em condições de operar normalmente? Em caso negativo emitir um relatório para a supervisão do setor e interditar o equipamento.';
 export const AREA = 'Oficina da vulcanização';
 
+/** primeiro dia de uso do checklist no app: antes disso não há "dia sem checklist" */
+export const INICIO_PONTE = '2026-11-17';
+
 export const PIN_TAM = 6;
 export const NOME_MAX = 120;
 export const MATRICULA_MAX = 30;
@@ -192,9 +195,12 @@ export const ordenarOperadores = (l: Operador[]) => [...l].sort((a, b) => a.nome
 
 // ------------------------------------------------------------------ checklist
 
-/** interditada se o operador disser que não está em condições OU se um item crítico estiver "N" */
-export function resultadoDe(itens: ItemModelo[], respostas: Record<string, RespostaItem>, apto: boolean | null = true): 'liberada' | 'bloqueada' {
-  return apto === false || itens.some((i) => i.bloqueia && respostas[i.id]?.r === 'NC') ? 'bloqueada' : 'liberada';
+/**
+ * Quem decide é a pergunta final (como no formulário em papel): "Não" interdita; "Sim" libera,
+ * mesmo com item crítico em "N" (o registro mostra esses itens para a auditoria).
+ */
+export function resultadoDe(_itens: ItemModelo[], _respostas: Record<string, RespostaItem>, apto: boolean | null = true): 'liberada' | 'bloqueada' {
+  return apto === false ? 'bloqueada' : 'liberada';
 }
 
 /** itens críticos marcados "N" */

@@ -562,7 +562,8 @@ export function pendenciasConclusao(e: Emenda): string[] {
   txt(e.tempVulc, 'Temperatura de vulcanização');
   txt(e.tempoVulc, 'Tempo de vulcanização');
   txt(e.pressaoVulc, 'Pressão');
-  txt(e.dureza, 'Dureza Shore A');
+  // dureza: medida só nas emendas de cabo de aço (na lona é opcional)
+  if (e.tipoCorreia === 'Cabo Aço') txt(e.dureza, 'Dureza Shore A');
   opc(e.ckBolha, 'Presença de bolha?');
   opc(e.ckAcabamento, 'Feito acabamento?');
   opc(e.ckFaltouMaterial, 'Faltou material?');

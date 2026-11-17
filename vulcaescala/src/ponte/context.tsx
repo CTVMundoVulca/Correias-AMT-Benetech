@@ -12,6 +12,9 @@ export interface PonteCtx {
   /** operador logado nesta sessão (fazendo o checklist) */
   operador: Operador | null;
   operadores: Operador[];
+  /** situação da leitura dos operadores: diagnóstico quando a lista não aparece */
+  operadoresFonte: 'carregando' | 'nuvem' | 'cache' | 'erro';
+  operadoresErro: string;
   /** checklists dos últimos dias (mais recentes primeiro) */
   checklists: Checklist[] | null;
   /** há checklist deste aparelho ainda não recebido pela nuvem */
