@@ -27,6 +27,8 @@ export type Action =
   /** coloca a atividade com a equipe (usado para mudar de dia: remove de um, põe no outro) */
   | ({ type: 'activity/put'; id: string; nome: string; workerIds: string[] } & DayRef)
   | ({ type: 'activity/setWorker'; activityId: string; workerId: string; allocated: boolean } & DayRef)
+  /** plantão: copia a atividade inteira (equipe e papéis) para o dia, substituindo a que existir; ausentes ficam de fora */
+  | ({ type: 'activity/replace'; id: string; nome: string; workerIds: string[]; liderId?: string; veiculoId?: string; caminhaoId?: string } & DayRef)
   /** plantão: designa (ou retira, com '') líder / veículo de transporte / caminhão entre os alocados */
   | ({ type: 'activity/papel'; activityId: string; papel: 'liderId' | 'veiculoId' | 'caminhaoId'; workerId: string } & DayRef)
   | ({ type: 'absence/set'; workerId: string; tipo: AbsenceType | null } & DayRef);
@@ -242,6 +244,21 @@ export function reducer(state: AppState, action: Action): AppState {
         };
       });
 
+    case 'activity/replace': {
+      const nome = cleanName(action.nome);
+      if (!nome) return state;
+      return updateDay(state, action, (d) => {
+        const ausentes = new Set(d.absences.map((a) => a.workerId));
+        const workerIds = [...new Set(action.workerIds)].filter((w) => !ausentes.has(w));
+        const nova: Activity = { id: action.id, nome, workerIds };
+        for (const k of ['liderId', 'veiculoId', 'caminhaoId'] as const) {
+          const v = action[k];
+          if (v && workerIds.includes(v)) nova[k] = v;
+        }
+        const existe = d.activities.some((a) => a.id === action.id);
+        return { ...d, activities: existe ? d.activities.map((a) => (a.id === action.id ? nova : a)) : [...d.activities, nova] };
+      });
+    }
     case 'activity/papel':
       return updateDay(state, action, (d) => ({
         ...d,

@@ -35,6 +35,22 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
   // plantão: alterações no 1º dia do período são repetidas nos demais dias
   const despachar = plantao ? per.despachar : dispatch;
   const sit = plantao ? situacaoPlantao(activity, per.feriado, (id) => byId.get(id)?.funcao) : null;
+  /** copia o plantão inteiro deste (1º) dia para os demais dias do período */
+  const copiarParaOsDemais = async () => {
+    const outrosComPlantao = per.outros.filter((r) => state.weeks[r.weekKey]?.days[r.dayIndex]?.activities.some(ehPlantao));
+    if (
+      outrosComPlantao.length &&
+      !(await confirm({
+        title: "Substituir o plantão dos demais dias?",
+        message: <p>{per.rotulosOutros.join(" e ")}: a equipe, o líder e os motoristas passam a ser iguais aos deste dia. Quem estiver ausente lá fica de fora.</p>,
+        confirmLabel: "Copiar",
+      }))
+    )
+      return;
+    for (const r of per.outros)
+      dispatch({ type: "activity/replace", ...r, id: activity.id, nome: activity.nome, workerIds: activity.workerIds, liderId: sit?.liderId ?? undefined, veiculoId: sit?.veiculoId ?? undefined, caminhaoId: sit?.caminhaoId ?? undefined });
+    toast(`Plantão copiado para ${per.rotulosOutros.join(" e ")}`);
+  };
   const definirPapel = (campo: "liderId" | "veiculoId" | "caminhaoId", wid: string) =>
     despachar({ type: "activity/papel", ...dayRef, activityId: activity.id, papel: campo, workerId: wid });
   /** papéis da pessoa no plantão (☎ líder, 🚐 veículo, 🚚 caminhão) */
@@ -182,6 +198,11 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
             ? `Plantão de ${per.descricao}: o que preencher aqui é repetido nos demais dias.`
             : `Plantão de ${per.descricao}: preencha no primeiro dia (${per.inicio}) para valer em todos; alterações aqui valem só para este dia.`}
         </p>
+      )}
+      {sit && !ro && per.primeiro && per.outros.length > 0 && allocated.length > 0 && (
+        <button className="btn small" onClick={() => void copiarParaOsDemais()}>
+          ⧉ Copiar para {per.rotulosOutros.join(" e ")}
+        </button>
       )}
       {sit && (
         <div className="plantao-papeis">

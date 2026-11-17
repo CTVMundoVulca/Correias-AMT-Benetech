@@ -97,3 +97,19 @@ describe('período do plantão, réplica e ordem dos nomes', () => {
     expect(l.map((x) => x.nome)).toEqual(['GLAUBER', 'CLÁUDIO', 'ERICK', 'ROBERT', 'SANDRO', 'IRINEU']);
   });
 });
+
+describe('copiar o plantão para os demais dias', () => {
+  it('substitui equipe e papéis; ausentes do dia ficam de fora', () => {
+    let s = seedState((n) => n);
+    const sab = { weekKey: '2026-W47', dayIndex: 5 };
+    s = reducer(s, { type: 'absence/set', ...sab, workerId: 'B', tipo: 'atestado' });
+    s = reducer(s, { type: 'activity/replace', ...sab, id: PLANTAO_ID, nome: 'PLANTÃO', workerIds: ['A', 'B', 'C'], liderId: 'B', caminhaoId: 'C' });
+    let p = s.weeks['2026-W47'].days[5].activities[0];
+    expect([p.workerIds, p.liderId, p.caminhaoId]).toEqual([['A', 'C'], undefined, 'C']);
+    // de novo: substitui (não duplica)
+    s = reducer(s, { type: 'activity/replace', ...sab, id: PLANTAO_ID, nome: 'PLANTÃO', workerIds: ['A'], liderId: 'A' });
+    p = s.weeks['2026-W47'].days[5].activities[0];
+    expect(s.weeks['2026-W47'].days[5].activities).toHaveLength(1);
+    expect([p.workerIds, p.liderId, p.caminhaoId]).toEqual([['A'], 'A', undefined]);
+  });
+});

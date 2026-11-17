@@ -27,6 +27,9 @@ export function usePlantao(dayRef: DayRef) {
       : '',
     inicio: periodo ? rotulo(periodo.dias[0]) : '',
     ehInicio: (d: Date) => !!periodo && toIsoDate(periodo.dias[0]) === toIsoDate(d),
+    /** demais dias do período (só quando este é o primeiro) */
+    outros,
+    rotulosOutros: primeiro && periodo ? periodo.dias.slice(1).map(rotulo) : [],
     /** despacha no dia e, se for o primeiro dia do período, repete nos demais */
     despachar: (action: Action & DayRef) => {
       dispatch(action);
