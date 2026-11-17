@@ -1,4 +1,4 @@
-import { AbsenceType, AppState, Day, Worker, emptyDay } from './types';
+import { AbsenceType, AppState, Day, Worker, ehExecucao, emptyDay } from './types';
 import { addDays, locateDay, toIsoDate, weekDates } from './isoWeek';
 import { feriadoEm } from './feriados';
 
@@ -35,7 +35,8 @@ export function pendingWorkers(day: Day, workers: Worker[], feriado: string | nu
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
   // apoio de outro contrato: só entra no dia em que é alocado (não gera pendência)
-  return sortByName(workers.filter((w) => w.ativo && !w.apoio && !alloc.has(w.id) && !absent.has(w.id)));
+  // supervisor/encarregado: liderança, não é efetivo de execução (não gera pendência)
+  return sortByName(workers.filter((w) => w.ativo && ehExecucao(w) && !alloc.has(w.id) && !absent.has(w.id)));
 }
 
 /** Nome do feriado (nacional ou municipal) no dia da semana, ou null. */
@@ -73,7 +74,7 @@ export function folgasDeFeriado(day: Day, workers: Worker[], feriado: string | n
   if (!feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
-  return sortByName(workers.filter((w) => w.ativo && !w.apoio && !alloc.has(w.id) && !absent.has(w.id)));
+  return sortByName(workers.filter((w) => w.ativo && ehExecucao(w) && !alloc.has(w.id) && !absent.has(w.id)));
 }
 
 export interface DayPending {

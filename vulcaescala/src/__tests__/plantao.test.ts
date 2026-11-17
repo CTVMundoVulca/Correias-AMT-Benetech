@@ -46,3 +46,22 @@ describe('plantão (fins de semana e feriados)', () => {
     expect(r.avisos).toEqual([]);
   });
 });
+
+describe('supervisor e encarregado não são efetivo de execução', () => {
+  it('não contam como executantes nem geram pendência de alocação', async () => {
+    const { ehLideranca, ehExecucao } = await import('../domain/types');
+    const { pendingWorkers } = await import('../domain/schedule');
+    expect(['Supervisor', 'supervisora', 'Encarregado', 'ENCARREGADA'].every(ehLideranca)).toBe(true);
+    expect(ehLideranca('Vulcanizador')).toBe(false);
+    expect(ehExecucao({ funcao: 'Encarregado' })).toBe(false);
+    expect(ehExecucao({ funcao: 'Vulcanizador', apoio: true })).toBe(false);
+    // plantão: supervisor alocado não conta como executante (mas pode ser o líder)
+    const funcao = (id: string) => (id === 'S' ? 'Supervisor' : 'Vulcanizador');
+    expect(situacaoPlantao({ workerIds: ['S', 'a', 'b'] }, false, funcao).executantes).toBe(2);
+    expect(situacaoPlantao({ workerIds: ['S', 'a', 'b'], liderId: 'S' }, false, funcao)).toMatchObject({ liderId: 'S', executantes: 2 });
+    // dia útil com atividade: supervisor sem alocação não é pendência
+    const w = (id: string, f: string) => ({ id, nome: id, funcao: f, ativo: true });
+    const day = { activities: [{ id: 'x', nome: 'X', workerIds: ['a'] }], absences: [] };
+    expect(pendingWorkers(day, [w('a', 'Vulcanizador'), w('b', 'Vulcanizador'), w('S', 'Supervisor')]).map((x) => x.id)).toEqual(['b']);
+  });
+});

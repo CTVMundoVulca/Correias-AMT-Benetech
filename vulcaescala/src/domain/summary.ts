@@ -1,4 +1,4 @@
-import { AbsenceType, AppState, Worker } from './types';
+import { AbsenceType, AppState, Worker, ehExecucao } from './types';
 import { absenceOf, folgaAutoDoDia, folgasDeFeriado, getDay, sortByName, FOLGA_FERIADO } from './schedule';
 
 export interface WeekKpis {
@@ -32,7 +32,7 @@ export function weekKpis(state: AppState, weekKey: string): WeekKpis {
     allocations += d.activities.reduce((s, a) => s + a.workerIds.length, 0);
     absences += d.absences.length + folgasDeFeriado(d, state.workers, folgaAutoDoDia(state, weekKey, i)).length;
   }
-  return { activities, allocations, absences, activeWorkers: state.workers.filter((w) => w.ativo).length };
+  return { activities, allocations, absences, activeWorkers: state.workers.filter((w) => w.ativo && ehExecucao(w)).length };
 }
 
 /**

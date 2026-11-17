@@ -55,7 +55,7 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
         <Kpi value={kpis.activities} label="atividades" />
         <Kpi value={kpis.allocations} label="alocações" />
         <Kpi value={kpis.absences} label="ausências" />
-        <Kpi value={kpis.activeWorkers} label="efetivo ativo" />
+        <Kpi value={kpis.activeWorkers} label="efetivo de execução" />
       </div>
 
       <div className="card pad summary-card">

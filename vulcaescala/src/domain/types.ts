@@ -23,6 +23,19 @@ export interface Worker {
   apoio?: boolean;
 }
 
+/**
+ * Supervisor e encarregado são liderança: NÃO contam como efetivo de execução (não geram
+ * pendência de alocação, não entram na capacidade nem nos executantes do plantão).
+ * Podem ser alocados normalmente e designados como líder do plantão.
+ */
+export function ehLideranca(funcao: string | undefined): boolean {
+  const f = (funcao ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return f.startsWith('supervis') || f.startsWith('encarregad');
+}
+
+/** efetivo de execução do contrato: ativo para contas, sem apoio de outro contrato e sem liderança */
+export const ehExecucao = (w: { apoio?: boolean; funcao?: string }) => !w.apoio && !ehLideranca(w.funcao);
+
 export const MATRICULA_MAX = 30;
 export function cleanMatricula(s: string | undefined): string {
   return (s ?? '').replace(/\s+/g, ' ').trim().slice(0, MATRICULA_MAX);

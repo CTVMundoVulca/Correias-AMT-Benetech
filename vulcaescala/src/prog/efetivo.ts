@@ -1,3 +1,4 @@
+import { ehExecucao } from '../domain/types';
 /**
  * Efetivo do dia lido da ESCALA (cópia pública: nome e função, sem matrícula e sem motivo
  * de ausência). A Programação diz quantas pessoas cada atividade pede; a Escala diz quem
@@ -36,7 +37,8 @@ export function efetivoDoDia(
   folga: boolean,
   progPorId: Map<string, Atividade>,
 ): EfetivoDia {
-  const ativos = efetivo.filter((w) => w.ativo && !w.apoio);
+  // execução do contrato: sem apoio e sem liderança (supervisor/encarregado)
+  const ativos = efetivo.filter((w) => w.ativo && ehExecucao(w));
   const ids = new Set(ativos.map((w) => w.id));
   const idsApoio = new Set(efetivo.filter((w) => w.apoio).map((w) => w.id));
   const apoio = new Set<string>();

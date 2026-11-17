@@ -8,6 +8,7 @@
  * contam como executantes).
  */
 import type { Activity } from './types';
+import { ehLideranca } from './types';
 
 export const PLANTAO_ID = 'plantao';
 export const PLANTAO_NOME = 'PLANTÃO';
@@ -39,10 +40,18 @@ export interface SituacaoPlantao {
   completo: boolean;
 }
 
-export function situacaoPlantao(a: Pick<Activity, 'workerIds' | 'liderId' | 'veiculoId' | 'caminhaoId'>, feriado: boolean): SituacaoPlantao {
+/**
+ * `funcaoDe`: função de cada pessoa (cadastro). Supervisor/encarregado não contam como
+ * executantes (podem ser o líder do plantão).
+ */
+export function situacaoPlantao(
+  a: Pick<Activity, 'workerIds' | 'liderId' | 'veiculoId' | 'caminhaoId'>,
+  feriado: boolean,
+  funcaoDe: (id: string) => string | undefined = () => undefined,
+): SituacaoPlantao {
   const valido = (id: string | undefined) => (id && a.workerIds.includes(id) ? id : null);
   const liderId = valido(a.liderId);
-  const executantes = a.workerIds.length - (liderId ? 1 : 0);
+  const executantes = a.workerIds.filter((id) => id !== liderId && !ehLideranca(funcaoDe(id))).length;
   const exigidos = executantesExigidos(feriado);
   const faltamExecutantes = Math.max(0, exigidos - executantes);
   return { liderId, veiculoId: valido(a.veiculoId), caminhaoId: valido(a.caminhaoId), executantes, exigidos, faltamExecutantes, sobram: Math.max(0, executantes - exigidos), completo: !!liderId && faltamExecutantes === 0 };
