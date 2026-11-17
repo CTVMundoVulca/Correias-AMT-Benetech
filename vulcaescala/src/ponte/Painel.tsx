@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { irPara, usePonte } from './context';
-import { dataBr, doDia, horaDe, ordenarOperadores, situacaoTreinamento, somaDias, textoTreinamento, type Checklist } from './model';
+import { MODELO, criticosNC, dataBr, doDia, horaDe, ordenarOperadores, situacaoTreinamento, somaDias, textoTreinamento, type Checklist } from './model';
 
 const DIAS_HISTORICO = 30;
 
@@ -29,6 +29,15 @@ export function Painel() {
               Por <b>{deHoje.nome}</b> · Matrícula <b>{deHoje.matricula}</b> · às {horaDe(deHoje.feitoEm)}
               {!deHoje.recebidoEm && ' · aguardando envio'}
             </p>
+            {deHoje.resultado === 'liberada' && criticosNC(deHoje.itens.length ? deHoje.itens : MODELO.itens, deHoje.respostas).length > 0 && (
+              <p className="small">
+                ⚠ Liberada pelo operador com item crítico em N:{' '}
+                {criticosNC(deHoje.itens.length ? deHoje.itens : MODELO.itens, deHoje.respostas)
+                  .map((i) => i.texto.split('.')[0])
+                  .join(', ')}
+                .
+              </p>
+            )}
             {deHoje.resultado === 'bloqueada' && (
               <p>
                 Não está em condições de operar{deHoje.observacao ? `: ${deHoje.observacao.replace(/[.\s]+$/, '')}` : ''}. Não use a ponte até a correção e um novo checklist.
