@@ -681,7 +681,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
               <input className={inp(q.marca)} value={q.marca} onChange={(ev) => upd(i, { marca: ev.target.value })} />
             </label>
             <label className="field">
-              Código
+              Patrimônio/Identificação
               <input className={inp(q.codigo)} value={q.codigo} onChange={(ev) => upd(i, { codigo: ev.target.value })} />
             </label>
             <label className="field">
