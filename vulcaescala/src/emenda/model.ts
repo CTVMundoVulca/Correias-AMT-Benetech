@@ -559,9 +559,16 @@ export function pendenciasConclusao(e: Emenda): string[] {
   txt(e.tempSuperficie, 'Temp. superfície');
   opc(e.clima, 'Clima');
   opc(e.rodilhada, 'Rodilhada?');
-  txt(e.tempVulc, 'Temperatura de vulcanização');
-  txt(e.tempoVulc, 'Tempo de vulcanização');
-  txt(e.pressaoVulc, 'Pressão');
+  // parâmetros da vulcanização: obrigatórios só na emenda A QUENTE (na fria ficam N/A);
+  // na quente, "N/A" não vale como valor
+  if (e.tipoEmenda === 'Quente') {
+    const valor = (v: string, nome: string) => (vazioTxt(v) || v.trim().toUpperCase() === 'N/A') && f.push(nome);
+    valor(e.tempVulc, 'Temperatura de vulcanização');
+    valor(e.tempoVulc, 'Tempo de vulcanização');
+    valor(e.pressaoVulc, 'Pressão');
+    valor(e.tempAbertura, 'Temp. abertura da prensa');
+    valor(e.horaAbertura, 'Hora abertura da prensa');
+  }
   // dureza: medida só nas emendas de cabo de aço (na lona é opcional)
   if (e.tipoCorreia === 'Cabo Aço') txt(e.dureza, 'Dureza Shore A');
   opc(e.ckBolha, 'Presença de bolha?');

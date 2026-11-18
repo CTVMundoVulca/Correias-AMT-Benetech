@@ -135,6 +135,10 @@ describe('conclusão do relatório de emenda', () => {
     expect(pendenciasConclusao(ok)).toEqual([]);
     // cabo de aço exige os estágios
     expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', estagio1: '', estagio2: '', estagio3: '', chanfro: '' })).toEqual(['1º estágio', '2º estágio', '3º estágio', 'Chanfro']);
+    // vulcanização: na fria não é exigida; na quente é, e "N/A" não vale
+    expect(pendenciasConclusao({ ...ok, tipoEmenda: 'Frio', tempVulc: '', tempoVulc: '', pressaoVulc: '' })).toEqual([]);
+    const quente = pendenciasConclusao({ ...ok, tipoEmenda: 'Quente', tempVulc: 'N/A', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '', horaAbertura: '11:00' });
+    expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa']);
     // dureza: obrigatória só no cabo de aço
     expect(pendenciasConclusao({ ...ok, dureza: '' })).toEqual([]);
     expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', dureza: '' })).toContain('Dureza Shore A');
