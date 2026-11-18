@@ -323,6 +323,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <Area e={e} set={set} c="contamDepois" label="Contaminantes depois da aplicação da cola" />
         <Opts e={e} set={set} c="rodilhada" label="Rodilhada?" op={['Sim', 'Não', 'N/A']} />
         <h3 className="sub">Vulcanização</h3>
+        {e.tipoEmenda !== 'Quente' && <p className="small muted">Emenda a frio: parâmetros de vulcanização não se aplicam (obrigatórios só na emenda a quente).</p>}
         <div className="g2">
           <Txt e={e} set={set} c="tempVulc" label="Temperatura vulc. °C" mode="decimal" />
           <Txt e={e} set={set} c="tempoVulc" label="Tempo vulc. (min)" mode="numeric" />
