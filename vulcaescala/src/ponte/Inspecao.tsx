@@ -12,6 +12,7 @@ import {
   MODELO,
   OBS_MAX,
   PERGUNTA_FINAL,
+  REGRA_AM,
   criticosNC,
   PIN_TAM,
   RESPOSTAS,
@@ -277,7 +278,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       ))}
 
       <section className="card pad stack">
-        <p className="small muted">Legenda: S – Conforme · N – Não conforme · NA – Não aplicável. Item “crítico” com N – Não conforme interdita a ponte: ela não pode ser liberada.</p>
+        <p className="small muted">Legenda: S – Conforme · N – Não conforme · NA – Não aplicável. {REGRA_AM} Item “crítico” com N – Não conforme interdita a ponte.</p>
         <div className="ponte-item">
           <b>{PERGUNTA_FINAL}</b>
           <div className="segmented" role="radiogroup" aria-label="Pergunta final">

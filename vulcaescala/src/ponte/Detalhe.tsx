@@ -47,7 +47,7 @@ export function Detalhe({ id }: { id: string }) {
         )}
         <header className="stack">
           <img src="logo-benetech.png" alt="Benetech" className="ponte-rel-logo" />
-          <h2>Check list para operação de ponte rolante</h2>
+          <h2>{c.modeloVersao.startsWith('FOR GTO') ? 'Check list para operação de ponte rolante' : 'Check list de pré-uso para pontes rolantes'}</h2>
           <div className="small muted">
             {c.modeloVersao.replace(' rev.', ' · Rev. ')} · Área: {AREA} · Contrato AMT
           </div>

@@ -26,11 +26,19 @@ describe('ponte rolante', () => {
     expect(faltando(itens, { a: { r: 'NA', obs: '' } }).map((i) => i.id)).toEqual(['b']);
   });
 
-  it('modelo FOR GTO 071: 21 itens, críticos e pergunta final', async () => {
+  it('modelo PE-SGS-0059 (AM) + complementares: críticos pelo critério da AM', async () => {
     const { MODELO, PERGUNTA_FINAL } = await import('../ponte/model');
-    expect(MODELO.itens).toHaveLength(21);
-    expect(MODELO.itens.filter((i) => i.bloqueia).map((i) => i.id)).toEqual(['i3', 'i7', 'i8', 'i10', 'i11', 'i12', 'i14', 'i15', 'i16', 'i17']);
-    expect(new Set(MODELO.itens.map((i) => i.id)).size).toBe(21);
+    expect(MODELO.itens).toHaveLength(28);
+    expect(new Set(MODELO.itens.map((i) => i.id)).size).toBe(28);
+    const nao = MODELO.itens.filter((i) => !i.bloqueia).map((i) => i.texto.replace(/^\d+\. /, ''));
+    expect(nao).toEqual([
+      'Sirene',
+      'A caixa da botoeira/controle remoto está limpa, enxuta e com sinais de comando bem visíveis.',
+      'Existe algum ruído durante a operação da ponte.',
+      'A indicação da capacidade máxima da ponte está visível à distância.',
+      'O local onde a ponte opera está iluminado o suficiente para enxergar os movimentos da carga.',
+    ]);
+    expect(MODELO.itens.filter((i) => i.texto.includes('freios')).every((i) => i.bloqueia)).toBe(true);
     expect(PERGUNTA_FINAL).toContain('interditar o equipamento');
   });
 

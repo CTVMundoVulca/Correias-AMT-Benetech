@@ -30,40 +30,63 @@ export interface Modelo {
   itens: ItemModelo[];
 }
 
-const G = 'Lista de verificação';
-const it = (n: number, texto: string, bloqueia = false, ajuda?: string): ItemModelo => ({ id: `i${n}`, grupo: G, texto: `${n}. ${texto}`, bloqueia, ...(ajuda ? { ajuda } : {}) });
+// Modelo PE-SGS-0059 (ArcelorMittal, Formulário 6 — Check list de pré-uso para pontes rolantes)
+// sem carro auxiliar e sem cabine (a ponte da oficina não tem), mais os itens complementares do
+// FOR GTO 071 (Benetech) que o modelo da AM não cobre. Critério da AM: só é permitido usar a
+// ponte com todos os itens conformes, exceto os marcados com * (não impeditivos).
+const G_ELEV = 'Carro principal — Elevação do carro';
+const G_TRANS_CARRO = 'Carro principal — Translação do carro';
+const G_TRANS_PONTE = 'Translação da ponte';
+const G_GERAIS = 'Itens gerais';
+const G_COMPL = 'Complementares (FOR GTO 071)';
+let seq = 0;
+const it = (grupo: string, texto: string, bloqueia: boolean, ajuda?: string): ItemModelo => {
+  seq += 1;
+  return { id: `am${seq}`, grupo, texto: `${seq}. ${texto}`, bloqueia, ...(ajuda ? { ajuda } : {}) };
+};
 
 /**
- * FOR GTO 071 — Check list para operação de ponte rolante (Benetech, rev. 01), transcrito sem
- * alteração. Itens críticos (bloqueiam o uso com "N"): escolhidos com a liderança do contrato.
+ * Itens críticos (bloqueia = true): "N – Não conforme" interdita a ponte. Não impeditivos: sirene
+ * (* no modelo da AM) e, nos complementares, limpeza da botoeira, ruído, placa de capacidade e
+ * iluminação.
  */
 export const MODELO: Modelo = {
-  versao: 'FOR GTO 071 rev.01',
-  titulo: 'Check list para operação de ponte rolante',
+  versao: 'PE-SGS-0059 · Formulário 6',
+  titulo: 'Check list de pré-uso para pontes rolantes',
   itens: [
-    it(1, 'A caixa da botoeira/controle remoto está limpa, enxuta e com sinais de comando bem visíveis.'),
-    it(2, 'Os cabos da botoeira em boas condições.'),
-    it(3, 'O botão de emergência está operante.', true),
-    it(4, 'O alarme sonoro de movimento está operante.'),
-    it(5, 'O percurso da ponte rolante está sem obstáculo.'),
-    it(6, 'A ponte está transladando para frente e para trás.'),
-    it(7, 'Os limites de translação da ponte estão operantes.', true),
-    it(8, 'O freio da ponte está operante.', true),
-    it(9, 'O trolley está transladando para ambos os lados.'),
-    it(10, 'Os limites de translação do trolley estão operantes.', true),
-    it(11, 'O freio do trolley está operante.', true),
-    it(12, 'Os cabos de aço do içamento estão em condições de uso.', true),
-    it(13, 'O içamento principal está operante (sobe e desce sem problemas).'),
-    it(14, 'O limite de fim de curso para içamento principal está atuante.', true),
-    it(15, 'O freio do içamento principal está operante.', true),
-    it(16, 'O gancho do içamento principal está com abertura normal.', true),
-    it(17, 'O gancho do içamento principal está com a trava de segurança operante.', true),
-    it(18, 'O gancho do içamento principal está girando 360º sem problemas.'),
-    it(19, 'Existe algum ruído durante a operação da ponte.', false, 'S – Conforme = sem ruído anormal · N – Não conforme = há ruído anormal'),
-    it(20, 'A indicação da capacidade máxima da ponte está visível à distância.'),
-    it(21, 'A ponte está limpa e o local onde opera está iluminado o suficiente para enxergar os movimentos da carga.'),
+    it(G_ELEV, 'Limite de redução superior', true),
+    it(G_ELEV, 'Limite de redução inferior', true),
+    it(G_ELEV, 'Condição dos freios', true),
+    it(G_ELEV, 'Limite de emergência', true),
+    it(G_TRANS_CARRO, 'Limite de redução no avanço', true),
+    it(G_TRANS_CARRO, 'Limite de parada no avanço', true),
+    it(G_TRANS_CARRO, 'Limite de redução no recuo', true),
+    it(G_TRANS_CARRO, 'Limite de parada no recuo', true),
+    it(G_TRANS_CARRO, 'Condição dos freios', true),
+    it(G_TRANS_PONTE, 'Limite de redução à esquerda', true),
+    it(G_TRANS_PONTE, 'Limite de parada à esquerda', true),
+    it(G_TRANS_PONTE, 'Limite de redução à direita', true),
+    it(G_TRANS_PONTE, 'Limite de parada à direita', true),
+    it(G_TRANS_PONTE, 'Condição dos freios', true),
+    it(G_GERAIS, 'Emergência geral', true),
+    it(G_GERAIS, 'Sirene', false, 'Item não impeditivo, exceto se algum padrão operacional mencionar.'),
+    it(G_GERAIS, 'Limpeza geral da ponte', true),
+    it(G_COMPL, 'A caixa da botoeira/controle remoto está limpa, enxuta e com sinais de comando bem visíveis.', false),
+    it(G_COMPL, 'Os cabos da botoeira em boas condições.', true),
+    it(G_COMPL, 'O percurso da ponte rolante está sem obstáculo.', true),
+    it(G_COMPL, 'Os cabos de aço do içamento estão em condições de uso.', true),
+    it(G_COMPL, 'O içamento principal está operante (sobe e desce sem problemas).', true),
+    it(G_COMPL, 'O gancho do içamento principal está com abertura normal.', true),
+    it(G_COMPL, 'O gancho do içamento principal está com a trava de segurança operante.', true),
+    it(G_COMPL, 'O gancho do içamento principal está girando 360º sem problemas.', true),
+    it(G_COMPL, 'Existe algum ruído durante a operação da ponte.', false, 'S – Conforme = sem ruído anormal · N – Não conforme = há ruído anormal'),
+    it(G_COMPL, 'A indicação da capacidade máxima da ponte está visível à distância.', false),
+    it(G_COMPL, 'O local onde a ponte opera está iluminado o suficiente para enxergar os movimentos da carga.', false),
   ],
 };
+
+/** regra do modelo da AM, mostrada no formulário */
+export const REGRA_AM = 'Somente é permitida a execução da atividade com a utilização da Ponte Rolante se todos os itens estiverem conformes (exceto os não impeditivos).';
 
 /** pergunta final do formulário: "Não" = interditar e relatar à supervisão */
 export const PERGUNTA_FINAL =
