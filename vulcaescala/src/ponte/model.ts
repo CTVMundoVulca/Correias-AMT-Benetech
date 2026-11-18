@@ -13,6 +13,8 @@ export const RESPOSTAS: { id: Resposta; nome: string; curto: string }[] = [
   { id: 'NC', nome: 'N – Não conforme', curto: 'N' },
   { id: 'NA', nome: 'NA – Não aplicável', curto: 'NA' },
 ];
+/** opções do preenchimento: só Conforme / Não conforme (como no modelo da AM). NA fica só para exibir checklists antigos. */
+export const RESPOSTAS_FORM = RESPOSTAS.filter((r) => r.id !== 'NA');
 
 export interface ItemModelo {
   id: string;

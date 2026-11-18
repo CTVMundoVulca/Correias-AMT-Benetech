@@ -109,7 +109,7 @@ export function Detalhe({ id }: { id: string }) {
             </table>
           </section>
         ))}
-        <p className="small muted">Legenda: S – Conforme · N – Não conforme · NA – Não aplicável.</p>
+        <p className="small muted">Legenda: S – Conforme · N – Não conforme{Object.values(c.respostas).some((r) => r.r === 'NA') ? ' · NA – Não aplicável' : ''}.</p>
         {c.apto !== null && (
           <table className="ponte-itens">
             <tbody>
