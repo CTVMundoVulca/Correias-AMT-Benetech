@@ -75,7 +75,7 @@ export function Relatorio({ id }: { id: string }) {
 
       <Bloco t="4. Equipamentos de medição" full>
         <Tabela
-          cab={['Equipamento', 'Marca/modelo', 'Código', 'Certificado', 'Calibração', 'Validade']}
+          cab={['Equipamento', 'Marca/modelo', 'Patrimônio/Identificação', 'Certificado', 'Calibração', 'Validade']}
           linhas={e.equipamentos.map((q) => [q.equip, q.marca, q.codigo, q.certificado, fmtData(q.dataCal), fmtData(q.validadeCal)])}
         />
       </Bloco>
