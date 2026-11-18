@@ -142,6 +142,9 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
   const grupos = useMemo(() => [...new Set(MODELO.itens.map((i) => i.grupo))], []);
   const resultado = resultadoDe(MODELO.itens, resp, apto);
   const criticos = criticosNC(MODELO.itens, resp);
+  useEffect(() => {
+    if (criticos.length && apto === true) setApto(null);
+  }, [criticos.length, apto]);
   const falta = faltando(MODELO.itens, resp);
 
   const marcar = (id: string, r: RespostaItem['r']) => setResp((x) => ({ ...x, [id]: { r, obs: x[id]?.obs ?? '' } }));
@@ -169,6 +172,8 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
     const semObs = MODELO.itens.filter((i) => resp[i.id]?.r === 'NC' && !resp[i.id]?.obs.trim());
     if (semObs.length) return toast('Descreva o problema nos itens marcados "N – Não conforme".', 'warn');
     if (apto === null) return toast('Responda a pergunta final: a ponte está em condições de operar?', 'warn');
+    if (apto === true && criticos.length)
+      return toast('Item crítico não conforme: a ponte não pode ser liberada. Responda "Não — interditar" e descreva no relatório.', 'danger');
     if (apto === false && !obsGeral.trim()) return toast('Ponte interditada: descreva no relatório o que foi encontrado, para a supervisão.', 'warn');
     const ok = await confirm({
       title: resultado === 'bloqueada' ? 'Enviar: ponte INTERDITADA?' : 'Enviar checklist: ponte liberada?',
@@ -272,21 +277,29 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       ))}
 
       <section className="card pad stack">
-        <p className="small muted">Legenda: S – Conforme · N – Não conforme · NA – Não aplicável. Itens “crítico” com N pedem atenção: a liberação é decidida na pergunta final.</p>
+        <p className="small muted">Legenda: S – Conforme · N – Não conforme · NA – Não aplicável. Item “crítico” com N – Não conforme interdita a ponte: ela não pode ser liberada.</p>
         <div className="ponte-item">
           <b>{PERGUNTA_FINAL}</b>
           <div className="segmented" role="radiogroup" aria-label="Pergunta final">
-            <button type="button" role="radio" aria-checked={apto === true} className={'seg r-C' + (apto === true ? ' on' : '')} onClick={() => setApto(true)}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={apto === true}
+              disabled={criticos.length > 0}
+              title={criticos.length ? 'Item crítico não conforme: a ponte não pode ser liberada' : undefined}
+              className={'seg r-C' + (apto === true ? ' on' : '')}
+              onClick={() => setApto(true)}
+            >
               Sim, pode operar
             </button>
             <button type="button" role="radio" aria-checked={apto === false} className={'seg r-NC' + (apto === false ? ' on' : '')} onClick={() => setApto(false)}>
               Não — interditar
             </button>
           </div>
-          {criticos.length > 0 && apto !== false && (
-            <p className="banner warn small">
-              ⚠ Item crítico com N – Não conforme: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. Confirme se, ainda assim, a ponte está em condições de operar; a
-              liberação fica registrada com esses itens.
+          {criticos.length > 0 && (
+            <p className="banner danger small">
+              ⛔ Item crítico com N – Não conforme: {criticos.map((i) => i.texto.split('.')[0]).join(', ')}. A ponte <b>não pode ser liberada</b>: registre a
+              interdição (“Não — interditar”) e descreva o problema no relatório para a supervisão.
             </p>
           )}
         </div>

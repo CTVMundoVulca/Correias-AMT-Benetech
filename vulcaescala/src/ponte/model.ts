@@ -196,11 +196,12 @@ export const ordenarOperadores = (l: Operador[]) => [...l].sort((a, b) => a.nome
 // ------------------------------------------------------------------ checklist
 
 /**
- * Quem decide é a pergunta final (como no formulário em papel): "Não" interdita; "Sim" libera,
- * mesmo com item crítico em "N" (o registro mostra esses itens para a auditoria).
+ * Interditada se o operador responder "Não" na pergunta final OU se algum item crítico estiver
+ * "N – Não conforme" (com item crítico não conforme a ponte não pode ser liberada).
  */
-export function resultadoDe(_itens: ItemModelo[], _respostas: Record<string, RespostaItem>, apto: boolean | null = true): 'liberada' | 'bloqueada' {
-  return apto === false ? 'bloqueada' : 'liberada';
+export function resultadoDe(itens: ItemModelo[], respostas: Record<string, RespostaItem>, apto: boolean | null = true): 'liberada' | 'bloqueada' {
+  // item crítico "N – Não conforme" interdita: a ponte não pode ser liberada
+  return apto === false || itens.some((i) => i.bloqueia && respostas[i.id]?.r === 'NC') ? 'bloqueada' : 'liberada';
 }
 
 /** itens críticos marcados "N" */

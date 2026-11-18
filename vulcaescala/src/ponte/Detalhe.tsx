@@ -74,10 +74,10 @@ export function Detalhe({ id }: { id: string }) {
                     const r = c.respostas[i.id];
                     const fs = fotos.filter((f) => f.itemId === i.id);
                     return (
-                      <tr key={i.id} className={r?.r === 'NC' ? 'nc' : ''}>
+                      <tr key={i.id} className={(r?.r === 'NC' ? 'nc' : '') + (i.bloqueia ? ' critico' : '')}>
                         <td>
+                          {i.bloqueia && <span className="tag-critico">ITEM CRÍTICO</span>}
                           {i.texto}
-                          {i.bloqueia && <span className="small muted"> · item crítico</span>}
                           {i.ajuda && <div className="small muted">{i.ajuda}</div>}
                           {r?.obs && <div className="small">Obs.: {r.obs}</div>}
                           {fs.map((f, k) => (
