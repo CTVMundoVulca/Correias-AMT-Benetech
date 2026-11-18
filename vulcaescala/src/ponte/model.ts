@@ -121,7 +121,13 @@ export interface Checklist {
   criadoUid: string;
   /** fotos anexadas (subcoleção) */
   fotos: number;
+  /** exclusão pelo administrador (o registro continua guardado, fora do painel): '' = válido */
+  excluidoEm: string;
+  excluidoPor: string;
+  excluidoMotivo: string;
 }
+
+export const MOTIVO_EXCLUSAO_MIN = 10;
 
 // ------------------------------------------------------------------ datas
 
@@ -238,6 +244,9 @@ export function completarChecklist(id: string, v: unknown): Checklist | null {
     observacao: str(c.observacao, OBS_MAX),
     criadoUid: str(c.criadoUid, 128),
     fotos: typeof c.fotos === 'number' ? c.fotos : 0,
+    excluidoEm: str(c.excluidoEm, 40),
+    excluidoPor: str(c.excluidoPor, 200),
+    excluidoMotivo: str(c.excluidoMotivo, 500),
   };
 }
 

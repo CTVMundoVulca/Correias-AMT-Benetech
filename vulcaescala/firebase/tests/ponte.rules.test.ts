@@ -104,6 +104,20 @@ describe('Ponte rolante: operadores e checklist', () => {
     await assertFails(as(ADMIN).doc('ponte_checklists/c1').delete());
   });
 
+  it('administrador exclui com motivo (fica o histórico); ninguém mais', async () => {
+    await assertSucceeds(as(OP).doc('ponte_checklists/c1').set(checklist()));
+    const exc = { excluidoEm: '2026-11-18T12:00:00Z', excluidoPor: ADMIN, excluidoMotivo: 'Checklist de teste do sistema' };
+    await assertFails(as(OP).doc('ponte_checklists/c1').update({ ...exc, excluidoPor: OP }));
+    await assertFails(anon().doc('ponte_checklists/c1').update(exc));
+    await assertFails(as(ADMIN).doc('ponte_checklists/c1').update({ ...exc, excluidoMotivo: 'curto' }));
+    await assertFails(as(ADMIN).doc('ponte_checklists/c1').update({ ...exc, excluidoPor: 'outro@x.com' }));
+    await assertFails(as(ADMIN).doc('ponte_checklists/c1').update({ ...exc, resultado: 'bloqueada' }));
+    await assertSucceeds(as(ADMIN).doc('ponte_checklists/c1').update(exc));
+    // já excluído: não muda de novo; e apagar de verdade continua proibido
+    await assertFails(as(ADMIN).doc('ponte_checklists/c1').update({ excluidoMotivo: 'outro motivo qualquer' }));
+    await assertFails(as(ADMIN).doc('ponte_checklists/c1').delete());
+  });
+
   it('fotos: só junto com o checklist do próprio operador', async () => {
     const db = as(OP);
     const b = db.batch();

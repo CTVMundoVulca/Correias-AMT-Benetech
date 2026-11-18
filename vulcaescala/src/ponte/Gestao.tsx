@@ -18,6 +18,7 @@ import {
   doDia,
   emailOperador,
   fimDoDiaBrasilia,
+  horaDe,
   limpar,
   nomeMaiusculo,
   ordenarOperadores,
@@ -32,7 +33,7 @@ type Edicao = { op: Operador | null; pin: boolean };
 
 /** Gestão (administradores): operadores habilitados, validade do treinamento e PIN. */
 export function Gestao() {
-  const { api, admin, email, operadores, checklists, hoje } = usePonte();
+  const { api, admin, email, operadores, checklists, excluidos, hoje } = usePonte();
   const [ed, setEd] = useState<Edicao | null>(null);
   const toast = useToast();
   const confirm = useConfirm();
@@ -129,6 +130,30 @@ export function Gestao() {
         <h3>Dias sem checklist (últimos 30)</h3>
         <p className="small">{semChecklist.length ? semChecklist.map((d) => dataBr(d).slice(0, 5)).join(', ') : 'Nenhum: todos os dias têm checklist.'}</p>
         <p className="small muted">Conta a partir de {dataBr(INICIO_PONTE)} (início do checklist no app). Dias sem uso da ponte também aparecem aqui.</p>
+      </section>
+      <section className="card pad stack">
+        <h3>Histórico de exclusões ({excluidos.length})</h3>
+        {!excluidos.length ? (
+          <p className="small muted">Nenhum checklist excluído.</p>
+        ) : (
+          <ul className="plain-list ponte-hist">
+            {[...excluidos]
+              .sort((a, b) => b.excluidoEm.localeCompare(a.excluidoEm))
+              .map((c) => (
+                <li key={c.id} className="ponte-dia">
+                  <button className="ponte-dia-btn" onClick={() => irPara(`#/c/${c.id}`)}>
+                    <span className="badge neutral">Excluído</span>
+                    <span className="small">
+                      Checklist de {dataBr(c.data)} {horaDe(c.feitoEm)} · {c.nome} · excluído em {new Date(c.excluidoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por{' '}
+                      {c.excluidoPor}
+                      <br />
+                      Motivo: {c.excluidoMotivo}
+                    </span>
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
       </section>
       {ed && createPortal(<OperadorDialog ed={ed} onClose={() => setEd(null)} />, document.body)}
     </div>

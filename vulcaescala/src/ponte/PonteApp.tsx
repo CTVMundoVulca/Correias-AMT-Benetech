@@ -138,7 +138,24 @@ export function PonteApp() {
   const operador = useMemo(() => (email ? (operadores.find((o) => o.authEmail === email) ?? null) : null), [email, operadores]);
 
   const ctx = useMemo<PonteCtx | null>(
-    () => (api ? { api, email, uid, admin, operador, operadores, operadoresFonte, operadoresErro, checklists, pendente, hoje } : null),
+    () =>
+      api
+        ? {
+            api,
+            email,
+            uid,
+            admin,
+            operador,
+            operadores,
+            operadoresFonte,
+            operadoresErro,
+            // excluídos saem do painel, do histórico e das contagens (ficam no histórico de exclusão)
+            checklists: checklists ? checklists.filter((c) => !c.excluidoEm) : null,
+            excluidos: (checklists ?? []).filter((c) => !!c.excluidoEm),
+            pendente,
+            hoje,
+          }
+        : null,
     [api, email, uid, admin, operador, operadores, operadoresFonte, operadoresErro, checklists, pendente, hoje],
   );
 

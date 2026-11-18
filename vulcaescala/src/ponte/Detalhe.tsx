@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PdfBotao } from '../ui/PdfBotao';
+import { Modal } from '../ui/Modal';
+import { useToast } from '../ui/Toast';
 import { irPara, usePonte } from './context';
-import { ouvirChecklist, ouvirFotos, type FotoItem } from './data';
-import { AREA, PERGUNTA_FINAL, RESPOSTAS, criticosNC, dataBr, horaDe, type Checklist } from './model';
+import { excluirChecklist, ouvirChecklist, ouvirFotos, type FotoItem } from './data';
+import { AREA, MOTIVO_EXCLUSAO_MIN, PERGUNTA_FINAL, RESPOSTAS, criticosNC, dataBr, horaDe, type Checklist } from './model';
 
 /** Um checklist completo (consulta e PDF para auditoria). */
 export function Detalhe({ id }: { id: string }) {
-  const { api } = usePonte();
+  const { api, admin } = usePonte();
+  const [excluindo, setExcluindo] = useState(false);
   const [c, setC] = useState<Checklist | null | undefined>(undefined);
   const [fotos, setFotos] = useState<FotoItem[]>([]);
   useEffect(() => ouvirChecklist(api, id, setC), [api, id]);
@@ -18,6 +22,11 @@ export function Detalhe({ id }: { id: string }) {
         ‹ Painel
       </button>
       {c && <PdfBotao alvo={() => document.getElementById('ponte-rel')} titulo={`Checklist ponte rolante ${dataBr(c.data).replace(/\//g, '-')}`} />}
+      {c && admin && !c.excluidoEm && (
+        <button className="btn ghost-danger" onClick={() => setExcluindo(true)}>
+          Excluir checklist
+        </button>
+      )}
     </div>
   );
   if (c === undefined) return <div className="container">{topo}<p className="muted">Carregando…</p></div>;
@@ -27,7 +36,15 @@ export function Detalhe({ id }: { id: string }) {
   return (
     <div className="container">
       {topo}
+      {excluindo && createPortal(<ExcluirDialog c={c} onClose={() => setExcluindo(false)} />, document.body)}
       <article id="ponte-rel" className="card pad stack ponte-rel">
+        {c.excluidoEm && (
+          <div className="ponte-excluido" role="alert">
+            <b>CHECKLIST EXCLUÍDO</b> em {new Date(c.excluidoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por {c.excluidoPor}
+            <div>Motivo: {c.excluidoMotivo}</div>
+            <div className="small">Não vale como checklist do dia; o registro fica guardado para consulta.</div>
+          </div>
+        )}
         <header className="stack">
           <img src="logo-benetech.png" alt="Benetech" className="ponte-rel-logo" />
           <h2>Check list para operação de ponte rolante</h2>
@@ -84,7 +101,7 @@ export function Detalhe({ id }: { id: string }) {
                             <img key={k} src={f.dataUrl} alt={`Foto do item ${i.texto}`} className="ponte-foto" />
                           ))}
                         </td>
-                        <td className="ponte-r">{RESPOSTAS.find((x) => x.id === r?.r)?.nome ?? '—'}</td>
+                        <td className={'ponte-r r-' + (r?.r ?? 'vazio')}>{RESPOSTAS.find((x) => x.id === r?.r)?.nome ?? '—'}</td>
                       </tr>
                     );
                   })}
@@ -98,7 +115,7 @@ export function Detalhe({ id }: { id: string }) {
             <tbody>
               <tr className={c.apto ? '' : 'nc'}>
                 <td>{PERGUNTA_FINAL}</td>
-                <td className="ponte-r">{c.apto ? 'Sim' : 'Não — interditada'}</td>
+                <td className={'ponte-r ' + (c.apto ? 'r-C' : 'r-NC')}>{c.apto ? 'Sim' : 'Não — interditada'}</td>
               </tr>
             </tbody>
           </table>
@@ -111,5 +128,52 @@ export function Detalhe({ id }: { id: string }) {
         <p className="small muted">Modelo {c.modeloVersao} · registro {c.id} · assinado com o PIN pessoal do operador.</p>
       </article>
     </div>
+  );
+}
+
+/** Administrador exclui o checklist (ex.: teste) informando o motivo; o registro continua guardado. */
+function ExcluirDialog({ c, onClose }: { c: Checklist; onClose: () => void }) {
+  const { api, email } = usePonte();
+  const toast = useToast();
+  const [motivo, setMotivo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ok = motivo.trim().length >= MOTIVO_EXCLUSAO_MIN;
+  const excluir = async () => {
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await excluirChecklist(api, c.id, email, motivo.trim().slice(0, 500));
+      toast('Checklist excluído (fica no histórico de exclusões)');
+      onClose();
+    } catch {
+      toast('A nuvem recusou a exclusão. Confira a conexão, se você é administrador e se as regras do Firebase foram publicadas.', 'danger');
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="Excluir este checklist?"
+      subtitle={`${dataBr(c.data)} às ${horaDe(c.feitoEm)} · ${c.nome} · ${c.resultado === 'bloqueada' ? 'interditada' : 'liberada'}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="btn danger" disabled={!ok || busy} onClick={() => void excluir()}>
+            {busy ? 'Excluindo…' : 'Excluir'}
+          </button>
+        </>
+      }
+    >
+      <p className="small">
+        Ele sai do painel, do histórico e das contagens, mas <b>não é apagado</b>: fica no histórico de exclusões (Gestão) com quem excluiu, quando e o
+        motivo.
+      </p>
+      <label className="field">
+        Motivo da exclusão (mín. {MOTIVO_EXCLUSAO_MIN} caracteres)
+        <textarea className="input" rows={3} maxLength={500} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: checklist de teste do sistema" />
+      </label>
+    </Modal>
   );
 }

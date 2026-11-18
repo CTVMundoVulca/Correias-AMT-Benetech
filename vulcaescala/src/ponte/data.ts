@@ -73,10 +73,19 @@ export function ouvirFotos(api: FirebaseApi, id: string, cb: (l: FotoItem[]) => 
 }
 
 /**
+ * Administrador exclui um checklist (ex.: teste): o registro NÃO é apagado — fica marcado como
+ * excluído, com quem, quando e o motivo (histórico de exclusão), e sai do painel e das contagens.
+ */
+export function excluirChecklist(api: FirebaseApi, id: string, por: string, motivo: string): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.updateDoc(fsMod.doc(fs, COL_CHECKLISTS, id), { excluidoEm: new Date().toISOString(), excluidoPor: por, excluidoMotivo: motivo });
+}
+
+/**
  * Grava o checklist e as fotos de uma vez (lote). Sem internet, o Firestore guarda no
  * aparelho e envia quando a conexão voltar; a promessa só resolve quando a nuvem recebe.
  */
-export function gravarChecklist(api: FirebaseApi, c: Omit<Checklist, 'recebidoEm'>, fotos: FotoItem[]): Promise<void> {
+export function gravarChecklist(api: FirebaseApi, c: Omit<Checklist, 'recebidoEm' | 'excluidoEm' | 'excluidoPor' | 'excluidoMotivo'>, fotos: FotoItem[]): Promise<void> {
   const { fsMod, fs } = api;
   const b = fsMod.writeBatch(fs);
   const { id, ...dados } = c;
