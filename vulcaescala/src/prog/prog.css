@@ -531,7 +531,7 @@
   .kpi-mes { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
   .kpi-mes > :last-child:nth-child(odd) { grid-column: auto; }
 }
-@media (min-width: 1100px) { .kpi-mes { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; } }
+@media (min-width: 1400px) { .kpi-mes { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; } }
 .secao-central h3 { margin: 0; font-size: 1rem; color: var(--ink-2); }
 
 /* indicadores clicáveis (filtro cruzado / detalhe), no estilo do Power BI */
@@ -754,3 +754,14 @@
 /* alerta: atividades sem classificação (Gestão → Programação) */
 .sem-classe-lista { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
 .sem-classe-lista .link { text-align: left; }
+
+/* gráfico % programadas × meta */
+.gm-barra { background: var(--s-programada); border-radius: 4px 4px 0 0; }
+.gm-barra.atingiu { background: var(--ok-ink, #1b7a34); }
+.gm-barra.abaixo { background: var(--red-ink, #c62828); }
+.gm-meta { position: absolute; left: 50%; transform: translateX(-50%); width: 92%; max-width: 48px; height: 0; border-top: 2px dashed var(--ink); z-index: 2; pointer-events: none; }
+.gm-meta-leg { display: inline-block; width: 18px; height: 0; border-top: 2px dashed var(--ink); vertical-align: middle; margin-right: 4px; }
+.meta-linha { align-items: flex-end; gap: 8px; }
+.meta-pct { width: 90px; }
+.meta-lista { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.seg-area.a-perda { background: var(--s-nao_programada); }

@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { MONTHS, MONTHS_SHORT } from '../domain/isoWeek';
 import { PdfBotao } from '../ui/PdfBotao';
 import { Indicadores } from './Indicadores';
-import { DetalheAtividades, DetalheEmergenciasOm } from './Detalhes';
-import { GraficoBarras, GraficoColunas, LegendaSeries, SERIES, type Serie } from './graficos';
+import { DetalheAtividades, DetalheEmergenciasOm, DetalhePerdas, VerAtividades } from './Detalhes';
+import { perdasDoPeriodo, somarPerdas, useAtrasosPeriodo } from './atrasosProg';
+import { MetasDialog, metaDoMes, useMetas } from './metas';
+import { GraficoBarras, GraficoColunas, GraficoMeta, LegendaSeries, SERIES, type Serie } from './graficos';
 import { useAtividades, useOms, useProg } from './context';
 import { CampoArea } from './CampoArea';
 import {
@@ -26,8 +28,8 @@ import {
 
 type Periodo = 'mes' | 'tri' | 'ano' | 'livre';
 /** cartão clicado: mostra as atividades que formam o número */
-type SelKpi = 'todas' | 'emergencia' | 'oms_emerg' | 'nao_programada' | 'cancelada' | 'mobilizadas' | 'retrabalho' | 'pessoas';
-const FILTRO_KPI: Record<Exclude<SelKpi, 'oms_emerg'>, { nome: string; f: (a: Atividade) => boolean }> = {
+type SelKpi = 'perdas' | 'todas' | 'emergencia' | 'oms_emerg' | 'nao_programada' | 'cancelada' | 'mobilizadas' | 'retrabalho' | 'pessoas';
+const FILTRO_KPI: Record<Exclude<SelKpi, 'oms_emerg' | 'perdas'>, { nome: string; f: (a: Atividade) => boolean }> = {
   todas: { nome: 'Atividades', f: () => true },
   pessoas: { nome: 'Atividades com pessoas (não canceladas)', f: (a) => a.classe !== 'cancelada' && a.pessoas > 0 },
   emergencia: { nome: 'Emergências (registros-dia)', f: (a) => a.classe === 'emergencia' },
@@ -57,7 +59,9 @@ function somaMeses(ym: string, n: number): string {
 
 /** Análise de todas as atividades da vulcanização (todos com o link veem). */
 export function Dashboard() {
-  const { areas } = useProg();
+  const { areas, pode } = useProg();
+  const metas = useMetas();
+  const [editarMeta, setEditarMeta] = useState(false);
   const atual = hojeIso().slice(0, 7);
   const [periodo, setPeriodo] = useState<Periodo>('ano');
   const [de, setDe] = useState(`${atual.slice(0, 4)}-01`);
@@ -77,6 +81,19 @@ export function Dashboard() {
   const lista = useMemo(() => (todas ?? []).filter((a) => !area || (a.area || AREA_INTERNA) === area), [todas, area]);
   const r = resumir(lista);
   const emerg = useMemo(() => emergenciasPorOm(lista), [lista]);
+  const exec = r.classes.programada + r.classes.nao_programada + r.classes.emergencia;
+  // horas perdidas: atrasos registrados na Escala + cancelamentos com a equipe mobilizada
+  const fimDia = (() => {
+    const [y, m] = fim.split('-').map(Number);
+    const u = `${fim}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    return u < hojeIso() ? u : hojeIso();
+  })();
+  const atrasosP = useAtrasosPeriodo(`${ini}-01`, fimDia);
+  const perdas = useMemo(() => {
+    const ids = new Set(lista.map((a) => a.id));
+    return perdasDoPeriodo(todas ?? [], atrasosP).filter((p) => (p.origem === 'cancelamento' ? ids.has(p.id.slice(4)) : !area || p.area === area) && (!p.data || (p.data >= `${ini}-01` && p.data <= `${fim}-31`)));
+  }, [todas, lista, atrasosP, area, ini, fim]);
+  const tPerdas = somarPerdas(perdas);
   const gArea = useMemo(() => porArea(lista), [lista]);
   const gMes = useMemo(() => porMes(lista), [lista]);
   const gTipo = useMemo(() => porTipo(lista), [lista]);
@@ -140,7 +157,7 @@ export function Dashboard() {
               <Kpi v={r.total} t="Atividades" sel={selKpi} k="todas" onK={clicar} />
               <Kpi v={r.pessoasDia} t="Pessoas × dia" sel={selKpi} k="pessoas" onK={clicar} />
               <Kpi v={pct(r.indiceProgramacao)} t="Índice de programação" dica="programadas ÷ executadas (prog. + não prog. + emerg.)" />
-              <Kpi v={r.classes.emergencia} t={`Emergências — registros-dia (${pct(r.total - r.classes.sem ? r.classes.emergencia / (r.total - r.classes.sem) : null)})`} sel={selKpi} k="emergencia" onK={clicar} />
+              <Kpi v={r.classes.emergencia} t={`Emergências — registros-dia (${pct(exec ? r.classes.emergencia / exec : null)} das executadas)`} sel={selKpi} k="emergencia" onK={clicar} />
               <Kpi
                 v={emerg.ocorrencias.length}
                 t={`OMs em emergência · ${emerg.diasOm} dias-OM`}
@@ -152,11 +169,11 @@ export function Dashboard() {
               <Kpi v={r.classes.nao_programada} t="Não programadas" sel={selKpi} k="nao_programada" onK={clicar} />
               <Kpi v={r.classes.cancelada} t={`Canceladas (${pct(r.indiceCancelamento)})`} sel={selKpi} k="cancelada" onK={clicar} />
               <Kpi
-                v={fmtHH(r.horasPerdidas)}
-                t="HH em cancelamentos (equipe mobilizada)"
-                dica={`${r.mobilizadas} atividade(s) canceladas com a equipe mobilizada · horas apropriadas na OM (pessoas × horas)`}
+                v={fmtHH(tPerdas.hh)}
+                t="HH perdidas (atrasos + cancelamentos)"
+                dica={`${tPerdas.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h de equipamento parado · atrasos ${fmtHH(tPerdas.hhAtrasos)} · cancelamentos ${fmtHH(tPerdas.hhCancel)}`}
                 sel={selKpi}
-                k="mobilizadas"
+                k="perdas"
                 onK={clicar}
               />
               <Kpi v={r.retrabalho} t="Retrabalhos" sel={selKpi} k="retrabalho" onK={clicar} />
@@ -166,7 +183,9 @@ export function Dashboard() {
                 <Kpi v={r.comOm} t="Atividades com OM" />
               )}
             </div>
-            {selKpi === 'oms_emerg' ? (
+            {selKpi === 'perdas' ? (
+              <DetalhePerdas titulo="Horas perdidas" perdas={perdas} onFechar={() => setSelKpi(null)} />
+            ) : selKpi === 'oms_emerg' ? (
               <DetalheEmergenciasOm titulo="OMs em emergência" ocorrencias={emerg.ocorrencias} onFechar={() => setSelKpi(null)} />
             ) : (
               selKpi && <DetalheAtividades titulo={FILTRO_KPI[selKpi].nome} lista={lista.filter(FILTRO_KPI[selKpi].f)} onFechar={() => setSelKpi(null)} />
@@ -194,6 +213,7 @@ export function Dashboard() {
                   detalhe={(l) => (
                     <div className="gb-det-acoes">
                       <span className="small muted">{gArea.find((g) => g.chave === l.id)?.pessoasDia ?? 0} pessoas×dia</span>
+                      <VerAtividades titulo={`Atividades · ${l.id}`} lista={lista.filter((a) => (a.area || AREA_INTERNA) === l.id)} />
                       {!area && (
                         <button type="button" className="btn small" onClick={() => setArea(l.id)}>
                           🔎 Ver o dashboard só desta área
@@ -213,9 +233,37 @@ export function Dashboard() {
                   <GraficoColunas
                     foco={foco}
                     colunas={gMes.map((g) => ({ id: g.chave, rotulo: gMes[0].chave.slice(0, 4) === gMes[gMes.length - 1].chave.slice(0, 4) ? MONTHS_SHORT[Number(g.chave.slice(5, 7)) - 1] : curtoMes(g.chave), nomeLongo: nomeMes(g.chave), total: g.total, classes: g.classes, pessoasDia: g.pessoasDia }))}
+                    detalhe={(c) => <VerAtividades titulo={`Atividades · ${c.nomeLongo}`} lista={lista.filter((a) => a.data.slice(0, 7) === c.id)} />}
                   />
                 </Card>
               )
+            )}
+
+            {!tabela && gMes.length > 0 && (
+              <Card titulo="Atividades programadas × meta" sub="Programadas ÷ executadas (programadas + não programadas + emergências), mês a mês">
+                <GraficoMeta
+                  colunas={gMes.map((g) => {
+                    const ex = g.classes.programada + g.classes.nao_programada + g.classes.emergencia;
+                    return {
+                      id: g.chave,
+                      rotulo: gMes[0].chave.slice(0, 4) === gMes[gMes.length - 1].chave.slice(0, 4) ? MONTHS_SHORT[Number(g.chave.slice(5, 7)) - 1] : curtoMes(g.chave),
+                      nomeLongo: nomeMes(g.chave),
+                      indice: ex ? g.classes.programada / ex : null,
+                      programadas: g.classes.programada,
+                      executadas: ex,
+                      meta: metas ? metaDoMes(metas, g.chave) : null,
+                    };
+                  })}
+                  acoes={
+                    pode.programar && metas ? (
+                      <button type="button" className="btn small no-print" onClick={() => setEditarMeta(true)}>
+                        🎯 {metas.length ? 'Alterar meta' : 'Definir meta'}
+                      </button>
+                    ) : null
+                  }
+                />
+                {editarMeta && metas && <MetasDialog metas={metas} mesAtual={atual} onClose={() => setEditarMeta(false)} />}
+              </Card>
             )}
 
             {r.horasPorMotivo.length > 0 && (
@@ -254,12 +302,21 @@ export function Dashboard() {
                   const [tag, ...resto] = g.chave.split(' · ');
                   return { id: g.chave, nome: tag, sub: resto.join(' · '), v: g.total, classes: g.classes };
                 })}
-                detalhe={(l) => <UltimasDoEquipamento lista={lista} chave={l.id} />}
+                detalhe={(l) => (
+                  <>
+                    <UltimasDoEquipamento lista={lista} chave={l.id} />
+                    <VerAtividades titulo={`Atividades · ${l.id}`} lista={lista.filter((a) => a.area && `${a.equipamento} · ${a.area}` === l.id)} />
+                  </>
+                )}
               />
             </Card>
 
             <Card titulo="Tipos de serviço" sub="Atividades por tipo, por classificação">
-              <GraficoBarras foco={foco} linhas={gTipo.map((g) => ({ id: g.chave, nome: g.chave, v: g.total, classes: g.classes }))} />
+              <GraficoBarras
+                foco={foco}
+                linhas={gTipo.map((g) => ({ id: g.chave, nome: g.chave, v: g.total, classes: g.classes }))}
+                detalhe={(l) => <VerAtividades titulo={`Atividades · ${l.id}`} lista={lista.filter((a) => (a.tipo || 'Outros') === l.id)} />}
+              />
             </Card>
 
             {oms && (

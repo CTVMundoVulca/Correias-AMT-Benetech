@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { addDays, fromIsoDate, toIsoDate } from '../domain/isoWeek';
+import { diaIdDe } from './atrasosProg';
 import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useAtividades, useOms, useProg } from './context';
 import { gravarOms, gravarRetornos } from './data';
 import { useRecolhiveis } from './recolher';
+import { AtrasosOmDialog, atrasosDaAtividade } from './AtrasosOm';
+import { useAtrasosPeriodo } from './atrasosProg';
+import { duracaoMin, fmtDuracao as fmtDurAtraso } from '../cloud/atrasos';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
 import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contaParaOm, contarOms, fmtDuracao, omFutura, fmtHH, horasHomemMobilizadas, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
@@ -34,6 +39,32 @@ export function Oms() {
     return mesesEntre(INICIO_CONTROLE_OMS, `${prox}-01`);
   }, [hoje]);
   const ativs = useAtividades(meses);
+  // atrasos registrados na Escala (e lançados pela gestão) nas atividades das OMs
+  const atrasosP = useAtrasosPeriodo(INICIO_CONTROLE_OMS, toIsoDate(addDays(fromIsoDate(hoje)!, 40)));
+  const [atrasosOm, setAtrasosOm] = useState<string | null>(null);
+  const pessoasDe = (a: Atividade) => {
+    const e = atrasosP?.pessoasEscala.get(`${diaIdDe(a.data)}|prog-${a.id}`);
+    return e && e > 0 ? e : a.pessoas;
+  };
+  const todasPorOm = useMemo(() => {
+    const m = new Map<string, Atividade[]>();
+    for (const a of ativs ?? []) if (a.om) m.set(a.om, [...(m.get(a.om) ?? []), a]);
+    return m;
+  }, [ativs]);
+  const resumoAtrasos = (om: string) => {
+    let n = 0;
+    let min = 0;
+    let hh = 0;
+    for (const a of todasPorOm.get(om) ?? [])
+      for (const x of atrasosDaAtividade(a, atrasosP?.atrasos ?? [])) {
+        n++;
+        const d = duracaoMin(x.inicio, x.fim);
+        if (d === null) continue;
+        min += d;
+        hh += (d / 60) * pessoasDe(a);
+      }
+    return { n, min, hh };
+  };
   const execPorOm = useMemo(() => {
     const m = new Map<string, Atividade[]>();
     for (const a of ativs ?? []) if (a.om && contaParaOm(a)) m.set(a.om, [...(m.get(a.om) ?? []), a]);
@@ -191,8 +222,23 @@ export function Oms() {
                     </div>
                   );
                 })()}
+                {(() => {
+                  const r = resumoAtrasos(o.om);
+                  return r.n > 0 ? (
+                    <div className="small om-exec">
+                      <span className="exec mob">
+                        ⏱ {r.n} atraso(s) registrado(s) · {fmtDurAtraso(r.min)} de equipamento parado · <b>{fmtHH(r.hh)}</b>
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
                 {!futura && (
                 <div className="row">
+                  {(pode.programar || pode.retorno) && atrasosP && (
+                    <button className="link small" onClick={() => setAtrasosOm(o.om)}>
+                      ⏱ Atrasos
+                    </button>
+                  )}
                   {pode.retorno && o.situacao !== 'baixada' && (o.situacao === 'retornada' ? (
                     <button className="link small" onClick={() => retorno([o], false)}>
                       Voltar para pendente
@@ -342,6 +388,9 @@ export function Oms() {
           })}
 
         </ul>
+      )}
+      {atrasosOm && atrasosP && (
+        <AtrasosOmDialog om={atrasosOm} atividades={todasPorOm.get(atrasosOm) ?? []} atrasos={atrasosP.atrasos} pessoasDe={pessoasDe} onClose={() => setAtrasosOm(null)} />
       )}
     </div>
   );

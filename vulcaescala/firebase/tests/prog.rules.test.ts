@@ -196,3 +196,27 @@ describe('Paradas informadas pelas áreas', () => {
     await assertSucceeds(as(ADMIN).doc('prog_paradas_pedidos/pp1').set({ ...ped, status: 'recusada', resposta: 'Data conflita' }));
   });
 });
+
+describe('Metas e atrasos lançados pela programação', () => {
+  it('meta de % programadas: todos leem; só a programação grava (com vigência)', async () => {
+    const meta = { programadas: [{ desde: '2026-11', pct: 80 }], atualizadoEm: 'x', atualizadoPor: ADMIN };
+    await assertSucceeds(as(ADMIN).doc('prog_config/metas').set(meta));
+    await assertSucceeds(anon().doc('prog_config/metas').get());
+    await assertFails(anon().doc('prog_config/metas').set({ ...meta, atualizadoPor: 'anon' }));
+    await assertFails(as(OUTRO).doc('prog_config/metas').set({ ...meta, atualizadoPor: OUTRO }));
+    await assertFails(as(ADMIN).doc('prog_config/metas').set({ ...meta, atualizadoPor: OUTRO }));
+    await assertFails(as(ADMIN).doc('prog_config/metas').set({ ...meta, extra: 1 }));
+  });
+
+  it('a programação corrige e exclui atraso registrado em campo; outros não', async () => {
+    const a = {
+      id: 'at1', semana: '2026-W47', diaId: '2026-W47_2', atividadeId: 'prog-a1', atividadeNome: 'REPARO L-209', inicio: '08:00', fim: '09:30',
+      motivo: 'Bloqueio', descricao: '', criadoUid: 'anon-uid', criadoEm: 'x', atualizadoEm: 'x', por: 'anônimo',
+    };
+    await assertSucceeds(anon().doc('escala_atrasos/at1').set(a));
+    await assertFails(as(OUTRO).doc('escala_atrasos/at1').set({ ...a, fim: '10:00' }));
+    await assertSucceeds(as(ADMIN).doc('escala_atrasos/at1').set({ ...a, fim: '10:00', por: ADMIN }));
+    await assertFails(as(OUTRO).doc('escala_atrasos/at1').delete());
+    await assertSucceeds(as(ADMIN).doc('escala_atrasos/at1').delete());
+  });
+});

@@ -10,8 +10,9 @@ import { DiaSelecionado } from './DiaSelecionado';
 import { proximosDiasUteis } from './kpis';
 import { CalendarioMes, MapaSemana, corDaArea, diasDaSemana, gradeDoMes, mesDeIso, segundaDe, type Mes } from './Painel';
 import { dataBr } from './Solicitar';
-import { DetalheAtividades, DetalheEmergenciasOm } from './Detalhes';
-import { AREA_INTERNA, TIPOS_PARADA, emergenciasPorOm, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Atividade, type Solicitacao } from './model';
+import { DetalheAtividades, DetalheEmergenciasOm, DetalhePerdas } from './Detalhes';
+import { perdasDoPeriodo, somarPerdas, useAtrasosPeriodo } from './atrasosProg';
+import { AREA_INTERNA, TIPOS_PARADA, emergenciasPorOm, fmtHH, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Atividade, type Solicitacao } from './model';
 
 const somaMes = (ym: string, n: number) => {
   const [y, m] = ym.split('-').map(Number);
@@ -31,10 +32,12 @@ interface Selecao {
   classe: ClasseSel | null;
   area: string | null;
   oms: boolean;
+  /** horas perdidas (atrasos + cancelamentos com equipe mobilizada) */
+  perdas: boolean;
   /** "Atividades no mês": lista tudo */
   todas: boolean;
 }
-const SEM_SEL: Selecao = { classe: null, area: null, oms: false, todas: false };
+const SEM_SEL: Selecao = { classe: null, area: null, oms: false, perdas: false, todas: false };
 const NOME_SEL: Record<ClasseSel, string> = { programada: 'Programadas', nao_programada: 'Não programadas', emergencia: 'Emergências', cancelada: 'Canceladas', sem: 'Sem classificação' };
 const areaDe = (a: Atividade) => a.area || AREA_INTERNA;
 
@@ -93,14 +96,20 @@ export function Central() {
     () => doMes.filter((a) => (!sel.area || areaDe(a) === sel.area) && (!sel.classe || (a.classe || 'sem') === sel.classe)),
     [doMes, sel.area, sel.classe],
   );
-  const temSel = sel.todas || sel.oms || sel.classe !== null || sel.area !== null;
+  const atrasosMes = useAtrasosPeriodo(`${mesAtual}-01`, hoje);
+  const perdas = useMemo(
+    () => perdasDoPeriodo(doMes, atrasosMes).filter((p) => (!p.data || mesDe(p.data) === mesAtual) && (!sel.area || p.area === sel.area)),
+    [doMes, atrasosMes, mesAtual, sel.area],
+  );
+  const tPerdas = somarPerdas(perdas);
+  const temSel = sel.todas || sel.oms || sel.perdas || sel.classe !== null || sel.area !== null;
   const mostrar = (n: Selecao) => {
     setSel(n);
-    if (n.todas || n.oms || n.classe || n.area) setTimeout(() => selRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    if (n.todas || n.oms || n.perdas || n.classe || n.area) setTimeout(() => selRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
   };
-  const escolherClasse = (c: ClasseSel | null) => mostrar({ ...sel, classe: sel.classe === c ? null : c, oms: false, todas: false });
-  const escolherArea = (a: string) => mostrar({ ...sel, area: sel.area === a ? null : a, oms: false, todas: false });
-  const tituloSel = [sel.oms ? 'OMs em emergência' : sel.classe ? NOME_SEL[sel.classe] : 'Atividades', sel.area ?? ''].filter(Boolean).join(' · ');
+  const escolherClasse = (c: ClasseSel | null) => mostrar({ ...sel, classe: sel.classe === c ? null : c, oms: false, perdas: false, todas: false });
+  const escolherArea = (a: string) => mostrar({ ...sel, area: sel.area === a ? null : a, oms: false, perdas: false, todas: false });
+  const tituloSel = [sel.perdas ? 'Horas perdidas' : sel.oms ? 'OMs em emergência' : sel.classe ? NOME_SEL[sel.classe] : 'Atividades', sel.area ?? ''].filter(Boolean).join(' · ');
   const fila = (solic ?? []).filter((s) => s.status === 'aberta').concat((solic ?? []).filter((s) => s.status !== 'aberta')).slice(0, 6);
   const abertas = (solic ?? []).filter((s) => s.status === 'aberta').length;
   const proximas = paradas.filter((p) => p.fim >= hoje).sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(0, 4);
@@ -226,7 +235,8 @@ export function Central() {
           cor="k-azul"
           titulo="Atividades no mês"
           valor={lista ? r.total : '…'}
-          extra={variacao === null ? undefined : `${variacao >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(variacao * 100))}% vs mês anterior`}
+          extra={`${exec} executadas · ${r.classes.cancelada} canceladas${r.classes.sem ? ` · ${r.classes.sem} sem classif.` : ''}`}
+          extra2={variacao === null ? undefined : `${variacao >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(variacao * 100))}% vs mês anterior`}
           ativo={sel.todas}
           onClick={() => mostrar(sel.todas ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, todas: true })}
         />
@@ -251,6 +261,16 @@ export function Central() {
           ativo={sel.oms}
           apagado={!!sel.classe && sel.classe !== 'emergencia'}
           onClick={() => mostrar(sel.oms ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, classe: 'emergencia', oms: true })}
+        />
+        <Kpi
+          ico="⏳"
+          cor="k-naoprog"
+          titulo="HH perdidas"
+          valor={atrasosMes ? fmtHH(tPerdas.hh) : '…'}
+          extra={`${tPerdas.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h parado · ${tPerdas.atrasos} atraso(s) · ${tPerdas.cancelamentos} canc.`}
+          ativo={sel.perdas}
+          apagado={!!sel.classe}
+          onClick={() => mostrar(sel.perdas ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, perdas: true })}
         />
       </div>
       <div className="central-grid dupla">
@@ -328,7 +348,9 @@ export function Central() {
       </div>
       <div ref={selRef}>
         {temSel &&
-          (sel.oms ? (
+          (sel.perdas ? (
+            <DetalhePerdas titulo={`${tituloSel} — ${nomeMes}`} perdas={perdas} onFechar={() => setSel(SEM_SEL)} />
+          ) : sel.oms ? (
             <DetalheEmergenciasOm titulo={`${tituloSel} — ${nomeMes}`} ocorrencias={emerg.ocorrencias} onFechar={() => setSel(SEM_SEL)} />
           ) : (
             <DetalheAtividades titulo={`${tituloSel} — ${nomeMes}`} lista={detalhe} onFechar={() => setSel(SEM_SEL)} />
@@ -346,6 +368,7 @@ function Kpi({
   titulo,
   valor,
   extra,
+  extra2,
   ativo = false,
   apagado = false,
   onClick,
@@ -355,6 +378,7 @@ function Kpi({
   titulo: string;
   valor: number | string;
   extra?: string;
+  extra2?: string;
   ativo?: boolean;
   apagado?: boolean;
   onClick?: () => void;
@@ -369,6 +393,7 @@ function Kpi({
         <span className="kpi-tit">{titulo}</span>
         <b className="num">{valor}</b>
         {extra && <span className="kpi-extra num">{extra}</span>}
+        {extra2 && <span className="kpi-extra num">{extra2}</span>}
       </span>
     </Tag>
   );

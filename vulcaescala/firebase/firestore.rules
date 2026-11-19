@@ -130,8 +130,9 @@ service cloud.firestore {
         && request.resource.data.criadoUid == request.auth.uid;
       allow update: if signedIn() && atrasoValido(atrasoId)
         && request.resource.data.criadoUid == resource.data.criadoUid
-        && (resource.data.criadoUid == request.auth.uid || isAdmin());
-      allow delete: if isAdmin() || (signedIn() && resource.data.criadoUid == request.auth.uid);
+        && (resource.data.criadoUid == request.auth.uid || isAdmin() || isProgramador());
+      // a programação (Gestão → OMs) corrige atrasos lançados em campo
+      allow delete: if isAdmin() || isProgramador() || (signedIn() && resource.data.criadoUid == request.auth.uid);
     }
 
     // Motivos de atraso (Bloqueio, Recurso, Limpeza + os criados por quem registra)
@@ -347,6 +348,16 @@ service cloud.firestore {
     }
 
     // Motivos de cancelamento (lista editável do formulário da atividade)
+    // Metas da programação (ex.: % de atividades programadas), com vigência por mês
+    match /prog_config/metas {
+      allow read: if signedIn();
+      allow write: if isProgramador()
+        && request.resource.data.keys().hasOnly(['programadas', 'atualizadoEm', 'atualizadoPor'])
+        && request.resource.data.programadas is list
+        && request.resource.data.programadas.size() <= 60
+        && request.resource.data.atualizadoPor == email();
+    }
+
     match /prog_config/motivos {
       allow read: if signedIn();
       allow write: if isProgramador()
