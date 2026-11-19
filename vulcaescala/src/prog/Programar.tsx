@@ -196,7 +196,7 @@ export function Programar() {
           )}
         </section>
       )}
-      {daSemana.some((x) => x.revisarEscala || x.foraDaEscala) && (
+      {daSemana.some((x) => x.revisarEscala || (x.foraDaEscala && x.classe !== 'cancelada')) && (
         <div className="banner warn small">
           {(() => {
             const rev = daSemana.filter((x) => x.revisarEscala).length;
