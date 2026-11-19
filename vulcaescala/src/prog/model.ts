@@ -220,6 +220,8 @@ export interface Atividade {
   mobInicio: string;
   /** horário do cancelamento / dispensa da equipe ("HH:MM") */
   mobFim: string;
+  /** períodos em que a equipe ficou aguardando (mobInicio/mobFim = começo do primeiro e fim do último) */
+  mobPeriodos: MobPeriodo[];
   /** quando a área comunicou a demanda (ISO); base da regra das 48 h. '' = desconhecido (planilha) */
   comunicadoEm: string;
   /** a classificação foi trocada à mão (diferente da regra automática) */
@@ -282,6 +284,41 @@ export const fmtDuracao = (h: number) => {
 };
 /** homem-hora no formato brasileiro (ex.: 7,5 HH) */
 export const fmtHH = (h: number) => `${h.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} HH`;
+/** um período de espera da equipe mobilizada ("HH:MM") */
+export interface MobPeriodo {
+  inicio: string;
+  fim: string;
+  /** motivo da espera (mesma lista dos atrasos da Escala: Bloqueio, Recurso…) */
+  motivo: string;
+  /** justificativa (texto livre) */
+  descricao: string;
+}
+export const MOB_MOTIVO_MAX = 40;
+export const MOB_DESCRICAO_MAX = 300;
+export const periodoVazio = (): MobPeriodo => ({ inicio: '', fim: '', motivo: '', descricao: '' });
+export const MOB_PERIODOS_MAX = 10;
+/** períodos de espera da atividade (lançamentos antigos têm só início e fim) */
+export const periodosDaMob = (a: Pick<Atividade, 'mobPeriodos' | 'mobInicio' | 'mobFim'>): MobPeriodo[] =>
+  a.mobPeriodos?.length ? a.mobPeriodos : a.mobInicio || a.mobFim ? [{ ...periodoVazio(), inicio: a.mobInicio, fim: a.mobFim }] : [];
+/** soma das horas dos períodos completos (início e fim) */
+export const horasDosPeriodos = (l: MobPeriodo[]) => l.reduce((s, p) => s + duracaoHoras(p.inicio, p.fim), 0);
+/** "09:00–10:00, 13:00–14:30" */
+export const faixasMob = (a: Pick<Atividade, 'mobPeriodos' | 'mobInicio' | 'mobFim'>) =>
+  periodosDaMob(a)
+    .filter((p) => p.inicio && p.fim)
+    .map((p) => `${p.inicio}–${p.fim}${p.motivo || p.descricao ? ` (${[p.motivo, p.descricao].filter(Boolean).join(': ')})` : ''}`)
+    .join(', ');
+/** limpa os períodos: só horários válidos, sem linhas vazias */
+export const limparPeriodos = (v: unknown): MobPeriodo[] =>
+  (Array.isArray(v) ? v : [])
+    .map((p) => {
+      const x = (p ?? {}) as Partial<MobPeriodo>;
+      const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+      return { inicio: horaValida(x.inicio), fim: horaValida(x.fim), motivo: txt(x.motivo, MOB_MOTIVO_MAX), descricao: txt(x.descricao, MOB_DESCRICAO_MAX) };
+    })
+    .filter((p) => p.inicio || p.fim || p.motivo || p.descricao)
+    .slice(0, MOB_PERIODOS_MAX);
+
 /** horas-homem apropriadas na OM de uma atividade cancelada com a equipe mobilizada */
 export const horasHomemMobilizadas = (a: Pick<Atividade, 'classe' | 'mobilizada' | 'pessoas' | 'horasMobilizadas'>) =>
   a.classe === 'cancelada' && a.mobilizada ? a.pessoas * a.horasMobilizadas : 0;
@@ -309,6 +346,7 @@ export function atividadeVazia(id: string, data: string, por: string): Atividade
     horasMobilizadas: 0,
     mobInicio: '',
     mobFim: '',
+    mobPeriodos: [],
     comunicadoEm: agora,
     classeManual: false,
     execucao: '',
@@ -360,6 +398,7 @@ export function completarAtividade(id: string, v: unknown): Atividade | null {
     horasMobilizadas: classe === 'cancelada' && a.mobilizada === true ? horasValidas(a.horasMobilizadas) : 0,
     mobInicio: classe === 'cancelada' && a.mobilizada === true ? horaValida(a.mobInicio) : '',
     mobFim: classe === 'cancelada' && a.mobilizada === true ? horaValida(a.mobFim) : '',
+    mobPeriodos: classe === 'cancelada' && a.mobilizada === true ? limparPeriodos(a.mobPeriodos) : [],
     comunicadoEm: str(a.comunicadoEm, 40),
     classeManual: a.classeManual === true,
     execucao: (['executada', 'nao_executada', 'reprogramada'] as const).find((x) => x === a.execucao) ?? '',

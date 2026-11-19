@@ -5,7 +5,7 @@ import { addDays, fromIsoDate, locateDay, mondayOf, parseWeekKey, toIsoDate } fr
 import { newId } from '../domain/ids';
 import { nomeNaEscala } from '../integracao/progEscala';
 import { useProg } from './context';
-import { AREA_INTERNA, horasHomemMobilizadas, type Atividade } from './model';
+import { AREA_INTERNA, duracaoHoras, horasHomemMobilizadas, type Atividade } from './model';
 
 /**
  * Atrasos registrados na Escala (escala_atrasos) vistos pela Programação.
@@ -81,6 +81,10 @@ export interface Perda {
   pessoas: number;
   /** horas × pessoas */
   hh: number;
+  /** cancelamento: id da atividade (uma atividade pode ter vários períodos de espera) */
+  atividadeId?: string;
+  /** cancelamento com vários períodos: motivo da espera deste período (Bloqueio, Recurso…) */
+  motivoEspera?: string;
   /** a pessoa não está ligada a uma atividade da programação (só na escala) */
   semVinculo: boolean;
   atraso?: Atraso;
@@ -128,21 +132,36 @@ export function perdasDoPeriodo(lista: Atividade[], dados: AtrasosPeriodo | null
   }
   for (const a of lista) {
     if (a.classe !== 'cancelada' || !a.mobilizada) continue;
-    out.push({
-      id: 'mob-' + a.id,
-      origem: 'cancelamento',
+    const base = {
+      origem: 'cancelamento' as const,
       data: a.data,
       area: a.area || AREA_INTERNA,
       equipamento: a.equipamento,
       om: a.om,
       atividade: a.descricao,
-      motivo: `Cancelada: ${a.motivo || 'sem motivo'}`,
-      inicio: a.mobInicio,
-      fim: a.mobFim,
-      horas: a.horasMobilizadas,
       pessoas: a.pessoas,
-      hh: horasHomemMobilizadas(a),
       semVinculo: false,
+      atividadeId: a.id,
+    };
+    const per = a.mobPeriodos.filter((p) => p.inicio && p.fim);
+    if (per.length < 2 && !per.some((p) => p.motivo || p.descricao)) {
+      // um período só, sem motivo próprio (ou lançamento antigo)
+      out.push({ ...base, id: 'mob-' + a.id, motivo: `Cancelada: ${a.motivo || 'sem motivo'}`, inicio: a.mobInicio, fim: a.mobFim, horas: a.horasMobilizadas, hh: horasHomemMobilizadas(a) });
+      continue;
+    }
+    // cada período de espera com o seu motivo
+    per.forEach((p, i) => {
+      const horas = duracaoHoras(p.inicio, p.fim);
+      out.push({
+        ...base,
+        id: `mob-${a.id}-${i}`,
+        motivo: `Cancelada: ${a.motivo || 'sem motivo'} · espera: ${[p.motivo, p.descricao].filter(Boolean).join(' — ') || 'sem motivo'}`,
+        motivoEspera: p.motivo,
+        inicio: p.inicio,
+        fim: p.fim,
+        horas,
+        hh: horas * a.pessoas,
+      });
     });
   }
   return out.sort((x, y) => y.data.localeCompare(x.data) || x.inicio.localeCompare(y.inicio));
@@ -160,7 +179,8 @@ export function somarPerdas(l: Perda[]) {
     horas: soma(l, (p) => p.horas),
     horasAtrasos: soma(at, (p) => p.horas),
     atrasos: at.length,
-    cancelamentos: canc.length,
+    /** atividades canceladas (não períodos) */
+    cancelamentos: new Set(canc.map((p) => p.atividadeId ?? p.id)).size,
   };
 }
 
@@ -200,7 +220,8 @@ export function novoAtrasoDaAtividade(a: Atividade, uid: string, por: string): A
 }
 
 /** Chave do motivo para agrupar: o motivo do atraso ou "Cancelamento: motivo". */
-export const motivoDaPerda = (p: Perda) => (p.origem === 'atraso' ? (p.atraso?.motivo ?? p.motivo) : `Cancelamento: ${p.motivo.replace(/^Cancelada: /, '')}`);
+export const motivoDaPerda = (p: Perda) =>
+  p.origem === 'atraso' ? (p.atraso?.motivo ?? p.motivo) : p.motivoEspera ? `Cancelamento: espera · ${p.motivoEspera}` : `Cancelamento: ${p.motivo.replace(/^Cancelada: /, '').replace(/ · espera: .*$/, '')}`;
 
 /** HH e horas por motivo, do maior HH para o menor. */
 export function perdasPorMotivo(l: Perda[]): { chave: string; horas: number; hh: number; n: number; origem: Perda['origem'] }[] {
