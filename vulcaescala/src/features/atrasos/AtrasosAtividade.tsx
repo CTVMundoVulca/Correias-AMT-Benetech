@@ -68,7 +68,7 @@ export function AtrasosAtividade({ weekKey, dayIndex, atividadeId, atividadeNome
   );
 }
 
-function AtrasoDialog({
+export function AtrasoDialog({
   atual,
   base,
   onClose,

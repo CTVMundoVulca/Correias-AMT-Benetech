@@ -201,3 +201,65 @@ describe('efetivo do dia: só o contrato; apoio à parte', () => {
     expect(r.ocupacao).toBeCloseTo(0.5);
   });
 });
+
+import { emergenciasPorOm } from '../prog/model';
+describe('emergências por OM', () => {
+  it('mesma OM em vários dias conta uma vez; soma os dias-OM', () => {
+    const l = [
+      at({ classe: 'emergencia', om: '900000000001', data: '2026-11-10', area: 'COQUERIA', equipamento: 'C-1' }),
+      at({ classe: 'emergencia', om: '900000000001', data: '2026-11-11', area: 'COQUERIA', equipamento: 'C-1' }),
+      at({ classe: 'emergencia', om: '900000000001', data: '2026-11-11', area: 'COQUERIA', equipamento: 'C-1' }), // 2 registros no mesmo dia = 1 dia
+      at({ classe: 'emergencia', om: '900000000002', data: '2026-11-11', area: 'URCP', equipamento: 'U-2' }),
+      // sem OM: mesma área + equipamento ("L-21" = "l21") é uma ocorrência
+      at({ classe: 'emergencia', om: '', data: '2026-11-12', area: 'PÁTIO', equipamento: 'L-21' }),
+      at({ classe: 'emergencia', om: '', data: '2026-11-13', area: 'PÁTIO', equipamento: 'l21' }),
+      at({ classe: 'emergencia', om: '', data: '2026-11-13', area: 'SINTER', equipamento: 'L-21' }),
+      at({ classe: 'programada', om: '900000000003', data: '2026-11-13' }),
+    ];
+    const e = emergenciasPorOm(l);
+    expect(e.ocorrencias).toHaveLength(4);
+    expect(e.diasOm).toBe(2 + 1 + 2 + 1);
+    expect(e.semOm).toBe(2);
+    expect(e.ocorrencias[0].dias).toEqual(['2026-11-12', '2026-11-13']);
+    expect(e.ocorrencias.find((g) => g.om === '900000000001')!.dias).toEqual(['2026-11-10', '2026-11-11']);
+    expect(e.media).toBe(1.5);
+    expect(emergenciasPorOm([]).media).toBeNull();
+  });
+});
+
+import { dataDoDiaId, diaIdDe, perdasDoPeriodo, somarPerdas, horasPorEquipamento } from '../prog/atrasosProg';
+import { metaDoMes, completarMetas } from '../prog/metas';
+describe('horas perdidas e metas', () => {
+  it('atraso da escala vira HH com as pessoas alocadas; sem escala, as da programação', () => {
+    expect(diaIdDe('2026-11-18')).toBe('2026-W47_2');
+    expect(dataDoDiaId('2026-W47_2')).toBe('2026-11-18');
+    const a = at({ id: 'p1', data: '2026-11-18', area: 'PÁTIO', equipamento: 'L-209', om: '900000000209', pessoas: 4, classe: 'programada' });
+    const c = at({ id: 'p2', data: '2026-11-17', area: 'URCP', equipamento: 'D-4', classe: 'cancelada', mobilizada: true, pessoas: 3, horasMobilizadas: 2, motivo: 'Bloqueio' });
+    const base = { semana: '2026-W47', diaId: '2026-W47_2', descricao: '', criadoUid: 'u', criadoEm: 'x', atualizadoEm: 'x', por: 'x' };
+    const atrasos = [
+      { ...base, id: 'x1', atividadeId: 'prog-p1', atividadeNome: 'L-209', inicio: '08:00', fim: '09:30', motivo: 'Bloqueio' },
+      { ...base, id: 'x2', atividadeId: 'prog-p1', atividadeNome: 'L-209', inicio: '13:00', fim: '13:30', motivo: 'Recurso' },
+      { ...base, id: 'x3', atividadeId: 'prog-p1', atividadeNome: 'L-209', inicio: '15:00', fim: '', motivo: 'Limpeza' }, // em andamento: não conta
+      { ...base, id: 'x4', atividadeId: 'esc-1', atividadeNome: 'LIMPEZA OFICINA', inicio: '10:00', fim: '11:00', motivo: 'Recurso' },
+    ];
+    const comEscala = perdasDoPeriodo([a, c], { atrasos, pessoasEscala: new Map([['2026-W47_2|prog-p1', 5], ['2026-W47_2|esc-1', 2]]) });
+    const t = somarPerdas(comEscala);
+    expect(t.atrasos).toBe(3);
+    expect(t.hhAtrasos).toBe(1.5 * 5 + 0.5 * 5 + 1 * 2);
+    expect(t.hhCancel).toBe(6);
+    expect(t.horasAtrasos).toBe(3);
+    expect(comEscala.find((p) => p.id === 'at-x4')).toMatchObject({ semVinculo: true, data: '2026-11-18', pessoas: 2 });
+    const semEscala = somarPerdas(perdasDoPeriodo([a], { atrasos: atrasos.slice(0, 2), pessoasEscala: new Map() }));
+    expect(semEscala.hh).toBe(2 * 4);
+    expect(horasPorEquipamento(comEscala)[0]).toMatchObject({ chave: 'D-4 · URCP', horas: 2 });
+  });
+
+  it('meta vale a partir do mês até a próxima', () => {
+    const m = completarMetas([{ desde: '2026-11', pct: 80 }, { desde: '2027-03', pct: 85 }, { desde: 'x', pct: 1 }, { desde: '2026-12', pct: 120 }]);
+    expect(m).toHaveLength(2);
+    expect(metaDoMes(m, '2026-10')).toBeNull();
+    expect(metaDoMes(m, '2026-11')).toBe(80);
+    expect(metaDoMes(m, '2027-02')).toBe(80);
+    expect(metaDoMes(m, '2027-05')).toBe(85);
+  });
+});

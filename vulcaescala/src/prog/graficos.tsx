@@ -153,7 +153,7 @@ function topoEixo(max: number): number {
  * Colunas mensais empilhadas por classificação, com grade, linha da média e
  * seleção: tocar num mês mostra o detalhe dele embaixo.
  */
-export function GraficoColunas({ colunas, foco = null }: { colunas: Coluna[]; foco?: Serie | null }) {
+export function GraficoColunas({ colunas, foco = null, detalhe }: { colunas: Coluna[]; foco?: Serie | null; detalhe?: (c: Coluna) => ReactNode }) {
   const [sel, setSel] = useState<string | null>(null);
   const valor = (c: Coluna) => (foco ? c.classes[foco] : c.total);
   const max = topoEixo(Math.max(1, ...colunas.map(valor)));
@@ -220,12 +220,120 @@ export function GraficoColunas({ colunas, foco = null }: { colunas: Coluna[]; fo
             {media > 0 && ' da média'}
           </div>
           <Quebra classes={c.classes} total={c.total} />
+          {detalhe?.(c)}
         </div>
       ) : (
         <p className="small muted gc-dica">
           <span className="gc-media-leg" aria-hidden /> média {Math.round(media)} por mês · toque num mês para ver o detalhe.
         </p>
       )}
+    </div>
+  );
+}
+
+export interface ColunaMeta {
+  id: string;
+  rotulo: string;
+  nomeLongo: string;
+  /** programadas ÷ executadas (0–1) ou null sem execução */
+  indice: number | null;
+  programadas: number;
+  executadas: number;
+  /** meta do mês em % (0–100) ou null */
+  meta: number | null;
+}
+
+/**
+ * % de atividades programadas por mês contra a meta do mês (linha tracejada em cada coluna).
+ * Verde: atingiu a meta; vermelho: abaixo. Tocar num mês mostra o detalhe.
+ */
+export function GraficoMeta({ colunas, acoes }: { colunas: ColunaMeta[]; acoes?: ReactNode }) {
+  const [sel, setSel] = useState<string | null>(null);
+  const c = colunas.find((x) => x.id === sel) ?? null;
+  const pctTxt = (v: number) => `${Math.round(v * 100)}%`;
+  const situacao = (col: ColunaMeta) => (col.indice === null || col.meta === null ? 'sem-meta' : col.indice * 100 >= col.meta ? 'atingiu' : 'abaixo');
+  const comMeta = colunas.filter((x) => x.meta !== null && x.indice !== null);
+  const atingiu = comMeta.filter((x) => situacao(x) === 'atingiu').length;
+  return (
+    <div className="gc gm">
+      <div className="gc-area">
+        <div className="gc-eixo num" aria-hidden>
+          <span>100%</span>
+          <span>50%</span>
+          <span>0</span>
+        </div>
+        <div className="gc-plot">
+          {[100, 50, 0].map((t) => (
+            <span key={t} className="gc-grade" style={{ bottom: `${t}%` }} aria-hidden />
+          ))}
+          <div className="gc-cols">
+            {colunas.map((col) => {
+              const on = sel === col.id;
+              const v = col.indice === null ? 0 : col.indice * 100;
+              return (
+                <button
+                  key={col.id}
+                  type="button"
+                  className={'gc-col' + (on ? ' on' : '') + (sel && !on ? ' fora' : '')}
+                  aria-pressed={on}
+                  aria-label={`${col.nomeLongo}: ${col.indice === null ? 'sem execução' : pctTxt(col.indice)}${col.meta !== null ? `, meta ${col.meta}%` : ''}`}
+                  onClick={() => setSel(on ? null : col.id)}
+                >
+                  {col.indice !== null && (
+                    <span className="gc-val num" style={{ bottom: `calc(${v}% + 3px)` }}>
+                      {pctTxt(col.indice)}
+                    </span>
+                  )}
+                  <span className={'gc-pilha gm-barra ' + situacao(col)} style={{ height: `${v}%` }} />
+                  {col.meta !== null && <span className="gm-meta" style={{ bottom: `${col.meta}%` }} aria-hidden />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <div className="gc-rotulos" aria-hidden>
+        <span className="gc-eixo-vazio" />
+        <div className="gc-cols">
+          {colunas.map((col) => (
+            <span key={col.id} className={'gc-rot' + (sel === col.id ? ' on' : '')}>
+              {col.rotulo}
+            </span>
+          ))}
+        </div>
+      </div>
+      {c ? (
+        <div className="gb-detalhe">
+          <div className="gb-det-topo">
+            <b>{c.nomeLongo}</b> ·{' '}
+            {c.indice === null ? (
+              'sem atividades executadas'
+            ) : (
+              <>
+                <b className="num">{pctTxt(c.indice)}</b> programadas ({c.programadas} de {c.executadas} executadas)
+              </>
+            )}
+            {c.meta !== null && c.indice !== null && (
+              <>
+                {' '}
+                · meta <b className="num">{c.meta}%</b> ·{' '}
+                {situacao(c) === 'atingiu' ? (
+                  <b className="text-ok">✓ atingiu</b>
+                ) : (
+                  <span className="text-danger">⚠ {Math.round(c.meta - c.indice * 100)} p.p. abaixo</span>
+                )}
+              </>
+            )}
+            {c.meta === null && ' · sem meta definida para este mês'}
+          </div>
+        </div>
+      ) : (
+        <p className="small muted gc-dica">
+          <span className="gm-meta-leg" aria-hidden /> meta do mês
+          {comMeta.length > 0 && ` · atingida em ${atingiu} de ${comMeta.length} mês(es)`} · toque num mês para ver o detalhe.
+        </p>
+      )}
+      {acoes}
     </div>
   );
 }

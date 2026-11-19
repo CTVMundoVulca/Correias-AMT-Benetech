@@ -10,7 +10,9 @@ import { DiaSelecionado } from './DiaSelecionado';
 import { proximosDiasUteis } from './kpis';
 import { CalendarioMes, MapaSemana, corDaArea, diasDaSemana, gradeDoMes, mesDeIso, segundaDe, type Mes } from './Painel';
 import { dataBr } from './Solicitar';
-import { TIPOS_PARADA, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Solicitacao } from './model';
+import { DetalheAtividades, DetalheEmergenciasOm, DetalhePerdas } from './Detalhes';
+import { perdasDoPeriodo, somarPerdas, useAtrasosPeriodo } from './atrasosProg';
+import { AREA_INTERNA, TIPOS_PARADA, emergenciasPorOm, fmtHH, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Atividade, type Solicitacao } from './model';
 
 const somaMes = (ym: string, n: number) => {
   const [y, m] = ym.split('-').map(Number);
@@ -24,6 +26,21 @@ const STATUS_SOLIC: Record<Solicitacao['status'], { nome: string; cls: string }>
   recusada: { nome: 'Recusada', cls: 'st-recusada' },
   cancelada: { nome: 'Cancelada', cls: 'st-cancelada' },
 };
+type ClasseSel = 'programada' | 'nao_programada' | 'emergencia' | 'cancelada' | 'sem';
+/** seleção dos indicadores do mês (filtro cruzado, como no Power BI): classe, área e/ou "OMs em emergência" */
+interface Selecao {
+  classe: ClasseSel | null;
+  area: string | null;
+  oms: boolean;
+  /** horas perdidas (atrasos + cancelamentos com equipe mobilizada) */
+  perdas: boolean;
+  /** "Atividades no mês": lista tudo */
+  todas: boolean;
+}
+const SEM_SEL: Selecao = { classe: null, area: null, oms: false, perdas: false, todas: false };
+const NOME_SEL: Record<ClasseSel, string> = { programada: 'Programadas', nao_programada: 'Não programadas', emergencia: 'Emergências', cancelada: 'Canceladas', sem: 'Sem classificação' };
+const areaDe = (a: Atividade) => a.area || AREA_INTERNA;
+
 const URG: Record<Solicitacao['urgencia'], { nome: string; cls: string }> = {
   normal: { nome: 'Normal', cls: 'ur-normal' },
   urgente: { nome: 'Urgente', cls: 'ur-urgente' },
@@ -65,10 +82,34 @@ export function Central() {
 
   const doMes = useMemo(() => (lista ?? []).filter((a) => mesDe(a.data) === mesAtual), [lista, mesAtual]);
   const doMesAnt = useMemo(() => (lista ?? []).filter((a) => mesDe(a.data) === mesAnt), [lista, mesAnt]);
-  const r = resumir(doMes);
+  // filtro cruzado: a área escolhida filtra os cartões e a rosca; a classificação escolhida filtra as barras das áreas
+  const [sel, setSel] = useState<Selecao>(SEM_SEL);
+  const selRef = useRef<HTMLDivElement>(null);
+  const doMesArea = useMemo(() => (sel.area ? doMes.filter((a) => areaDe(a) === sel.area) : doMes), [doMes, sel.area]);
+  const r = resumir(doMesArea);
   const exec = r.classes.programada + r.classes.nao_programada + r.classes.emergencia;
-  const variacao = doMesAnt.length ? (doMes.length - doMesAnt.length) / doMesAnt.length : null;
-  const top = porArea(doMes.filter((a) => a.classe !== 'cancelada')).slice(0, 5);
+  const emerg = useMemo(() => emergenciasPorOm(doMesArea), [doMesArea]);
+  const doMesAntArea = sel.area ? doMesAnt.filter((a) => areaDe(a) === sel.area) : doMesAnt;
+  const variacao = doMesAntArea.length ? (doMesArea.length - doMesAntArea.length) / doMesAntArea.length : null;
+  const top = porArea(doMes.filter((a) => a.classe !== 'cancelada' && (!sel.classe || (a.classe || 'sem') === sel.classe))).slice(0, 5);
+  const detalhe = useMemo(
+    () => doMes.filter((a) => (!sel.area || areaDe(a) === sel.area) && (!sel.classe || (a.classe || 'sem') === sel.classe)),
+    [doMes, sel.area, sel.classe],
+  );
+  const atrasosMes = useAtrasosPeriodo(`${mesAtual}-01`, hoje);
+  const perdas = useMemo(
+    () => perdasDoPeriodo(doMes, atrasosMes).filter((p) => (!p.data || mesDe(p.data) === mesAtual) && (!sel.area || p.area === sel.area)),
+    [doMes, atrasosMes, mesAtual, sel.area],
+  );
+  const tPerdas = somarPerdas(perdas);
+  const temSel = sel.todas || sel.oms || sel.perdas || sel.classe !== null || sel.area !== null;
+  const mostrar = (n: Selecao) => {
+    setSel(n);
+    if (n.todas || n.oms || n.perdas || n.classe || n.area) setTimeout(() => selRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  };
+  const escolherClasse = (c: ClasseSel | null) => mostrar({ ...sel, classe: sel.classe === c ? null : c, oms: false, perdas: false, todas: false });
+  const escolherArea = (a: string) => mostrar({ ...sel, area: sel.area === a ? null : a, oms: false, perdas: false, todas: false });
+  const tituloSel = [sel.perdas ? 'Horas perdidas' : sel.oms ? 'OMs em emergência' : sel.classe ? NOME_SEL[sel.classe] : 'Atividades', sel.area ?? ''].filter(Boolean).join(' · ');
   const fila = (solic ?? []).filter((s) => s.status === 'aberta').concat((solic ?? []).filter((s) => s.status !== 'aberta')).slice(0, 6);
   const abertas = (solic ?? []).filter((s) => s.status === 'aberta').length;
   const proximas = paradas.filter((p) => p.fim >= hoje).sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(0, 4);
@@ -179,21 +220,72 @@ export function Central() {
       </div>
 
       {/* 5. indicadores do mês (análise) */}
-      <h3 className="secao-central">📈 Indicadores de {nomeMes}</h3>
+      <div className="bloco-topo secao-central">
+        <h3>📈 Indicadores de {nomeMes}</h3>
+        {sel.area && (
+          <button type="button" className="chip-filtro" onClick={() => mostrar({ ...sel, area: null })} title="Tirar o filtro de área">
+            Área: {sel.area} ✕
+          </button>
+        )}
+      </div>
+      <p className="small muted dica-int">Toque num cartão, numa fatia da rosca ou numa área para ver as atividades que formam o número. Tocar de novo tira a seleção.</p>
       <div className="kpi-faixa kpi-mes">
-        <Kpi ico="📋" cor="k-azul" titulo="Atividades no mês" valor={lista ? r.total : '…'} extra={variacao === null ? undefined : `${variacao >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(variacao * 100))}% vs mês anterior`} />
-        <Kpi ico="📅" cor="k-prog" titulo="Programadas" valor={r.classes.programada} extra={pct(exec ? r.classes.programada / exec : null)} />
-        <Kpi ico="⏱" cor="k-naoprog" titulo="Não programadas" valor={r.classes.nao_programada} extra={pct(exec ? r.classes.nao_programada / exec : null)} />
-        <Kpi ico="⚡" cor="k-emerg" titulo="Emergências" valor={r.classes.emergencia} extra={pct(exec ? r.classes.emergencia / exec : null)} />
+        <Kpi
+          ico="📋"
+          cor="k-azul"
+          titulo="Atividades no mês"
+          valor={lista ? r.total : '…'}
+          extra={`${exec} executadas · ${r.classes.cancelada} canceladas${r.classes.sem ? ` · ${r.classes.sem} sem classif.` : ''}`}
+          extra2={variacao === null ? undefined : `${variacao >= 0 ? '↑' : '↓'} ${Math.abs(Math.round(variacao * 100))}% vs mês anterior`}
+          ativo={sel.todas}
+          onClick={() => mostrar(sel.todas ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, todas: true })}
+        />
+        <Kpi ico="📅" cor="k-prog" titulo="Programadas" valor={r.classes.programada} extra={pct(exec ? r.classes.programada / exec : null)} ativo={sel.classe === 'programada' && !sel.oms} apagado={!!sel.classe && sel.classe !== 'programada'} onClick={() => escolherClasse('programada')} />
+        <Kpi ico="⏱" cor="k-naoprog" titulo="Não programadas" valor={r.classes.nao_programada} extra={pct(exec ? r.classes.nao_programada / exec : null)} ativo={sel.classe === 'nao_programada'} apagado={!!sel.classe && sel.classe !== 'nao_programada'} onClick={() => escolherClasse('nao_programada')} />
+        <Kpi
+          ico="⚡"
+          cor="k-emerg"
+          titulo="Emergências"
+          valor={r.classes.emergencia}
+          extra={`registros-dia · ${pct(exec ? r.classes.emergencia / exec : null)}`}
+          ativo={sel.classe === 'emergencia' && !sel.oms}
+          apagado={!!sel.classe && sel.classe !== 'emergencia'}
+          onClick={() => escolherClasse('emergencia')}
+        />
+        <Kpi
+          ico="🚨"
+          cor="k-emerg"
+          titulo="OMs em emergência"
+          valor={emerg.ocorrencias.length}
+          extra={emerg.ocorrencias.length ? `${emerg.diasOm} dias-OM · média ${emerg.media!.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} d/OM` : 'nenhuma no mês'}
+          ativo={sel.oms}
+          apagado={!!sel.classe && sel.classe !== 'emergencia'}
+          onClick={() => mostrar(sel.oms ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, classe: 'emergencia', oms: true })}
+        />
+        <Kpi
+          ico="⏳"
+          cor="k-naoprog"
+          titulo="HH perdidas"
+          valor={atrasosMes ? fmtHH(tPerdas.hh) : '…'}
+          extra={`${tPerdas.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h parado · ${tPerdas.atrasos} atraso(s) · ${tPerdas.cancelamentos} canc.`}
+          ativo={sel.perdas}
+          apagado={!!sel.classe}
+          onClick={() => mostrar(sel.perdas ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, perdas: true })}
+        />
       </div>
       <div className="central-grid dupla">
         {/* classificação do mês */}
         <section className="painel-bloco b-classe">
           <div className="bloco-topo">
-            <h3>Classificação — {nomeMes}</h3>
+            <h3>
+              Classificação — {nomeMes}
+              {sel.area ? ` · ${sel.area}` : ''}
+            </h3>
           </div>
           <Rosca
             total={exec}
+            foco={sel.classe}
+            onFatia={(k) => escolherClasse(k as ClasseSel)}
             fatias={[
               { k: 'programada', nome: 'Programadas', v: r.classes.programada },
               { k: 'nao_programada', nome: 'Não programadas', v: r.classes.nao_programada },
@@ -202,35 +294,67 @@ export function Central() {
           />
           {r.classes.cancelada + r.classes.sem > 0 && (
             <p className="small muted center">
-              + {r.classes.cancelada} cancelada(s){r.classes.sem ? ` · ${r.classes.sem} sem classificação` : ''}
+              +{' '}
+              <button type="button" className={'link small' + (sel.classe === 'cancelada' ? ' on' : '')} onClick={() => escolherClasse('cancelada')}>
+                {r.classes.cancelada} cancelada(s)
+              </button>
+              {r.classes.sem > 0 && (
+                <>
+                  {' · '}
+                  <button type="button" className={'link small' + (sel.classe === 'sem' ? ' on' : '')} onClick={() => escolherClasse('sem')}>
+                    {r.classes.sem} sem classificação
+                  </button>
+                </>
+              )}
             </p>
           )}
         </section>
         {/* áreas que mais solicitaram */}
         <section className="painel-bloco b-top">
           <div className="bloco-topo">
-            <h3>Áreas que mais demandaram — {nomeMes}</h3>
+            <h3>
+              Áreas que mais demandaram — {nomeMes}
+              {sel.classe ? ` · ${NOME_SEL[sel.classe]}` : ''}
+            </h3>
           </div>
           {top.length === 0 ? (
-            <p className="muted small">Sem atividades no mês.</p>
+            <p className="muted small">Sem atividades {sel.classe ? 'nesta classificação' : 'no mês'}.</p>
           ) : (
             <ul className="hbars">
               {top.map((g) => (
-                <li key={g.chave} className="hbar" title={`${g.chave}: ${g.total} atividade(s)`}>
-                  <span className="hbar-nome">
-                    <span className={'sw-area ' + corDaArea(g.chave)} /> {g.chave}
-                  </span>
-                  <span className="hbar-trilho">
-                    <span className="hbar-pilha" style={{ width: `${(g.total / top[0].total) * 100}%` }}>
-                      <span className={'seg-area ' + corDaArea(g.chave)} style={{ flexGrow: 1 }} />
+                <li key={g.chave}>
+                  <button
+                    type="button"
+                    className={'hbar hbar-btn' + (sel.area === g.chave ? ' on' : sel.area ? ' apagado' : '')}
+                    title={`${g.chave}: ${g.total} atividade(s)`}
+                    aria-pressed={sel.area === g.chave}
+                    onClick={() => escolherArea(g.chave)}
+                  >
+                    <span className="hbar-nome">
+                      <span className={'sw-area ' + corDaArea(g.chave)} /> {g.chave}
                     </span>
-                    <span className="hbar-valor num">{g.total}</span>
-                  </span>
+                    <span className="hbar-trilho">
+                      <span className="hbar-pilha" style={{ width: `${(g.total / top[0].total) * 100}%` }}>
+                        <span className={'seg-area ' + corDaArea(g.chave)} style={{ flexGrow: 1 }} />
+                      </span>
+                      <span className="hbar-valor num">{g.total}</span>
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </section>
+      </div>
+      <div ref={selRef}>
+        {temSel &&
+          (sel.perdas ? (
+            <DetalhePerdas titulo={`${tituloSel} — ${nomeMes}`} perdas={perdas} onFechar={() => setSel(SEM_SEL)} />
+          ) : sel.oms ? (
+            <DetalheEmergenciasOm titulo={`${tituloSel} — ${nomeMes}`} ocorrencias={emerg.ocorrencias} onFechar={() => setSel(SEM_SEL)} />
+          ) : (
+            <DetalheAtividades titulo={`${tituloSel} — ${nomeMes}`} lista={detalhe} onFechar={() => setSel(SEM_SEL)} />
+          ))}
       </div>
 
       <AcoesRapidas linkAreas={linkAreas} />
@@ -238,9 +362,30 @@ export function Central() {
   );
 }
 
-function Kpi({ ico, cor, titulo, valor, extra }: { ico: string; cor: string; titulo: string; valor: number | string; extra?: string }) {
+function Kpi({
+  ico,
+  cor,
+  titulo,
+  valor,
+  extra,
+  extra2,
+  ativo = false,
+  apagado = false,
+  onClick,
+}: {
+  ico: string;
+  cor: string;
+  titulo: string;
+  valor: number | string;
+  extra?: string;
+  extra2?: string;
+  ativo?: boolean;
+  apagado?: boolean;
+  onClick?: () => void;
+}) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="kpi-c">
+    <Tag type={onClick ? 'button' : undefined} className={'kpi-c' + (onClick ? ' kpi-click' : '') + (ativo ? ' on' : '') + (apagado ? ' apagado' : '')} onClick={onClick} aria-pressed={onClick ? ativo : undefined} title={onClick ? 'Ver as atividades' : undefined}>
       <span className={'kpi-ico ' + cor} aria-hidden>
         {ico}
       </span>
@@ -248,13 +393,14 @@ function Kpi({ ico, cor, titulo, valor, extra }: { ico: string; cor: string; tit
         <span className="kpi-tit">{titulo}</span>
         <b className="num">{valor}</b>
         {extra && <span className="kpi-extra num">{extra}</span>}
+        {extra2 && <span className="kpi-extra num">{extra2}</span>}
       </span>
-    </div>
+    </Tag>
   );
 }
 
 /** Rosca de 3 fatias (classificação). Rótulos diretos na legenda, com número e %. */
-function Rosca({ total, fatias }: { total: number; fatias: { k: string; nome: string; v: number }[] }) {
+function Rosca({ total, fatias, foco = null, onFatia }: { total: number; fatias: { k: string; nome: string; v: number }[]; foco?: string | null; onFatia?: (k: string) => void }) {
   const R = 42;
   const C = 2 * Math.PI * R;
   let acc = 0;
@@ -275,7 +421,8 @@ function Rosca({ total, fatias }: { total: number; fatias: { k: string; nome: st
                   r={R}
                   fill="none"
                   strokeWidth="16"
-                  className={'rosca-seg s-' + f.k}
+                  className={'rosca-seg s-' + f.k + (onFatia ? ' clicavel' : '') + (foco && foco !== f.k ? ' apagado' : '')}
+                  onClick={onFatia ? () => onFatia(f.k) : undefined}
                   strokeDasharray={`${Math.max(0, len - 2)} ${C}`}
                   strokeDashoffset={-acc}
                   transform="rotate(-90 55 55)"
@@ -296,10 +443,18 @@ function Rosca({ total, fatias }: { total: number; fatias: { k: string; nome: st
       <ul className="rosca-leg">
         {fatias.map((f) => (
           <li key={f.k}>
-            <span className={'sw s-' + f.k} /> {f.nome}
-            <b className="num">
-              {f.v} <span className="muted">({pct(total ? f.v / total : null)})</span>
-            </b>
+            <button
+              type="button"
+              className={'rosca-item' + (foco === f.k ? ' on' : foco ? ' apagado' : '')}
+              disabled={!onFatia}
+              aria-pressed={foco === f.k}
+              onClick={() => onFatia?.(f.k)}
+            >
+              <span className={'sw s-' + f.k} /> {f.nome}
+              <b className="num">
+                {f.v} <span className="muted">({pct(total ? f.v / total : null)})</span>
+              </b>
+            </button>
           </li>
         ))}
       </ul>
