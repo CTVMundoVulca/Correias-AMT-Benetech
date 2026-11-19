@@ -55,5 +55,11 @@
 
 /* itens críticos em destaque vermelho (tela e PDF) */
 .ponte-itens tr.critico td:first-child { border-left: 4px solid #c62828; color: #b71c1c; font-weight: 600; }
-.ponte-itens tr.critico td.ponte-r { color: #b71c1c; }
 .tag-critico { display: inline-block; background: #c62828; color: #fff; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
+
+/* resposta: S – Conforme verde, N – Não conforme vermelho */
+.ponte-itens td.ponte-r.r-C { color: #1b7a34; }
+.ponte-itens td.ponte-r.r-NC { color: #c62828; }
+.ponte-itens td.ponte-r.r-NA { color: var(--ink-2); }
+/* checklist excluído pelo administrador */
+.ponte-excluido { border: 2px solid #c62828; background: #fdecea; color: #8e1b1b; border-radius: 8px; padding: 8px 10px; }

@@ -389,10 +389,22 @@ service cloud.firestore {
         && (d.apto == true || d.resultado == 'bloqueada')
         && d.fotos is int && d.fotos <= 20;
     }
+    // Exclusão pelo administrador: o registro NÃO é apagado; só ganha quem excluiu, quando e o
+    // motivo (histórico de exclusão). Nenhum outro campo do checklist pode mudar.
+    function exclusaoValida() {
+      let d = request.resource.data;
+      return isProgAdmin()
+        && resource.data.get('excluidoEm', '') == ''
+        && d.diff(resource.data).affectedKeys().hasOnly(['excluidoEm', 'excluidoPor', 'excluidoMotivo'])
+        && d.excluidoEm is string && d.excluidoEm.size() > 0
+        && d.excluidoPor == email()
+        && d.excluidoMotivo is string && d.excluidoMotivo.size() >= 10 && d.excluidoMotivo.size() <= 500;
+    }
     match /ponte_checklists/{id} {
       allow read: if signedIn();
       allow create: if checklistValido();
-      allow update, delete: if false;
+      allow update: if exclusaoValida();
+      allow delete: if false;
       match /fotos/{n} {
         allow read: if signedIn();
         allow create: if emailOk()

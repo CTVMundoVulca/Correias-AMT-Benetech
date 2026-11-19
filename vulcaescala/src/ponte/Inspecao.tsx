@@ -12,9 +12,10 @@ import {
   MODELO,
   OBS_MAX,
   PERGUNTA_FINAL,
+  REGRA_AM,
   criticosNC,
   PIN_TAM,
-  RESPOSTAS,
+  RESPOSTAS_FORM,
   faltando,
   ordenarOperadores,
   pinValido,
@@ -255,7 +256,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
                     {i.ajuda && <div className="small muted">{i.ajuda}</div>}
                   </div>
                   <div className="segmented" role="radiogroup" aria-label={i.texto}>
-                    {RESPOSTAS.map((x) => (
+                    {RESPOSTAS_FORM.map((x) => (
                       <button key={x.id} type="button" role="radio" aria-checked={r?.r === x.id} className={'seg' + (r?.r === x.id ? ' on' : '') + ' r-' + x.id} onClick={() => marcar(i.id, x.id)}>
                         {x.nome}
                       </button>
@@ -277,7 +278,7 @@ function Formulario({ operador, onEnviado }: { operador: Operador; onEnviado: (e
       ))}
 
       <section className="card pad stack">
-        <p className="small muted">Legenda: S – Conforme · N – Não conforme · NA – Não aplicável. Item “crítico” com N – Não conforme interdita a ponte: ela não pode ser liberada.</p>
+        <p className="small muted">Legenda: S – Conforme · N – Não conforme. {REGRA_AM} Item “crítico” com N – Não conforme interdita a ponte.</p>
         <div className="ponte-item">
           <b>{PERGUNTA_FINAL}</b>
           <div className="segmented" role="radiogroup" aria-label="Pergunta final">

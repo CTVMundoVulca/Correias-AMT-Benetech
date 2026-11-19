@@ -17,6 +17,8 @@ export interface PonteCtx {
   operadoresErro: string;
   /** checklists dos últimos dias (mais recentes primeiro) */
   checklists: Checklist[] | null;
+  /** checklists excluídos pelo administrador (histórico de exclusão) */
+  excluidos: Checklist[];
   /** há checklist deste aparelho ainda não recebido pela nuvem */
   pendente: boolean;
   hoje: string;
