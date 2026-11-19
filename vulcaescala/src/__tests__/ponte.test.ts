@@ -28,8 +28,12 @@ describe('ponte rolante', () => {
 
   it('modelo PE-SGS-0059 (AM) + complementares: críticos pelo critério da AM', async () => {
     const { MODELO, PERGUNTA_FINAL } = await import('../ponte/model');
-    expect(MODELO.itens).toHaveLength(28);
-    expect(new Set(MODELO.itens.map((i) => i.id)).size).toBe(28);
+    expect(MODELO.itens).toHaveLength(27);
+    expect(new Set(MODELO.itens.map((i) => i.id)).size).toBe(27)
+    // botoeira com cabo retirada (controle sem fio); ids não são reaproveitados e a numeração segue 1..27
+    expect(MODELO.itens.some((i) => i.id === 'am19' || i.texto.includes('cabos da botoeira'))).toBe(false);
+    expect(MODELO.itens.map((i) => Number(i.texto.split('.')[0]))).toEqual(Array.from({ length: 27 }, (_, k) => k + 1));
+    expect(MODELO.itens[MODELO.itens.length - 1].id).toBe('am28');
     const nao = MODELO.itens.filter((i) => !i.bloqueia).map((i) => i.texto.replace(/^\d+\. /, ''));
     expect(nao).toEqual([
       'Sirene',
