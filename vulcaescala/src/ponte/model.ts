@@ -42,9 +42,16 @@ const G_TRANS_PONTE = 'Translação da ponte';
 const G_GERAIS = 'Itens gerais';
 const G_COMPL = 'Complementares (FOR GTO 071)';
 let seq = 0;
+let num = 0;
 const it = (grupo: string, texto: string, bloqueia: boolean, ajuda?: string): ItemModelo => {
   seq += 1;
-  return { id: `am${seq}`, grupo, texto: `${seq}. ${texto}`, bloqueia, ...(ajuda ? { ajuda } : {}) };
+  num += 1;
+  return { id: `am${seq}`, grupo, texto: `${num}. ${texto}`, bloqueia, ...(ajuda ? { ajuda } : {}) };
+};
+/** item retirado do modelo: o id não é reaproveitado (checklists antigos guardam os próprios itens) */
+const retirado = (): null => {
+  seq += 1;
+  return null;
 };
 
 /**
@@ -74,7 +81,7 @@ export const MODELO: Modelo = {
     it(G_GERAIS, 'Sirene', false, 'Item não impeditivo, exceto se algum padrão operacional mencionar.'),
     it(G_GERAIS, 'Limpeza geral da ponte', true),
     it(G_COMPL, 'A caixa da botoeira/controle remoto está limpa, enxuta e com sinais de comando bem visíveis.', false),
-    it(G_COMPL, 'Os cabos da botoeira em boas condições.', true),
+    retirado(), // am19 "Os cabos da botoeira em boas condições": a ponte da oficina usa controle remoto sem fio
     it(G_COMPL, 'O percurso da ponte rolante está sem obstáculo.', true),
     it(G_COMPL, 'Os cabos de aço do içamento estão em condições de uso.', true),
     it(G_COMPL, 'O içamento principal está operante (sobe e desce sem problemas).', true),
@@ -84,7 +91,7 @@ export const MODELO: Modelo = {
     it(G_COMPL, 'Existe algum ruído durante a operação da ponte.', false, 'S – Conforme = sem ruído anormal · N – Não conforme = há ruído anormal'),
     it(G_COMPL, 'A indicação da capacidade máxima da ponte está visível à distância.', false),
     it(G_COMPL, 'O local onde a ponte opera está iluminado o suficiente para enxergar os movimentos da carga.', false),
-  ],
+  ].filter((i): i is ItemModelo => i !== null),
 };
 
 /** regra do modelo da AM, mostrada no formulário */
