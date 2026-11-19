@@ -78,3 +78,30 @@ describe('ponte: manutenções', () => {
     expect(PARTE).toBeLessThan(1_000_000); // cabe num documento do Firestore
   });
 });
+
+import { casarValidades, lerListaValidades } from '../ponte/model';
+describe('ponte: validades em lote', () => {
+  const op = (id: string, nome: string, validade = '2026-01-01') => ({ id, nome, matricula: id, validade, validadeAte: 0, authEmail: '', ativo: true, atualizadoEm: '' });
+  it('lê a lista colada (vale a última data) e casa pelo nome, sem acento e com nome parcial', () => {
+    const { ok, erros } = lerListaValidades(
+      ['FULANO JOSÉ DA CONCEIÇÃO\t14/10/2024\t14/10/2027\tVÁLIDO', 'CICRANO DUTRA DA SILVA;03/08/2024;03/08/2027', 'BELTRANO SOUZA;1/9/2025;1/9/2028', 'SEM DATA AQUI', 'NOVO OPERADOR TESTE;01/09/2025;01/09/2028', 'X;31/02/2027'].join('\n'),
+    );
+    expect(ok.map((x) => x.validade)).toEqual(['2027-10-14', '2027-08-03', '2028-09-01', '2028-09-01']);
+    expect(ok[0].nome).toBe('FULANO JOSÉ DA CONCEIÇÃO');
+    expect(erros).toHaveLength(2);
+    const r = casarValidades(ok, [op('1', 'FULANO JOSE DA CONCEICAO'), op('2', 'CICRANO DUTRA', '2027-08-03'), op('3', 'BELTRANO SOUZA'), op('4', 'OUTRO NOME')]);
+    expect(r.casados.map((c) => [c.op.id, c.item.validade, c.muda])).toEqual([
+      ['1', '2027-10-14', true],
+      ['2', '2027-08-03', false],
+      ['3', '2028-09-01', true],
+    ]);
+    expect(r.semCadastro.map((x) => x.nome)).toEqual(['NOVO OPERADOR TESTE']);
+    expect(r.foraDaLista.map((o) => o.id)).toEqual(['4']);
+  });
+  it('nome que bate com dois cadastrados não é aplicado (fica para conferir)', () => {
+    const { ok } = lerListaValidades('JOAO SILVA SANTOS;01/01/2025;01/01/2028');
+    const r = casarValidades(ok, [op('1', 'JOAO SILVA'), op('2', 'JOAO SANTOS')]);
+    expect(r.casados).toHaveLength(0);
+    expect(r.ambiguos[0].ops).toHaveLength(2);
+  });
+});

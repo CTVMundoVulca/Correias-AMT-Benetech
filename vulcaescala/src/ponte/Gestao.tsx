@@ -7,9 +7,11 @@ import { criarContaSeparada } from '../cloud/firebase';
 import { authErrorMsg } from '../cloud/authErrors';
 import { newId } from '../domain/ids';
 import { irPara, usePonte } from './context';
-import { gravarOperador } from './data';
+import { gravarOperador, gravarOperadores } from './data';
 import {
   AVISO_DIAS,
+  casarValidades,
+  lerListaValidades,
   INICIO_PONTE,
   MATRICULA_MAX,
   NOME_MAX,
@@ -22,6 +24,7 @@ import {
   limpar,
   nomeMaiusculo,
   ordenarOperadores,
+  palavrasDoNome,
   pinValido,
   situacaoTreinamento,
   somaDias,
@@ -35,6 +38,7 @@ type Edicao = { op: Operador | null; pin: boolean };
 export function Gestao() {
   const { api, admin, email, operadores, checklists, excluidos, hoje } = usePonte();
   const [ed, setEd] = useState<Edicao | null>(null);
+  const [lote, setLote] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
   const lista = useMemo(() => ordenarOperadores(operadores), [operadores]);
@@ -86,9 +90,14 @@ export function Gestao() {
       <section className="card pad stack">
         <div className="row between">
           <h2>Operadores habilitados</h2>
-          <button className="btn primary" onClick={() => setEd({ op: null, pin: true })}>
-            + Operador
-          </button>
+          <span className="row">
+            <button className="btn" onClick={() => setLote(true)}>
+              Atualizar validades em lote
+            </button>
+            <button className="btn primary" onClick={() => setEd({ op: null, pin: true })}>
+              + Operador
+            </button>
+          </span>
         </div>
         {avisos.length > 0 && (
           <div className="banner warn small">
@@ -156,6 +165,7 @@ export function Gestao() {
         )}
       </section>
       {ed && createPortal(<OperadorDialog ed={ed} onClose={() => setEd(null)} />, document.body)}
+      {lote && createPortal(<ValidadesLoteDialog onClose={() => setLote(false)} />, document.body)}
     </div>
   );
 }
@@ -262,3 +272,92 @@ function OperadorDialog({ ed, onClose }: { ed: Edicao; onClose: () => void }) {
     </Modal>
   );
 }
+
+/**
+ * Atualizar validades em lote: cola a lista do treinamento (nome + datas, uma pessoa por linha),
+ * confere o que muda em cada operador e só grava ao confirmar. Casa pelo nome (sem acento).
+ */
+function ValidadesLoteDialog({ onClose }: { onClose: () => void }) {
+  const { api, email, operadores, hoje } = usePonte();
+  const toast = useToast();
+  const [texto, setTexto] = useState('');
+  const [busy, setBusy] = useState(false);
+  const lida = useMemo(() => lerListaValidades(texto), [texto]);
+  const r = useMemo(() => casarValidades(lida.ok, operadores), [lida, operadores]);
+  const mudam = r.casados.filter((c) => c.muda);
+  const aplicar = async () => {
+    setBusy(true);
+    const agora = new Date().toISOString();
+    try {
+      await gravarOperadores(
+        api,
+        mudam.map(({ op, item }) => ({ ...op, validade: item.validade, validadeAte: fimDoDiaBrasilia(item.validade), atualizadoEm: agora })),
+        email,
+      );
+      toast(`${mudam.length} validade(s) atualizada(s)`);
+      onClose();
+    } catch {
+      toast('A nuvem recusou a atualização. Confira a conexão e se você é administrador.', 'danger');
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      title="Atualizar validades em lote"
+      subtitle="Cole a lista do treinamento: uma pessoa por linha, com o nome e as datas. Vale a última data da linha (validade)."
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="btn primary" disabled={!mudam.length || busy} onClick={() => void aplicar()}>
+            {busy ? 'Gravando…' : `Atualizar ${mudam.length} operador(es)`}
+          </button>
+        </>
+      }
+    >
+      <label className="field">
+        Lista
+        <textarea
+          className="input"
+          rows={6}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder={'FULANO DE TAL;03/08/2024;03/08/2027\nCICRANO DA SILVA;01/09/2025;01/09/2028'}
+          aria-label="Lista de validades"
+        />
+      </label>
+      {texto.trim() && (
+        <div className="stack small ponte-lote">
+          {mudam.length > 0 && (
+            <>
+              <b>Vão mudar ({mudam.length}):</b>
+              <ul className="plain-list">
+                {mudam.map(({ op, item }) => (
+                  <li key={op.id}>
+                    <b>{op.nome}</b>
+                    {palavrasIguais(op.nome, item.nome) ? '' : <span className="muted"> (na lista: {item.nome})</span>}: {op.validade ? dataBr(op.validade) : 'sem validade'} →{' '}
+                    <b className={item.validade < hoje ? 'text-danger' : ''}>{dataBr(item.validade)}</b>
+                    {item.validade < hoje && <span className="text-danger"> · vencido: fica bloqueado</span>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {r.casados.length > mudam.length && <p className="muted">Já estão certos: {r.casados.filter((c) => !c.muda).map((c) => c.op.nome).join(', ')}.</p>}
+          {r.semCadastro.length > 0 && (
+            <p>
+              ⚠ <b>Não cadastrados</b> (cadastre com “+ Operador”, cada um com o seu PIN): {r.semCadastro.map((x) => `${x.nome} (${dataBr(x.validade)})`).join(', ')}.
+            </p>
+          )}
+          {r.ambiguos.length > 0 && <p>⚠ Mais de um operador com nome parecido, atualize à mão: {r.ambiguos.map((a) => `${a.item.nome} → ${a.ops.map((o) => o.nome).join(' / ')}`).join('; ')}.</p>}
+          {r.foraDaLista.length > 0 && <p className="muted">Cadastrados que não estão na lista (não mudam): {r.foraDaLista.map((o) => o.nome).join(', ')}.</p>}
+          {lida.erros.length > 0 && <p className="text-danger">Linhas não lidas: {lida.erros.join('; ')}.</p>}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+const palavrasIguais = (a: string, b: string) => palavrasDoNome(a).join(' ') === palavrasDoNome(b).join(' ');
