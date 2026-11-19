@@ -786,4 +786,4 @@
 .perdas-rank h4 { margin: 4px 0 0; font-size: 0.85rem; }
 @media (min-width: 900px) { .perdas-rank { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) { .perdas-num b { font-size: 1.15rem; } .perdas-num { padding: 8px; } }
-.perdas-ancora { scroll-margin-top: 80px; margin-top: 12px; }
+.perdas-acoes { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }

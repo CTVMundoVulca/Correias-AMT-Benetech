@@ -86,7 +86,6 @@ export function Central() {
   // filtro cruzado: a área escolhida filtra os cartões e a rosca; a classificação escolhida filtra as barras das áreas
   const [sel, setSel] = useState<Selecao>(SEM_SEL);
   const selRef = useRef<HTMLDivElement>(null);
-  const perdasRef = useRef<HTMLDivElement>(null);
   const doMesArea = useMemo(() => (sel.area ? doMes.filter((a) => areaDe(a) === sel.area) : doMes), [doMes, sel.area]);
   const r = resumir(doMesArea);
   const exec = r.classes.programada + r.classes.nao_programada + r.classes.emergencia;
@@ -271,8 +270,9 @@ export function Central() {
           valor={atrasosMes ? `${Math.round(tPerdas.hh).toLocaleString('pt-BR')} HH` : '…'}
           extra={`atrasos: ${Math.round(tPerdas.hhAtrasos).toLocaleString('pt-BR')} HH`}
           extra2={`cancelam.: ${Math.round(tPerdas.hhCancel).toLocaleString('pt-BR')} HH`}
+          ativo={sel.perdas}
           apagado={!!sel.classe}
-          onClick={() => perdasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onClick={() => mostrar(sel.perdas ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, perdas: true })}
         />
       </div>
       <div className="central-grid dupla">
@@ -350,15 +350,13 @@ export function Central() {
       </div>
       <div ref={selRef}>
         {temSel &&
-          (sel.oms ? (
+          (sel.perdas ? (
+            <PainelPerdas titulo={`Horas perdidas — ${nomeMes}${sel.area ? ` · ${sel.area}` : ''}`} perdas={perdas} carregando={!atrasosMes} onFechar={() => setSel({ ...SEM_SEL, area: sel.area })} />
+          ) : sel.oms ? (
             <DetalheEmergenciasOm titulo={`${tituloSel} — ${nomeMes}`} ocorrencias={emerg.ocorrencias} onFechar={() => setSel(SEM_SEL)} />
           ) : (
             <DetalheAtividades titulo={`${tituloSel} — ${nomeMes}`} lista={detalhe} onFechar={() => setSel(SEM_SEL)} />
           ))}
-      </div>
-
-      <div ref={perdasRef} className="perdas-ancora">
-        <PainelPerdas titulo={`Horas perdidas — ${nomeMes}${sel.area ? ` · ${sel.area}` : ''}`} perdas={perdas} carregando={!atrasosMes} />
       </div>
 
       <AcoesRapidas linkAreas={linkAreas} />

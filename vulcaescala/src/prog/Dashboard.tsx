@@ -185,7 +185,7 @@ export function Dashboard() {
               )}
             </div>
             {selKpi === 'perdas' ? (
-              <PainelPerdas titulo="Horas perdidas no período" perdas={perdas} carregando={!atrasosP} />
+              <PainelPerdas titulo="Horas perdidas no período" perdas={perdas} carregando={!atrasosP} onFechar={() => setSelKpi(null)} />
             ) : selKpi === 'oms_emerg' ? (
               <DetalheEmergenciasOm titulo="OMs em emergência" ocorrencias={emerg.ocorrencias} onFechar={() => setSelKpi(null)} />
             ) : (

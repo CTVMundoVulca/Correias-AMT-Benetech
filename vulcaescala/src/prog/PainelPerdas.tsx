@@ -12,7 +12,7 @@ type Filtro = { tipo: 'todas' } | { tipo: 'origem'; v: Perda['origem'] } | { tip
  * Horas perdidas do período, no estilo de painel: totais, divisão atrasos × cancelamentos,
  * ranking por motivo e por equipamento. Tocar em qualquer parte abre a lista que forma o número.
  */
-export function PainelPerdas({ perdas, titulo, carregando = false }: { perdas: Perda[]; titulo: string; carregando?: boolean }) {
+export function PainelPerdas({ perdas, titulo, carregando = false, onFechar }: { perdas: Perda[]; titulo: string; carregando?: boolean; onFechar?: () => void }) {
   const [f, setF] = useState<Filtro | null>(null);
   const t = somarPerdas(perdas);
   const motivos = perdasPorMotivo(perdas).slice(0, 6);
@@ -30,9 +30,16 @@ export function PainelPerdas({ perdas, titulo, carregando = false }: { perdas: P
     <section className="painel-bloco b-perdas">
       <div className="bloco-topo">
         <h3>⏳ {titulo}</h3>
-        <button type="button" className="link small" onClick={() => alterna({ tipo: 'todas' })}>
-          Ver lista completa →
-        </button>
+        <div className="perdas-acoes">
+          <button type="button" className="link small" onClick={() => alterna({ tipo: 'todas' })}>
+            Ver lista completa →
+          </button>
+          {onFechar && (
+            <button type="button" className="btn small" onClick={onFechar}>
+              ✕ Fechar
+            </button>
+          )}
+        </div>
       </div>
       {carregando ? (
         <p className="muted small">Carregando atrasos da Escala…</p>
