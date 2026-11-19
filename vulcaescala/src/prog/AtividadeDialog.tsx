@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { MOTIVOS_PADRAO, ouvirMotivos } from '../cloud/atrasos';
 import { createPortal } from 'react-dom';
 import { MotivosDialog } from './MotivosDialog';
 import { newId } from '../domain/ids';
@@ -21,6 +22,9 @@ import {
   horasDosPeriodos,
   limparPeriodos,
   periodosDaMob,
+  periodoVazio,
+  MOB_DESCRICAO_MAX,
+  type MobPeriodo,
   MOB_PERIODOS_MAX,
   fmtHH,
   horasValidas,
@@ -54,6 +58,9 @@ interface Props {
 export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Props) {
   const { api, por, areas, feriados, motivosCancelamento, pode } = useProg();
   const [editarMotivos, setEditarMotivos] = useState(false);
+  // motivos de espera: a mesma lista dos atrasos da Escala
+  const [motivosAtraso, setMotivosAtraso] = useState<string[]>(MOTIVOS_PADRAO);
+  useEffect(() => ouvirMotivos(api, setMotivosAtraso), [api]);
   const toast = useToast();
   const confirm = useConfirm();
   const [a, setA] = useState<Atividade>(() => ({ ...atual, area: atual.area || (nova ? '' : AREA_INTERNA) }));
@@ -115,6 +122,7 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     if (x.mobilizada && !x.om) return toast('Informe a OM em que as horas serão apropriadas.', 'warn');
     if (x.mobilizada && !x.pessoas) return toast('Informe quantas pessoas ficaram aguardando.', 'warn');
     if (x.mobilizada && x.mobPeriodos.some((p) => !p.inicio || !p.fim)) return toast('Complete o início e o fim de cada período de espera.', 'warn');
+    if (x.mobilizada && x.mobPeriodos.some((p) => !p.motivo && !p.descricao)) return toast('Informe o motivo ou a justificativa de cada período de espera.', 'warn');
     if (x.mobilizada && !x.horasMobilizadas) return toast('Informe a hora de início e a hora do fim da espera.', 'warn');
     // mudou a data depois de programada = reprogramação (entra no KPI de estabilidade)
     const reprog = !nova && x.data !== atual.data;
@@ -359,7 +367,7 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
                 checked={a.mobilizada}
                 onChange={(e) => {
                   const on = e.target.checked;
-                  setA((x) => ({ ...x, mobilizada: on, mobPeriodos: on && !periodosDaMob(x).length ? [{ inicio: '', fim: '' }] : periodosDaMob(x) }));
+                  setA((x) => ({ ...x, mobilizada: on, mobPeriodos: on && !periodosDaMob(x).length ? [periodoVazio()] : periodosDaMob(x) }));
                 }}
               />{' '}
               Equipe mobilizada — apropriar horas na OM
@@ -382,8 +390,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
                 </div>
                 {(() => {
                   const per = periodosDaMob(a);
-                  const linhas = per.length ? per : [{ inicio: '', fim: '' }];
-                  const mudar = (i: number, campo: 'inicio' | 'fim', v: string) =>
+                  const linhas = per.length ? per : [periodoVazio()];
+                  const mudar = (i: number, campo: keyof MobPeriodo, v: string) =>
                     setA((x) => ({ ...x, mobPeriodos: linhas.map((p, j) => (j === i ? { ...p, [campo]: v } : p)) }));
                   const h = per.length ? horasDosPeriodos(per) : a.horasMobilizadas;
                   const meiaNoite = per.some((p) => p.inicio && p.fim && p.fim < p.inicio);
@@ -391,7 +399,8 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
                     <>
                       <div className="mob-periodos">
                         {linhas.map((p, i) => (
-                          <div key={i} className="row nowrap mob-periodo">
+                          <div key={i} className="mob-periodo">
+                          <div className="row nowrap mob-horas">
                             <label className="field grow">
                               {linhas.length > 1 ? `Espera ${i + 1}: início` : 'Início da espera'}
                               <input className="input" type="time" aria-label={`Início da espera ${i + 1}`} value={p.inicio} onChange={(e) => mudar(i, 'inicio', e.target.value)} />
@@ -412,9 +421,34 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
                               </button>
                             )}
                           </div>
+                          <div className="row nowrap mob-just">
+                            <label className="field">
+                              Motivo
+                              <select className="input" aria-label={`Motivo da espera ${i + 1}`} value={p.motivo} onChange={(e) => mudar(i, 'motivo', e.target.value)}>
+                                <option value="">—</option>
+                                {[...motivosAtraso, ...(p.motivo && !motivosAtraso.includes(p.motivo) ? [p.motivo] : [])].map((m) => (
+                                  <option key={m} value={m}>
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="field grow">
+                              Justificativa
+                              <input
+                                className="input"
+                                aria-label={`Justificativa da espera ${i + 1}`}
+                                value={p.descricao}
+                                maxLength={MOB_DESCRICAO_MAX}
+                                placeholder="O que a equipe aguardava"
+                                onChange={(e) => mudar(i, 'descricao', e.target.value)}
+                              />
+                            </label>
+                          </div>
+                          </div>
                         ))}
                         {linhas.length < MOB_PERIODOS_MAX && (
-                          <button type="button" className="btn small" onClick={() => setA((x) => ({ ...x, mobPeriodos: [...linhas, { inicio: '', fim: '' }] }))}>
+                          <button type="button" className="btn small" onClick={() => setA((x) => ({ ...x, mobPeriodos: [...linhas, periodoVazio()] }))}>
                             + Outro período de espera
                           </button>
                         )}

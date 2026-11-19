@@ -228,17 +228,31 @@ describe('equipamento e área no começo do nome da escala', () => {
 describe('cancelamento com equipe mobilizada: vários períodos de espera', () => {
   it('soma os períodos e mantém compatibilidade com o lançamento antigo', async () => {
     const { completarAtividade, periodosDaMob, horasDosPeriodos, faixasMob, horasHomemMobilizadas } = await import('../prog/model');
-    const per = [{ inicio: '09:00', fim: '10:00' }, { inicio: '13:00', fim: '14:30' }];
+    const per = [{ inicio: '09:00', fim: '10:00', motivo: 'Bloqueio', descricao: '' }, { inicio: '13:00', fim: '14:30', motivo: '', descricao: 'Aguardando PT' }];
     expect(horasDosPeriodos(per)).toBe(2.5);
     const d = completarAtividade('a', { ...at('a', '2026-11-16'), classe: 'cancelada', mobilizada: true, pessoas: 3, mobPeriodos: per, mobInicio: '09:00', mobFim: '14:30', horasMobilizadas: 2.5 })!;
     expect(d.mobPeriodos).toEqual(per);
-    expect(faixasMob(d)).toBe('09:00–10:00, 13:00–14:30');
+    expect(faixasMob(d)).toBe('09:00–10:00 (Bloqueio), 13:00–14:30 (Aguardando PT)');
     expect(horasHomemMobilizadas(d)).toBe(7.5);
     // antigo: só início e fim
     const antigo = completarAtividade('b', { ...at('b', '2026-11-16'), classe: 'cancelada', mobilizada: true, mobInicio: '07:15', mobFim: '10:45', horasMobilizadas: 3.5 })!;
     expect(antigo.mobPeriodos).toEqual([]);
-    expect(periodosDaMob(antigo)).toEqual([{ inicio: '07:15', fim: '10:45' }]);
+    expect(periodosDaMob(antigo)).toEqual([{ inicio: '07:15', fim: '10:45', motivo: '', descricao: '' }]);
     // horários inválidos e linhas vazias saem
-    expect(completarAtividade('c', { ...at('c', '2026-11-16'), classe: 'cancelada', mobilizada: true, mobPeriodos: [{ inicio: '25:00', fim: '' }, { inicio: '08:00', fim: '09:00' }] as never })!.mobPeriodos).toEqual([{ inicio: '08:00', fim: '09:00' }]);
+    expect(completarAtividade('c', { ...at('c', '2026-11-16'), classe: 'cancelada', mobilizada: true, mobPeriodos: [{ inicio: '25:00', fim: '' }, { inicio: '08:00', fim: '09:00' }] as never })!.mobPeriodos).toEqual([{ inicio: '08:00', fim: '09:00', motivo: '', descricao: '' }]);
+  });
+
+  it('cada período entra nas horas perdidas com o seu motivo (uma atividade cancelada só)', async () => {
+    const { completarAtividade } = await import('../prog/model');
+    const { perdasDoPeriodo, somarPerdas, perdasPorMotivo } = await import('../prog/atrasosProg');
+    const d = completarAtividade('a', {
+      ...at('a', '2026-11-16'), classe: 'cancelada', motivo: 'Nível de silo', mobilizada: true, pessoas: 3, mobInicio: '09:00', mobFim: '14:30', horasMobilizadas: 2.5,
+      mobPeriodos: [{ inicio: '09:00', fim: '10:00', motivo: 'Bloqueio', descricao: '' }, { inicio: '13:00', fim: '14:30', motivo: 'Recurso', descricao: 'munck' }],
+    })!;
+    const l = perdasDoPeriodo([d], null);
+    expect(l.map((p) => [p.inicio, p.horas, p.hh])).toEqual([['09:00', 1, 3], ['13:00', 1.5, 4.5]]);
+    const t = somarPerdas(l);
+    expect([t.hh, t.cancelamentos]).toEqual([7.5, 1]);
+    expect(perdasPorMotivo(l).map((m) => m.chave)).toEqual(['Cancelamento: espera · Recurso', 'Cancelamento: espera · Bloqueio']);
   });
 });

@@ -288,24 +288,35 @@ export const fmtHH = (h: number) => `${h.toLocaleString('pt-BR', { maximumFracti
 export interface MobPeriodo {
   inicio: string;
   fim: string;
+  /** motivo da espera (mesma lista dos atrasos da Escala: Bloqueio, Recurso…) */
+  motivo: string;
+  /** justificativa (texto livre) */
+  descricao: string;
 }
+export const MOB_MOTIVO_MAX = 40;
+export const MOB_DESCRICAO_MAX = 300;
+export const periodoVazio = (): MobPeriodo => ({ inicio: '', fim: '', motivo: '', descricao: '' });
 export const MOB_PERIODOS_MAX = 10;
 /** períodos de espera da atividade (lançamentos antigos têm só início e fim) */
 export const periodosDaMob = (a: Pick<Atividade, 'mobPeriodos' | 'mobInicio' | 'mobFim'>): MobPeriodo[] =>
-  a.mobPeriodos?.length ? a.mobPeriodos : a.mobInicio || a.mobFim ? [{ inicio: a.mobInicio, fim: a.mobFim }] : [];
+  a.mobPeriodos?.length ? a.mobPeriodos : a.mobInicio || a.mobFim ? [{ ...periodoVazio(), inicio: a.mobInicio, fim: a.mobFim }] : [];
 /** soma das horas dos períodos completos (início e fim) */
 export const horasDosPeriodos = (l: MobPeriodo[]) => l.reduce((s, p) => s + duracaoHoras(p.inicio, p.fim), 0);
 /** "09:00–10:00, 13:00–14:30" */
 export const faixasMob = (a: Pick<Atividade, 'mobPeriodos' | 'mobInicio' | 'mobFim'>) =>
   periodosDaMob(a)
     .filter((p) => p.inicio && p.fim)
-    .map((p) => `${p.inicio}–${p.fim}`)
+    .map((p) => `${p.inicio}–${p.fim}${p.motivo || p.descricao ? ` (${[p.motivo, p.descricao].filter(Boolean).join(': ')})` : ''}`)
     .join(', ');
 /** limpa os períodos: só horários válidos, sem linhas vazias */
 export const limparPeriodos = (v: unknown): MobPeriodo[] =>
   (Array.isArray(v) ? v : [])
-    .map((p) => ({ inicio: horaValida((p as MobPeriodo)?.inicio), fim: horaValida((p as MobPeriodo)?.fim) }))
-    .filter((p) => p.inicio || p.fim)
+    .map((p) => {
+      const x = (p ?? {}) as Partial<MobPeriodo>;
+      const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+      return { inicio: horaValida(x.inicio), fim: horaValida(x.fim), motivo: txt(x.motivo, MOB_MOTIVO_MAX), descricao: txt(x.descricao, MOB_DESCRICAO_MAX) };
+    })
+    .filter((p) => p.inicio || p.fim || p.motivo || p.descricao)
     .slice(0, MOB_PERIODOS_MAX);
 
 /** horas-homem apropriadas na OM de uma atividade cancelada com a equipe mobilizada */

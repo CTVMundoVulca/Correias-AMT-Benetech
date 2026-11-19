@@ -191,7 +191,7 @@ export function DetalhePerdas({ titulo, perdas, onFechar }: { titulo: string; pe
                     <span className={'pill ' + (p.origem === 'atraso' ? 'cl-nao_programada' : 'cl-cancelada')}>{p.origem === 'atraso' ? 'Atraso' : 'Cancelamento'}</span> {p.motivo}
                   </td>
                   <td data-label="Horário" className="num small">
-                    {p.faixas || (p.inicio && p.fim ? `${p.inicio}–${p.fim}` : '—')}
+                    {p.inicio && p.fim ? `${p.inicio}–${p.fim}` : '—'}
                   </td>
                   <td data-label="Horas" className="num">
                     {h(p.horas)}
