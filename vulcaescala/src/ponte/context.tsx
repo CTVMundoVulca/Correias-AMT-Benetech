@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { FirebaseApi } from '../cloud/firebase';
 import type { Checklist, Operador } from './model';
+import type { Manutencao } from './manutencao';
 
 export interface PonteCtx {
   api: FirebaseApi;
@@ -22,6 +23,10 @@ export interface PonteCtx {
   /** há checklist deste aparelho ainda não recebido pela nuvem */
   pendente: boolean;
   hoje: string;
+  /** manutenções (mais recentes primeiro), sem as excluídas; null = carregando */
+  manutencoes: Manutencao[] | null;
+  /** excluídas pelo administrador (histórico de exclusão) */
+  manutExcluidas: Manutencao[];
 }
 
 export const Ctx = createContext<PonteCtx | null>(null);

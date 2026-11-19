@@ -65,3 +65,14 @@
 .ponte-itens td.ponte-r.r-NA { color: var(--ink-2); }
 /* checklist excluído pelo administrador */
 .ponte-excluido { border: 2px solid #c62828; background: #fdecea; color: #8e1b1b; border-radius: 8px; padding: 8px 10px; }
+
+/* manutenções (ArcelorMittal) */
+.ponte-manut-item { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 4px 10px; text-align: left; }
+.ponte-manut-item .grow { grid-column: 1 / -1; grid-row: 2; }
+.ponte-manut-item .nowrap { grid-column: 4; grid-row: 1; justify-self: end; }
+.ponte-manut-data { font-weight: 700; white-space: nowrap; }
+.ponte-manut-desc { white-space: pre-wrap; font-weight: 400; }
+.ponte-anexos { display: flex; flex-direction: column; gap: 8px; }
+.ponte-anexo { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.ponte-anexo-img { max-width: 100%; max-height: 420px; margin-top: 8px; }
+.badge.info { background: var(--accent-soft); color: var(--ink); }

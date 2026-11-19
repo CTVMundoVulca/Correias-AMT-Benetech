@@ -426,6 +426,55 @@ service cloud.firestore {
       }
     }
 
+    // Manutenções da ponte (feitas pela ArcelorMittal): OM, laudos, fotos e PDFs.
+    // Todos veem (painel do QR Code). Lançam: administradores e operadores habilitados (conta do
+    // operador, ativo e com treinamento válido). Corrige: quem lançou ou administrador.
+    // Ninguém apaga: o administrador exclui com motivo (exclusaoValida, como no checklist).
+    function operadorHabilitado(id) {
+      let op = get(operadoresDoc()).data.operadores[id];
+      return emailOk() && op.authEmail == email() && op.ativo == true && request.time.toMillis() <= op.validadeAte;
+    }
+    function manutValida() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['data', 'tipo', 'om', 'executante', 'descricao', 'anexos', 'operadorId', 'criadoNome', 'criadoPor',
+                               'criadoUid', 'criadoEm', 'atualizadoEm', 'atualizadoPor', 'excluidoEm', 'excluidoPor', 'excluidoMotivo'])
+        && d.data is string && d.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.tipo in ['Preventiva', 'Corretiva', 'Inspeção/Laudo', 'Outro']
+        && d.om is string && d.om.size() <= 20
+        && d.executante is string && d.executante.size() <= 80
+        && d.descricao is string && d.descricao.size() > 0 && d.descricao.size() <= 2000
+        && d.anexos is list && d.anexos.size() <= 20
+        && d.operadorId is string && d.operadorId.size() <= 60
+        && d.criadoNome is string && d.criadoNome.size() <= 120
+        && d.atualizadoPor == email()
+        && d.excluidoEm == '' && d.excluidoPor == '' && d.excluidoMotivo == ''
+        && (isProgAdmin() || (d.operadorId != '' && operadorHabilitado(d.operadorId)));
+    }
+    match /ponte_manutencoes/{id} {
+      allow read: if signedIn();
+      allow create: if manutValida()
+        && request.resource.data.criadoUid == request.auth.uid
+        && request.resource.data.criadoPor == email();
+      allow update: if exclusaoValida()
+        || (manutValida()
+            && resource.data.excluidoEm == ''
+            && request.resource.data.criadoUid == resource.data.criadoUid
+            && request.resource.data.criadoPor == resource.data.criadoPor
+            && request.resource.data.criadoEm == resource.data.criadoEm
+            && (isProgAdmin() || resource.data.criadoUid == request.auth.uid));
+      allow delete: if false;
+      match /arquivos/{n} {
+        allow read: if signedIn();
+        allow create: if emailOk()
+          && (isProgAdmin() || getAfter(/databases/$(database)/documents/ponte_manutencoes/$(id)).data.criadoUid == request.auth.uid)
+          && request.resource.data.keys().hasOnly(['anexoId', 'parte', 'dados'])
+          && request.resource.data.anexoId is string && request.resource.data.anexoId.size() <= 60
+          && request.resource.data.parte is int && request.resource.data.parte >= 0 && request.resource.data.parte < 40
+          && request.resource.data.dados is string && request.resource.data.dados.size() <= 720000;
+        allow update, delete: if false;
+      }
+    }
+
     // Solicitações das áreas: qualquer pessoa com o link pede; quem pediu (mesmo aparelho)
     // pode corrigir ou cancelar enquanto estiver aberta; só administradores programam/recusam.
     function solicitacaoValida(id) {

@@ -128,3 +128,51 @@ describe('Ponte rolante: operadores e checklist', () => {
     await assertFails(db.doc('ponte_checklists/c1/fotos/1').delete());
   });
 });
+
+describe('Ponte rolante: manutenções (ArcelorMittal)', () => {
+  const manut = (x: Record<string, unknown> = {}) => ({
+    data: '2026-11-18', tipo: 'Corretiva', om: '900012345678', executante: 'ArcelorMittal', descricao: 'Troca do cabo de aço do içamento',
+    anexos: [{ id: 'a1', nome: 'OM.pdf', mime: 'application/pdf', tamanho: 1000, partes: 1 }],
+    operadorId: 'o1', criadoNome: 'FULANO DE TAL', criadoPor: OP, criadoUid: OP, criadoEm: 'x', atualizadoEm: 'x', atualizadoPor: OP,
+    excluidoEm: '', excluidoPor: '', excluidoMotivo: '',
+    ...x,
+  });
+
+  it('operador habilitado e administrador lançam; todos veem; anônimo e vencido não', async () => {
+    await assertSucceeds(as(OP).doc('ponte_manutencoes/m1').set(manut()));
+    await assertSucceeds(as(ADMIN).doc('ponte_manutencoes/m2').set(manut({ operadorId: '', criadoNome: ADMIN, criadoPor: ADMIN, criadoUid: ADMIN, atualizadoPor: ADMIN })));
+    await assertSucceeds(anon().doc('ponte_manutencoes/m1').get());
+    await assertFails(anon().doc('ponte_manutencoes/m3').set(manut({ operadorId: '', criadoPor: '', criadoUid: 'anon-uid', atualizadoPor: '' })));
+    await assertFails(as(OP2).doc('ponte_manutencoes/m4').set(manut({ operadorId: 'o2', criadoPor: OP2, criadoUid: OP2, atualizadoPor: OP2 })));
+    // operador não lança em nome de outro operador
+    await assertFails(as(OP).doc('ponte_manutencoes/m5').set(manut({ operadorId: 'o2' })));
+    await assertFails(as(OP).doc('ponte_manutencoes/m6').set(manut({ descricao: '' })));
+    await assertFails(as(OP).doc('ponte_manutencoes/m7').set(manut({ extra: 1 })));
+  });
+
+  it('arquivos: só junto do registro de quem lançou; ninguém altera nem apaga', async () => {
+    const db = as(OP);
+    const b = db.batch();
+    b.set(db.doc('ponte_manutencoes/m1'), manut());
+    b.set(db.doc('ponte_manutencoes/m1/arquivos/a1_0'), { anexoId: 'a1', parte: 0, dados: 'JVBERi0=' });
+    await assertSucceeds(b.commit());
+    await assertSucceeds(anon().doc('ponte_manutencoes/m1/arquivos/a1_0').get());
+    await assertFails(anon().doc('ponte_manutencoes/m1/arquivos/a2_0').set({ anexoId: 'a2', parte: 0, dados: 'x' }));
+    await assertFails(as(OP2).doc('ponte_manutencoes/m1/arquivos/a2_0').set({ anexoId: 'a2', parte: 0, dados: 'x' }));
+    await assertSucceeds(as(ADMIN).doc('ponte_manutencoes/m1/arquivos/a3_0').set({ anexoId: 'a3', parte: 0, dados: 'x' }));
+    await assertFails(db.doc('ponte_manutencoes/m1/arquivos/a1_0').delete());
+    await assertFails(db.doc('ponte_manutencoes/m1/arquivos/a1_0').set({ anexoId: 'a1', parte: 0, dados: 'y' }));
+  });
+
+  it('corrige quem lançou ou o administrador; exclusão só pelo administrador, com motivo', async () => {
+    await assertSucceeds(as(OP).doc('ponte_manutencoes/m1').set(manut()));
+    await assertSucceeds(as(OP).doc('ponte_manutencoes/m1').set(manut({ descricao: 'Troca do cabo e do gancho', atualizadoEm: 'y' })));
+    await assertSucceeds(as(ADMIN).doc('ponte_manutencoes/m1').set(manut({ om: '900012345679', atualizadoPor: ADMIN })));
+    await assertFails(as(OP2).doc('ponte_manutencoes/m1').set(manut({ operadorId: 'o2', atualizadoPor: OP2 })));
+    await assertFails(as(OP).doc('ponte_manutencoes/m1').set(manut({ criadoUid: 'outro' })));
+    await assertFails(as(OP).doc('ponte_manutencoes/m1').update({ excluidoEm: 'z', excluidoPor: OP, excluidoMotivo: 'registro duplicado aqui' }));
+    await assertSucceeds(as(ADMIN).doc('ponte_manutencoes/m1').update({ excluidoEm: 'z', excluidoPor: ADMIN, excluidoMotivo: 'registro duplicado aqui' }));
+    await assertFails(as(ADMIN).doc('ponte_manutencoes/m1').set(manut({ atualizadoPor: ADMIN })));
+    await assertFails(as(ADMIN).doc('ponte_manutencoes/m1').delete());
+  });
+});
