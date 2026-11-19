@@ -945,3 +945,20 @@ export function emergenciasPorOm(lista: Atividade[]): { ocorrencias: OcorrenciaE
   const diasOm = ocorrencias.reduce((s, g) => s + g.dias.length, 0);
   return { ocorrencias, diasOm, semOm: ocorrencias.filter((g) => !g.om).length, media: ocorrencias.length ? diasOm / ocorrencias.length : null };
 }
+
+// ------------------------------------------------------------------ sem data de comunicação
+
+/**
+ * Atividade sem data de comunicação (veio da planilha): a demanda era conhecida pelo menos
+ * desde que entrou no app (`entrada`, ISO). Com 48 h ou mais até as 07:15 do dia → Programada;
+ * fim de semana/feriado → Emergência. Com menos de 48 h não dá para afirmar (o pedido pode ter
+ * vindo antes): devolve null e fica para classificar à mão.
+ */
+export function classePelaEntrada(a: Pick<Atividade, 'data' | 'classe' | 'comunicadoEm'>, entrada: string, municipais: Record<string, string> = {}): (Classificacao & { comunicadoEm: string }) | null {
+  if (a.classe || a.comunicadoEm || !entrada) return null;
+  const d = new Date(entrada);
+  if (Number.isNaN(d.getTime())) return null;
+  const r = classificar(a.data, d, municipais);
+  if (!r || r.classe === 'nao_programada') return null;
+  return { ...r, comunicadoEm: d.toISOString(), motivo: `pela data em que entrou no app: ${r.motivo}` };
+}

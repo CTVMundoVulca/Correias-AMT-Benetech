@@ -263,3 +263,32 @@ describe('horas perdidas e metas', () => {
     expect(metaDoMes(m, '2027-05')).toBe(85);
   });
 });
+
+import { classePelaEntrada } from '../prog/model';
+import { lerPacote } from '../prog/Importar';
+describe('sem data de comunicação: usa a data em que entrou no app', () => {
+  it('48 h ou mais antes → programada; menos → fica manual; fim de semana → emergência', () => {
+    const a = { data: '2026-11-30', classe: '' as const, comunicadoEm: '' };
+    expect(classePelaEntrada(a, '2026-11-19T12:00:00-03:00')).toMatchObject({ classe: 'programada', comunicadoEm: '2026-11-19T15:00:00.000Z' });
+    expect(classePelaEntrada(a, '2026-11-29T12:00:00-03:00')).toBeNull(); // menos de 48 h: não dá para afirmar
+    expect(classePelaEntrada({ ...a, data: '2026-11-28' }, '2026-11-19T12:00:00-03:00')?.classe).toBe('emergencia');
+    expect(classePelaEntrada({ ...a, classe: 'nao_programada' }, '2026-11-01T12:00:00-03:00')).toBeNull(); // já classificada
+    expect(classePelaEntrada({ ...a, comunicadoEm: '2026-11-28T10:00:00Z' }, '2026-11-01T12:00:00-03:00')).toBeNull(); // tem data: vale a regra normal
+    expect(classePelaEntrada(a, '')).toBeNull();
+  });
+
+  it('importação da planilha: futuras sem marcação entram programadas; passadas continuam sem', () => {
+    const pac = JSON.stringify({
+      formato: 'prog-amt-v1',
+      atividades: [
+        { id: 'f1', data: '2026-11-30', descricao: 'PREPARAÇÃO DA CORREIA L-207', area: 'PÁTIO' },
+        { id: 'p1', data: '2026-11-10', descricao: 'TROCAR CORREIA L-6', area: 'PÁTIO' },
+        { id: 'm1', data: '2026-11-30', descricao: 'X', area: 'PÁTIO', classe: 'nao_programada' },
+      ],
+    });
+    const l = lerPacote(pac, {}, '2026-11-19T12:00:00-03:00').atividades;
+    expect(l.find((a) => a.id === 'f1')).toMatchObject({ classe: 'programada', comunicadoEm: '2026-11-19T15:00:00.000Z' });
+    expect(l.find((a) => a.id === 'p1')?.classe).toBe('');
+    expect(l.find((a) => a.id === 'm1')?.classe).toBe('nao_programada');
+  });
+});
