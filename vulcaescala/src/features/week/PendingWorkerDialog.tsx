@@ -4,6 +4,7 @@ import { getDay } from '../../domain/schedule';
 import { Worker } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { Modal } from '../../ui/Modal';
+import { NomeAtividade } from '../../ui/NomeAtividade';
 
 interface Props {
   dayRef: DayRef;
@@ -34,7 +35,7 @@ export function PendingWorkerDialog({ dayRef, dayLabel, worker, onClose }: Props
               onClose();
             }}
           >
-            <span className="pick-name">{a.nome}</span>
+            <span className="pick-name"><NomeAtividade nome={a.nome} /></span>
             <span className="small muted">
               <span className="num">{a.workerIds.length}</span> alocado{a.workerIds.length === 1 ? '' : 's'}
             </span>

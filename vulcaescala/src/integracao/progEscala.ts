@@ -24,24 +24,50 @@ export const escalaIdDaProg = (a: Pick<Atividade, 'id'>) => (a.id.startsWith('es
 /** o equipamento (TAG) já aparece na descrição? ("TROCAR CORREIA F1" contém "F-1") */
 const temTag = (descricao: string, tag: string) => !!chaveBusca(tag) && chaveBusca(descricao).includes(chaveBusca(tag));
 
+/** separa "EQUIPAMENTO - ÁREA" da descrição no nome da atividade na escala */
+export const SEP_NOME = ' · ';
+
+/** "M-11 - PÁTIO DE MINÉRIO" (o que vem antes da descrição no nome da escala) */
+const cabecalho = (a: Pick<Atividade, 'equipamento' | 'area'>) => cleanName([a.equipamento, a.area].filter((x) => x && x.trim()).join(' - '));
+
 /**
- * Nome da atividade na escala: descrição + equipamento (quando a descrição não tem a TAG) + área.
- * Ex.: "TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO"; "EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO".
+ * Nome da atividade na escala: equipamento e área no começo, depois a descrição.
+ * Ex.: "M-11 - PÁTIO DE MINÉRIO · RETIRAR CORREIA E FAZER BY PASS - NOITE".
+ * O cartão da escala mostra em duas linhas (ver partesDoNome).
  */
 export function nomeNaEscala(a: Pick<Atividade, 'descricao' | 'equipamento' | 'area'>): string {
+  const cab = cabecalho(a);
+  const desc = cleanName(a.descricao || '');
+  if (!desc) return cab || 'ATIVIDADE PROGRAMADA';
+  return cab ? `${cab}${SEP_NOME}${desc}` : desc;
+}
+
+/** Formato antigo (até nov/2026): "DESCRIÇÃO (TAG) — ÁREA". Usado só para reconhecer nomes já sincronizados. */
+export function nomeNaEscalaAntigo(a: Pick<Atividade, 'descricao' | 'equipamento' | 'area'>): string {
   const desc = a.descricao || a.equipamento || 'ATIVIDADE PROGRAMADA';
   const base = a.descricao && a.equipamento && !temTag(a.descricao, a.equipamento) ? `${desc} (${a.equipamento})` : desc;
   return cleanName(a.area ? `${base} — ${a.area}` : base);
 }
 
-/** Descrição da programação a partir do nome editado na escala (tira o " — ÁREA" e o " (TAG)" do fim). */
+/** Descrição da programação a partir do nome editado na escala (tira "EQUIP - ÁREA · " do começo; aceita o formato antigo). */
 export function descricaoDoNome(nome: string, area: string, equipamento = ''): string {
-  const fim = area ? ` — ${cleanName(area)}` : '';
   let n = cleanName(nome);
+  const cab = cabecalho({ equipamento, area });
+  if (cab && n.startsWith(cab + SEP_NOME)) return maiusculas(n.slice(cab.length + SEP_NOME.length), DESCRICAO_MAX);
+  const i = n.indexOf(SEP_NOME);
+  if (i > 0 && (equipamento || area)) return maiusculas(n.slice(i + SEP_NOME.length), DESCRICAO_MAX);
+  // formato antigo: "DESCRIÇÃO (TAG) — ÁREA"
+  const fim = area ? ` — ${cleanName(area)}` : '';
   if (fim && n.endsWith(fim)) n = n.slice(0, -fim.length);
   const tag = equipamento ? ` (${cleanName(equipamento)})` : '';
   if (tag && n.endsWith(tag)) n = n.slice(0, -tag.length);
   return maiusculas(n, DESCRICAO_MAX);
+}
+
+/** Para mostrar o nome em duas linhas: "M-11 - PÁTIO DE MINÉRIO" / "RETIRAR CORREIA…". */
+export function partesDoNome(nome: string): { cabecalho: string; descricao: string } {
+  const i = nome.indexOf(SEP_NOME);
+  return i > 0 ? { cabecalho: nome.slice(0, i), descricao: nome.slice(i + SEP_NOME.length) } : { cabecalho: '', descricao: nome };
 }
 
 export interface DiaEscala extends DayRef {
@@ -162,7 +188,9 @@ export function planejar(opts: {
     }
     const nomeEsc = cleanName(atual.act.nome);
     const nomeProg = nomeNaEscala(a);
-    const base = a.escalaNome;
+    // nome sincronizado no formato antigo ("DESCRIÇÃO (TAG) — ÁREA") vale como o nome atual da programação:
+    // se a escala não mexeu, recebe o nome novo; se mexeu, a edição da escala é preservada
+    const base = a.escalaNome && nomeEsc !== a.escalaNome && a.escalaNome === nomeNaEscalaAntigo(a) ? nomeProg : a.escalaNome;
     const extra: Partial<Atividade> = { foraDaEscala: false };
     if (a.origem === 'escala') extra.pessoas = atual.act.workerIds.length;
     if (nomeEsc === nomeProg) {

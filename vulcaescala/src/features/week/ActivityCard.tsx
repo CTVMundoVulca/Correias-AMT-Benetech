@@ -10,6 +10,7 @@ import { useConfirm } from "../../ui/ConfirmDialog";
 import { AllocationPicker } from "./AllocationPicker";
 import { AtrasosAtividade } from "../atrasos/AtrasosAtividade";
 import { useAvisoProg } from "./ProgDoDia";
+import { NomeAtividade } from "../../ui/NomeAtividade";
 
 interface Props {
   dayRef: DayRef;
@@ -130,7 +131,7 @@ export function ActivityCard({ dayRef, dayLabel, activity }: Props) {
         <div className="activity-head">
           <h3 className="activity-name">
             {plantao && "📞 "}
-            {activity.nome}
+            <NomeAtividade nome={activity.nome} />
             <span className="num">{allocated.length}</span>
           </h3>
           {!ro && (

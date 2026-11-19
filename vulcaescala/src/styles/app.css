@@ -275,6 +275,9 @@ a.hdr-btn { text-decoration: none; }
 .activity { border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .activity-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .activity-name { overflow-wrap: anywhere; letter-spacing: 0.2px; }
+.activity-equip { display: block; font-size: 0.8rem; font-weight: 700; color: var(--ink-2); letter-spacing: 0.3px; }
+.activity-desc { display: inline; }
+.pick-name .activity-equip { font-size: 0.74rem; }
 .activity-name .num { font-size: 0.8rem; color: var(--ink-2); font-weight: 400; margin-left: 6px; }
 .activity-tools { display: flex; gap: 6px; flex-wrap: wrap; }
 
