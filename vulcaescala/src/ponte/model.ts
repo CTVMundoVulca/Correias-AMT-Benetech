@@ -289,3 +289,92 @@ export function doDia(lista: Checklist[], data: string): Checklist | null {
 }
 
 export const horaDe = (iso: string) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
+
+// ------------------------------------------------------------------ validades em lote
+
+export interface LinhaValidade {
+  /** texto da linha (para mostrar) */
+  linha: string;
+  nome: string;
+  /** "AAAA-MM-DD" (a última data da linha) */
+  validade: string;
+}
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+/** palavras do nome, sem acento e sem conectivos (DA, DE, DOS…) */
+export const palavrasDoNome = (s: string) =>
+  semAcento(s)
+    .toUpperCase()
+    .replace(/[^A-Z\s]/g, ' ')
+    .split(/\s+/)
+    .filter((p) => p && !['DA', 'DE', 'DO', 'DAS', 'DOS', 'E'].includes(p));
+
+/**
+ * Lê a lista colada (planilha, texto ou transcrição da foto): uma pessoa por linha, com o nome
+ * antes da primeira data. A validade é a ÚLTIMA data da linha (a planilha traz treinamento e validade).
+ */
+export function lerListaValidades(texto: string): { ok: LinhaValidade[]; erros: string[] } {
+  const ok: LinhaValidade[] = [];
+  const erros: string[] = [];
+  for (const bruta of texto.split(/\r?\n/)) {
+    const linha = bruta.trim();
+    if (!linha) continue;
+    const datas = [...linha.matchAll(/(\d{1,2})\/(\d{1,2})\/(\d{4})/g)];
+    if (!datas.length) {
+      erros.push(`${linha} (sem data)`);
+      continue;
+    }
+    const [, d, m, a] = datas[datas.length - 1];
+    const iso = `${a}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    const dt = new Date(`${iso}T12:00:00Z`);
+    if (Number.isNaN(dt.getTime()) || dt.toISOString().slice(0, 10) !== iso) {
+      erros.push(`${linha} (data inválida)`);
+      continue;
+    }
+    const nome = linha.slice(0, datas[0].index).replace(/[;,\t|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (palavrasDoNome(nome).length < 2) {
+      erros.push(`${linha} (nome incompleto)`);
+      continue;
+    }
+    ok.push({ linha, nome, validade: iso });
+  }
+  return { ok, erros };
+}
+
+export interface CasamentoValidade {
+  op: Operador;
+  item: LinhaValidade;
+  muda: boolean;
+}
+
+/**
+ * Casa cada linha com um operador cadastrado pelo nome: todas as palavras do nome mais curto
+ * aparecem no mais longo, na mesma ordem (ex.: "GLAUBER DUTRA" ↔ "GLAUBER DUTRA DA SILVA").
+ * Só vale casamento único; o resto fica para conferir à mão.
+ */
+export function casarValidades(lista: LinhaValidade[], operadores: Operador[]) {
+  const contem = (curto: string[], longo: string[]) => {
+    let i = 0;
+    for (const p of longo) if (p === curto[i]) i++;
+    return i === curto.length;
+  };
+  const bate = (a: string, b: string) => {
+    const pa = palavrasDoNome(a);
+    const pb = palavrasDoNome(b);
+    return pa.length <= pb.length ? contem(pa, pb) : contem(pb, pa);
+  };
+  const casados: CasamentoValidade[] = [];
+  const semCadastro: LinhaValidade[] = [];
+  const ambiguos: { item: LinhaValidade; ops: Operador[] }[] = [];
+  const usados = new Set<string>();
+  for (const item of lista) {
+    const ops = operadores.filter((o) => bate(o.nome, item.nome));
+    if (ops.length === 1) {
+      casados.push({ op: ops[0], item, muda: ops[0].validade !== item.validade });
+      usados.add(ops[0].id);
+    } else if (!ops.length) semCadastro.push(item);
+    else ambiguos.push({ item, ops });
+  }
+  const foraDaLista = operadores.filter((o) => o.ativo && !usados.has(o.id) && !ambiguos.some((a) => a.ops.some((x) => x.id === o.id)));
+  return { casados, semCadastro, ambiguos, foraDaLista };
+}

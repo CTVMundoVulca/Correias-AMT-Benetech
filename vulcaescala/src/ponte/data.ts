@@ -33,6 +33,13 @@ export function gravarOperador(api: FirebaseApi, op: Operador, por: string): Pro
   return fsMod.setDoc(fsMod.doc(fs, DOC_OPERADORES), { operadores: { [id]: dados }, atualizadoEm: new Date().toISOString(), atualizadoPor: por }, { merge: true });
 }
 
+/** grava (merge) vários operadores de uma vez (ex.: validades em lote) */
+export function gravarOperadores(api: FirebaseApi, ops: Operador[], por: string): Promise<void> {
+  const { fsMod, fs } = api;
+  const operadores = Object.fromEntries(ops.map(({ id, ...dados }) => [id, dados]));
+  return fsMod.setDoc(fsMod.doc(fs, DOC_OPERADORES), { operadores, atualizadoEm: new Date().toISOString(), atualizadoPor: por }, { merge: true });
+}
+
 /** checklists a partir de uma data (inclusive) */
 export function ouvirChecklists(api: FirebaseApi, desde: string, cb: (l: Checklist[], pendente: boolean) => void, onErr: (e: unknown) => void = () => {}): Unsub {
   const { fsMod, fs } = api;
