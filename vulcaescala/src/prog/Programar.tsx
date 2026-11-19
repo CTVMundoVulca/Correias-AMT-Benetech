@@ -4,7 +4,8 @@ import { addDays, fromIsoDate, isoWeekOf, toIsoDate } from '../domain/isoWeek';
 import { useToast } from '../ui/Toast';
 import { PdfBotao } from '../ui/PdfBotao';
 import { useAtividades, useOms, useProg } from './context';
-import { gravarSolicitacao, ouvirAbertas } from './data';
+import { gravarAtividadesEmLote, gravarSolicitacao, ouvirAbertas } from './data';
+import { useConfirm } from '../ui/ConfirmDialog';
 import { AtividadeDialog } from './AtividadeDialog';
 import { AreasDialog } from './AreasDialog';
 import { Importar } from './Importar';
@@ -15,14 +16,15 @@ import { BarraAreas, LinhaAtividade, curtoDia, diasDaSemana, fatiasDoDia, rotulo
 
 const CHAVE_ABERTOS = 'prog:dias-abertos';
 import { dataBr } from './Solicitar';
-import { URGENCIAS, atividadeVazia, hojeIso, maiusculas, mesesEntre, ordenarAtividades, resumir, tipoPelaDescricao, type Atividade, type Solicitacao } from './model';
+import { CLASSES, URGENCIAS, atividadeVazia, classePelaEntrada, hojeIso, maiusculas, mesesEntre, ordenarAtividades, resumir, tipoPelaDescricao, type Atividade, type Solicitacao } from './model';
 
 type Edicao = { a: Atividade; nova: boolean; solic?: Solicitacao };
 
 /** Programação semanal (substitui a aba "SEMANA" da planilha). Só administradores. */
 export function Programar() {
-  const { api, por, pode } = useProg();
+  const { api, por, pode, feriados } = useProg();
   const toast = useToast();
+  const confirm = useConfirm();
   const [segunda, setSegunda] = useState(() => segundaDe(hojeIso()));
   const dias = diasDaSemana(segunda);
   const lista = useAtividades(mesesEntre(dias[0], dias[6]));
@@ -62,6 +64,39 @@ export function Programar() {
   const hoje = hojeIso();
   const recentes = useAtividades(mesesEntre(toIsoDate(addDays(fromIsoDate(hoje)!, -92)), hoje));
   const semClasse = useMemo(() => ordenarAtividades((recentes ?? []).filter((a) => !a.classe)).reverse(), [recentes]);
+  // sem data de comunicação: a regra das 48 h usa a data em que a atividade entrou no app
+  const pelaRegra = useMemo(
+    () => semClasse.map((a) => ({ a, r: classePelaEntrada(a, a.criadoEm, feriados) })).filter((x): x is { a: Atividade; r: NonNullable<ReturnType<typeof classePelaEntrada>> } => !!x.r),
+    [semClasse, feriados],
+  );
+  const aplicarRegra = async () => {
+    const ok = await confirm({
+      title: `Classificar ${pelaRegra.length} atividade(s) pela regra?`,
+      message: (
+        <div className="stack small">
+          <p>Sem a data em que a área pediu, vale a data em que a atividade entrou no app (a demanda era conhecida pelo menos desde então).</p>
+          <ul className="plain-list">
+            {pelaRegra.map(({ a, r }) => (
+              <li key={a.id}>
+                <b>{dataBr(a.data)}</b> · {a.equipamento || a.descricao} → <b>{CLASSES.find((c) => c.id === r.classe)?.nome}</b>
+                <div className="muted">{r.motivo}</div>
+              </li>
+            ))}
+          </ul>
+          {semClasse.length > pelaRegra.length && <p className="muted">{semClasse.length - pelaRegra.length} ficam para classificar à mão (entraram com menos de 48 h ou sem data de entrada).</p>}
+        </div>
+      ),
+      confirmLabel: 'Classificar',
+    });
+    if (!ok) return;
+    gravarAtividadesEmLote(
+      api,
+      pelaRegra.map(({ a, r }) => ({ ...a, classe: r.classe, comunicadoEm: r.comunicadoEm, classeManual: false, atualizadoEm: new Date().toISOString(), atualizadoPor: por })),
+      por,
+    )
+      .then(() => toast(`${pelaRegra.length} atividade(s) classificada(s) pela regra`))
+      .catch(() => toast('A nuvem recusou a classificação. Confira a conexão e o seu papel.', 'danger'));
+  };
 
   const daSemana = useMemo(() => ordenarAtividades((lista ?? []).filter((a) => a.data >= dias[0] && a.data <= dias[6])), [lista, dias]);
   const r = resumir(daSemana);
@@ -131,9 +166,16 @@ export function Programar() {
               ⚠ <b>{semClasse.length}</b> atividade(s) sem classificação nos últimos 3 meses. Elas ficam fora dos índices (programadas, emergências…): abra e marque a
               classificação.
             </span>
-            <button className="btn small" onClick={() => setVerSem((v) => !v)} aria-expanded={verSem}>
-              {verSem ? 'Ocultar' : 'Ver quais são'}
-            </button>
+            <span className="row">
+              {pelaRegra.length > 0 && (
+                <button className="btn small primary" onClick={() => void aplicarRegra()}>
+                  Classificar pela regra ({pelaRegra.length})
+                </button>
+              )}
+              <button className="btn small" onClick={() => setVerSem((v) => !v)} aria-expanded={verSem}>
+                {verSem ? 'Ocultar' : 'Ver quais são'}
+              </button>
+            </span>
           </div>
           {verSem && (
             <ul className="plain-list sem-classe-lista">
@@ -143,6 +185,11 @@ export function Programar() {
                     <span className="num">{dataBr(a.data)}</span> · {a.area || 'INTERNO'} · <b>{a.equipamento || '—'}</b>
                     {a.om ? ` · OM ${a.om}` : ''} — {a.descricao || a.tipo}
                   </button>
+                  <span className="small muted">
+                    {' '}
+                    · {a.origem === 'planilha' ? 'veio da planilha' : a.origem === 'escala' ? 'lançada na Escala' : 'lançada no app'}
+                    {a.comunicadoEm ? '' : ', sem data de comunicação'}
+                  </span>
                 </li>
               ))}
             </ul>

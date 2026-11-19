@@ -4,7 +4,7 @@ import { useToast } from '../ui/Toast';
 import { useProg } from './context';
 import { COL_MES, COL_OMS, gravarAtividadesEmLote, gravarOms, limparPlanilhaAntes, type ResumoLimpeza } from './data';
 import { dataBr } from './Solicitar';
-import { anoDaOm, completarAtividade, completarOm, mesDe, resumir, tipoPelaDescricao, classificar, type Atividade, type OmInfo } from './model';
+import { anoDaOm, completarAtividade, completarOm, mesDe, resumir, tipoPelaDescricao, classificar, classePelaEntrada, type Atividade, type OmInfo } from './model';
 
 /** O app passa a valer a partir desta data: o que é anterior na planilha não entra (dados imprecisos). */
 export const CORTE_PLANILHA = '2026-11-02';
@@ -23,7 +23,7 @@ interface Pacote {
 }
 
 /** Lê o arquivo gerado a partir da planilha (formato "prog-amt-v1"). */
-export function lerPacote(texto: string, feriados: Record<string, string> = {}): Pacote {
+export function lerPacote(texto: string, feriados: Record<string, string> = {}, agora = new Date().toISOString()): Pacote {
   const j = JSON.parse(texto);
   if (!j || j.formato !== 'prog-amt-v1' || !Array.isArray(j.atividades)) throw new Error('Arquivo não é uma exportação da planilha de programação.');
   const atividades = (j.atividades as unknown[])
@@ -36,7 +36,12 @@ export function lerPacote(texto: string, feriados: Record<string, string> = {}):
     .filter((a): a is Atividade => !!a && !!a.id)
     // regra: fim de semana/feriado = emergência (a planilha não diz quando a demanda foi comunicada,
     // então programada/não programada só ficam se estavam marcadas na planilha)
-    .map((a) => (a.classe === '' && classificar(a.data, new Date(0), feriados)?.classe === 'emergencia' ? { ...a, classe: 'emergencia' as const } : a));
+    .map((a) => (a.classe === '' && classificar(a.data, new Date(0), feriados)?.classe === 'emergencia' ? { ...a, classe: 'emergencia' as const } : a))
+    // atividades futuras sem classificação: a demanda é conhecida pelo menos desde a importação
+    .map((a) => {
+      const r = classePelaEntrada(a, agora, feriados);
+      return r ? { ...a, classe: r.classe, comunicadoEm: r.comunicadoEm } : a;
+    });
   const oms = (Array.isArray(j.oms) ? (j.oms as unknown[]) : [])
     .map((v) => completarOm(String((v as { om?: unknown })?.om ?? ''), v))
     .filter((o) => /^\d{6,14}$/.test(o.om) && !!o.primeiraData);
