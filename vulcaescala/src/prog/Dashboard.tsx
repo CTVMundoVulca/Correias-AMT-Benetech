@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { MONTHS, MONTHS_SHORT } from '../domain/isoWeek';
 import { PdfBotao } from '../ui/PdfBotao';
 import { Indicadores } from './Indicadores';
-import { DetalheAtividades, DetalheEmergenciasOm, DetalhePerdas, VerAtividades } from './Detalhes';
+import { DetalheAtividades, DetalheEmergenciasOm, VerAtividades } from './Detalhes';
+import { PainelPerdas } from './PainelPerdas';
 import { perdasDoPeriodo, somarPerdas, useAtrasosPeriodo } from './atrasosProg';
 import { MetasDialog, metaDoMes, useMetas } from './metas';
 import { GraficoBarras, GraficoColunas, GraficoMeta, LegendaSeries, SERIES, type Serie } from './graficos';
@@ -169,7 +170,7 @@ export function Dashboard() {
               <Kpi v={r.classes.nao_programada} t="Não programadas" sel={selKpi} k="nao_programada" onK={clicar} />
               <Kpi v={r.classes.cancelada} t={`Canceladas (${pct(r.indiceCancelamento)})`} sel={selKpi} k="cancelada" onK={clicar} />
               <Kpi
-                v={fmtHH(tPerdas.hh)}
+                v={`${Math.round(tPerdas.hh).toLocaleString('pt-BR')} HH`}
                 t="HH perdidas (atrasos + cancelamentos)"
                 dica={`${tPerdas.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h de equipamento parado · atrasos ${fmtHH(tPerdas.hhAtrasos)} · cancelamentos ${fmtHH(tPerdas.hhCancel)}`}
                 sel={selKpi}
@@ -184,7 +185,7 @@ export function Dashboard() {
               )}
             </div>
             {selKpi === 'perdas' ? (
-              <DetalhePerdas titulo="Horas perdidas" perdas={perdas} onFechar={() => setSelKpi(null)} />
+              <PainelPerdas titulo="Horas perdidas no período" perdas={perdas} carregando={!atrasosP} />
             ) : selKpi === 'oms_emerg' ? (
               <DetalheEmergenciasOm titulo="OMs em emergência" ocorrencias={emerg.ocorrencias} onFechar={() => setSelKpi(null)} />
             ) : (

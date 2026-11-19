@@ -765,3 +765,25 @@
 .meta-pct { width: 90px; }
 .meta-lista { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .seg-area.a-perda { background: var(--s-nao_programada); }
+
+/* painel de horas perdidas */
+.b-perdas { scroll-margin-top: 80px; }
+.perdas-tot { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.perdas-num { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--surface-2); border: 0; border-radius: 12px; padding: 10px 12px; font: inherit; color: inherit; cursor: pointer; min-width: 0; }
+.perdas-num b { font-size: 1.45rem; line-height: 1.1; white-space: nowrap; }
+.perdas-num span { font-size: 0.8rem; font-weight: 600; }
+.perdas-num small { font-size: 0.7rem; color: var(--ink-2); }
+.perdas-num.on, .perdas-num:hover { box-shadow: inset 0 0 0 2px var(--accent); }
+.perdas-split { display: flex; height: 14px; gap: 2px; margin-top: 14px; border-radius: 7px; overflow: hidden; }
+.ps-seg { border: 0; padding: 0; cursor: pointer; min-width: 4px; }
+.ps-seg.apagado { opacity: 0.3; }
+.ps-atraso { background: var(--s-nao_programada); }
+.ps-canc { background: var(--gray-ink, #6b7280); }
+.perdas-leg { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
+.perdas-leg .leg-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; cursor: pointer; }
+.perdas-leg .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.perdas-rank { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 10px; }
+.perdas-rank h4 { margin: 4px 0 0; font-size: 0.85rem; }
+@media (min-width: 900px) { .perdas-rank { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .perdas-num b { font-size: 1.15rem; } .perdas-num { padding: 8px; } }
+.perdas-ancora { scroll-margin-top: 80px; margin-top: 12px; }

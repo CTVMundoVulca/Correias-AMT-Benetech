@@ -168,7 +168,7 @@ export function somarPerdas(l: Perda[]) {
 export function horasPorEquipamento(l: Perda[]): { chave: string; horas: number; hh: number; n: number }[] {
   const m = new Map<string, { chave: string; horas: number; hh: number; n: number }>();
   for (const p of l) {
-    const chave = p.equipamento ? `${p.equipamento}${p.area ? ` · ${p.area}` : ''}` : p.atividade || '—';
+    const chave = equipamentoDaPerda(p);
     const g = m.get(chave) ?? { chave, horas: 0, hh: 0, n: 0 };
     g.horas += p.horas;
     g.hh += p.hh;
@@ -198,3 +198,23 @@ export function novoAtrasoDaAtividade(a: Atividade, uid: string, por: string): A
     por: (por || 'gestão').slice(0, 120),
   };
 }
+
+/** Chave do motivo para agrupar: o motivo do atraso ou "Cancelamento: motivo". */
+export const motivoDaPerda = (p: Perda) => (p.origem === 'atraso' ? (p.atraso?.motivo ?? p.motivo) : `Cancelamento: ${p.motivo.replace(/^Cancelada: /, '')}`);
+
+/** HH e horas por motivo, do maior HH para o menor. */
+export function perdasPorMotivo(l: Perda[]): { chave: string; horas: number; hh: number; n: number; origem: Perda['origem'] }[] {
+  const m = new Map<string, { chave: string; horas: number; hh: number; n: number; origem: Perda['origem'] }>();
+  for (const p of l) {
+    const chave = motivoDaPerda(p);
+    const g = m.get(chave) ?? { chave, horas: 0, hh: 0, n: 0, origem: p.origem };
+    g.horas += p.horas;
+    g.hh += p.hh;
+    g.n++;
+    m.set(chave, g);
+  }
+  return [...m.values()].sort((a, b) => b.hh - a.hh || a.chave.localeCompare(b.chave, 'pt-BR'));
+}
+
+/** chave do equipamento usada em horasPorEquipamento */
+export const equipamentoDaPerda = (p: Perda) => (p.equipamento ? `${p.equipamento}${p.area ? ` · ${p.area}` : ''}` : p.atividade || '—');
