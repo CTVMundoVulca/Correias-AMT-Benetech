@@ -6,6 +6,7 @@ import { tipoAusencia } from '../../domain/types';
 import { WeekNav } from '../week/WeekNav';
 import { PdfBotao } from '../../ui/PdfBotao';
 import { AtrasosResumo } from '../atrasos/AtrasosResumo';
+import { NomeAtividade } from '../../ui/NomeAtividade';
 
 interface Props {
   weekKey: string;
@@ -135,7 +136,7 @@ export function SummaryView({ weekKey, onWeekChange }: Props) {
                   {WEEKDAYS_SHORT[a.dayIndex]} {formatDate(dates[a.dayIndex]).slice(0, 5)}
                 </span>
                 <span>
-                  <b className="activity-name">{a.nome}</b>
+                  <b className="activity-name"><NomeAtividade nome={a.nome} /></b>
                   <br />
                   <span className="names small">{a.workerNames.join(', ') || <span className="muted">ninguém alocado</span>}</span>
                 </span>

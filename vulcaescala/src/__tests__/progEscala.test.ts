@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { atividadeVazia, type Atividade } from '../prog/model';
-import { planejar, nomeNaEscala, descricaoDoNome, type DiaEscala } from '../integracao/progEscala';
+import { planejar, nomeNaEscala, descricaoDoNome, partesDoNome, type DiaEscala } from '../integracao/progEscala';
 import type { Activity } from '../domain/types';
 
 const HOJE = '2026-11-18';
@@ -24,35 +24,39 @@ const rodar = (dias: DiaEscala[], progs: Atividade[]) =>
 
 describe('sincronização Escala ⇄ Programação', () => {
   it('nome na escala e descrição de volta', () => {
-    expect(nomeNaEscala({ descricao: 'TROCAR CORREIA F-1', equipamento: 'F-1', area: 'PÁTIO DE MINÉRIO' })).toBe('TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO');
+    expect(nomeNaEscala({ descricao: 'RETIRAR CORREIA E FAZER BY PASS - NOITE', equipamento: 'M-11', area: 'PÁTIO DE MINÉRIO' })).toBe('M-11 - PÁTIO DE MINÉRIO · RETIRAR CORREIA E FAZER BY PASS - NOITE');
+    expect(descricaoDoNome('m-11 - pátio de minério · retirar correia', 'PÁTIO DE MINÉRIO', 'M-11')).toBe('RETIRAR CORREIA');
+    expect(partesDoNome('M-11 - PÁTIO DE MINÉRIO · RETIRAR CORREIA')).toEqual({ cabecalho: 'M-11 - PÁTIO DE MINÉRIO', descricao: 'RETIRAR CORREIA' });
+    expect(partesDoNome('LIMPEZA DA OFICINA')).toEqual({ cabecalho: '', descricao: 'LIMPEZA DA OFICINA' });
+    // formato antigo ainda é entendido
     expect(descricaoDoNome('trocar correia f-2 — pátio de minério', 'PÁTIO DE MINÉRIO')).toBe('TROCAR CORREIA F-2');
     expect(descricaoDoNome('REPARO NA C-3', 'PÁTIO DE MINÉRIO')).toBe('REPARO NA C-3');
   });
 
   it('nomes iguais: só registra o nome sincronizado (nada muda na escala)', () => {
-    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO', workerIds: ['w1'] }], 2)], [at('a', '2026-11-18')]);
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1', workerIds: ['w1'] }], 2)], [at('a', '2026-11-18')]);
     expect(p.escala).toEqual([]);
-    expect(p.prog.map((x) => x.escalaNome)).toEqual(['TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO']);
+    expect(p.prog.map((x) => x.escalaNome)).toEqual(['PÁTIO DE MINÉRIO · TROCAR CORREIA F-1']);
     // segunda passada: estável
-    const p2 = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO', workerIds: ['w1'] }], 2)], p.prog);
+    const p2 = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1', workerIds: ['w1'] }], 2)], p.prog);
     expect(p2.prog).toEqual([]);
     expect(p2.escala).toEqual([]);
   });
 
   it('a escala mudou o nome: a programação recebe a nova descrição', () => {
-    const a = at('a', '2026-11-18', { escalaNome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO' });
-    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'TROCAR CORREIA F-1 E EMENDA — PÁTIO DE MINÉRIO', workerIds: [] }], 2)], [a]);
+    const a = at('a', '2026-11-18', { escalaNome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1' });
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1 E EMENDA', workerIds: [] }], 2)], [a]);
     expect(p.escala).toEqual([]);
     expect(p.prog[0].descricao).toBe('TROCAR CORREIA F-1 E EMENDA');
-    expect(p.prog[0].escalaNome).toBe('TROCAR CORREIA F-1 E EMENDA — PÁTIO DE MINÉRIO');
+    expect(p.prog[0].escalaNome).toBe('PÁTIO DE MINÉRIO · TROCAR CORREIA F-1 E EMENDA');
   });
 
   it('a programação mudou (ou sem registro): a escala recebe o nome', () => {
-    const a = at('a', '2026-11-18', { descricao: 'TROCAR CORREIA F-1 (NOVA)', escalaNome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO' });
-    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO', workerIds: [] }], 2)], [a]);
-    expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'TROCAR CORREIA F-1 (NOVA) — PÁTIO DE MINÉRIO' }]);
+    const a = at('a', '2026-11-18', { descricao: 'TROCAR CORREIA F-1 (NOVA)', escalaNome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1' });
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1', workerIds: [] }], 2)], [a]);
+    expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1 (NOVA)' }]);
     const semRegistro = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'OUTRO NOME', workerIds: [] }], 2)], [at('a', '2026-11-18')]);
-    expect(semRegistro.escala[0]).toMatchObject({ type: 'activity/rename', nome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO' });
+    expect(semRegistro.escala[0]).toMatchObject({ type: 'activity/rename', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1' });
   });
 
   it('atividade nova na escala entra na programação para revisão', () => {
@@ -68,14 +72,14 @@ describe('sincronização Escala ⇄ Programação', () => {
   });
 
   it('a programação mudou a data: a atividade vai para o novo dia com a equipe', () => {
-    const a = at('a', '2026-11-20', { escalaNome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO' });
+    const a = at('a', '2026-11-20', { escalaNome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1' });
     const p = rodar(
-      [dia('2026-11-18', [{ id: 'prog-a', nome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO', workerIds: ['w1', 'w2'] }], 2), dia('2026-11-20', [], 4)],
+      [dia('2026-11-18', [{ id: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1', workerIds: ['w1', 'w2'] }], 2), dia('2026-11-20', [], 4)],
       [a],
     );
     expect(p.escala).toEqual([
       { type: 'activity/remove', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a' },
-      { type: 'activity/put', weekKey: '2026-W47', dayIndex: 4, id: 'prog-a', nome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO', workerIds: ['w1', 'w2'] },
+      { type: 'activity/put', weekKey: '2026-W47', dayIndex: 4, id: 'prog-a', nome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1', workerIds: ['w1', 'w2'] },
     ]);
   });
 
@@ -99,7 +103,7 @@ describe('sincronização Escala ⇄ Programação', () => {
   });
 
   it('removida da escala: a programação recebe o aviso (nada é apagado)', () => {
-    const a = at('a', '2026-11-18', { escalaNome: 'TROCAR CORREIA F-1 — PÁTIO DE MINÉRIO' });
+    const a = at('a', '2026-11-18', { escalaNome: 'PÁTIO DE MINÉRIO · TROCAR CORREIA F-1' });
     const p = rodar([dia('2026-11-18', [{ id: 'outra', nome: 'OUTRA', workerIds: [] }], 2)], [a, at('esc-outra', '2026-11-18', { descricao: 'OUTRA', area: '', origem: 'escala', escalaNome: 'OUTRA' })]);
     expect(p.prog.find((x) => x.id === 'a')?.foraDaEscala).toBe(true);
     // nunca incluída na escala: sem aviso
@@ -195,19 +199,28 @@ describe('tempo parado pela hora de início e fim', () => {
   });
 });
 
-describe('equipamento (TAG) no nome da escala', () => {
-  it('entra quando a descrição não tem a TAG e volta certo para a programação', () => {
-    const a = { descricao: 'EQUIPE DIA - TROCA DA CORREIA', equipamento: 'L-203', area: 'PÁTIO DE MINÉRIO' };
-    expect(nomeNaEscala(a)).toBe('EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO');
-    expect(nomeNaEscala({ ...a, descricao: 'TROCAR CORREIA L203' })).toBe('TROCAR CORREIA L203 — PÁTIO DE MINÉRIO'); // já tem a TAG
-    expect(nomeNaEscala({ ...a, equipamento: '' })).toBe('EQUIPE DIA - TROCA DA CORREIA — PÁTIO DE MINÉRIO');
-    expect(descricaoDoNome('EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO', a.area, a.equipamento)).toBe('EQUIPE DIA - TROCA DA CORREIA');
+describe('equipamento e área no começo do nome da escala', () => {
+  const base = { descricao: 'EQUIPE DIA - TROCA DA CORREIA', equipamento: 'L-203', area: 'PÁTIO DE MINÉRIO' };
+  it('monta e desmonta o nome', () => {
+    expect(nomeNaEscala(base)).toBe('L-203 - PÁTIO DE MINÉRIO · EQUIPE DIA - TROCA DA CORREIA');
+    expect(nomeNaEscala({ ...base, equipamento: '' })).toBe('PÁTIO DE MINÉRIO · EQUIPE DIA - TROCA DA CORREIA');
+    expect(nomeNaEscala({ ...base, area: '', equipamento: '' })).toBe('EQUIPE DIA - TROCA DA CORREIA');
+    expect(descricaoDoNome('L-203 - PÁTIO DE MINÉRIO · EQUIPE DIA - TROCA DA CORREIA', base.area, base.equipamento)).toBe('EQUIPE DIA - TROCA DA CORREIA');
+    expect(descricaoDoNome('EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO', base.area, base.equipamento)).toBe('EQUIPE DIA - TROCA DA CORREIA');
   });
 
-  it('atividade já sincronizada sem a TAG: a escala recebe o nome novo', () => {
-    const x = at('a', '2026-11-18', { descricao: 'EQUIPE DIA - TROCA DA CORREIA', equipamento: 'L-203', escalaNome: 'EQUIPE DIA - TROCA DA CORREIA — PÁTIO DE MINÉRIO' });
-    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'EQUIPE DIA - TROCA DA CORREIA — PÁTIO DE MINÉRIO', workerIds: ['w1'] }], 2)], [x]);
-    expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO' }]);
-    expect(p.prog[0].descricao).toBe('EQUIPE DIA - TROCA DA CORREIA'); // a descrição da programação não muda
+  it('nome antigo sem mudança na escala: a escala recebe o formato novo (equipe mantida)', () => {
+    const antigo = 'EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO';
+    const x = at('a', '2026-11-18', { ...base, escalaNome: antigo });
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: antigo, workerIds: ['w1'] }], 2)], [x]);
+    expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'L-203 - PÁTIO DE MINÉRIO · EQUIPE DIA - TROCA DA CORREIA' }]);
+    expect(p.prog[0].descricao).toBe('EQUIPE DIA - TROCA DA CORREIA');
+  });
+
+  it('nome antigo editado na escala: a edição vai para a programação (não é perdida)', () => {
+    const x = at('a', '2026-11-18', { ...base, escalaNome: 'EQUIPE DIA - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO' });
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-a', nome: 'EQUIPE NOITE - TROCA DA CORREIA (L-203) — PÁTIO DE MINÉRIO', workerIds: [] }], 2)], [x]);
+    expect(p.prog[0].descricao).toBe('EQUIPE NOITE - TROCA DA CORREIA');
+    expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'L-203 - PÁTIO DE MINÉRIO · EQUIPE NOITE - TROCA DA CORREIA' }]);
   });
 });
