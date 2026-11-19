@@ -53,8 +53,7 @@
 .ponte-foto { display: block; max-width: 220px; max-height: 220px; margin-top: 6px; border-radius: 6px; }
 .relatorio-acoes { margin: 12px auto; max-width: 820px; }
 
-/* itens críticos em destaque vermelho (tela e PDF) */
-.ponte-itens tr.critico td:first-child { border-left: 4px solid #c62828; color: #b71c1c; font-weight: 600; }
+/* item crítico: só a etiqueta "ITEM CRÍTICO" fica em vermelho; o texto da pergunta segue na cor normal */
 .tag-critico { display: inline-block; background: #c62828; color: #fff; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
 
 /* resposta: S – Conforme verde, N – Não conforme vermelho */
