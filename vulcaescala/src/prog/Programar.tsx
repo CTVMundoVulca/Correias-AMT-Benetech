@@ -57,6 +57,11 @@ export function Programar() {
   const [recusando, setRecusando] = useState<Solicitacao | null>(null);
 
   useEffect(() => ouvirAbertas(api, setAbertas), [api]);
+  // atividades sem classificação (últimos 3 meses até o fim do mês atual): alerta para corrigir
+  const [verSem, setVerSem] = useState(false);
+  const hoje = hojeIso();
+  const recentes = useAtividades(mesesEntre(toIsoDate(addDays(fromIsoDate(hoje)!, -92)), hoje));
+  const semClasse = useMemo(() => ordenarAtividades((recentes ?? []).filter((a) => !a.classe)).reverse(), [recentes]);
 
   const daSemana = useMemo(() => ordenarAtividades((lista ?? []).filter((a) => a.data >= dias[0] && a.data <= dias[6])), [lista, dias]);
   const r = resumir(daSemana);
@@ -119,6 +124,31 @@ export function Programar() {
         </section>
       )}
 
+      {semClasse.length > 0 && (
+        <section className="banner warn small stack sem-classe" role="alert">
+          <div className="row between">
+            <span>
+              ⚠ <b>{semClasse.length}</b> atividade(s) sem classificação nos últimos 3 meses. Elas ficam fora dos índices (programadas, emergências…): abra e marque a
+              classificação.
+            </span>
+            <button className="btn small" onClick={() => setVerSem((v) => !v)} aria-expanded={verSem}>
+              {verSem ? 'Ocultar' : 'Ver quais são'}
+            </button>
+          </div>
+          {verSem && (
+            <ul className="plain-list sem-classe-lista">
+              {semClasse.map((a) => (
+                <li key={a.id}>
+                  <button className="link small" onClick={() => setEdicao({ a, nova: false })}>
+                    <span className="num">{dataBr(a.data)}</span> · {a.area || 'INTERNO'} · <b>{a.equipamento || '—'}</b>
+                    {a.om ? ` · OM ${a.om}` : ''} — {a.descricao || a.tipo}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       {daSemana.some((x) => x.revisarEscala || x.foraDaEscala) && (
         <div className="banner warn small">
           {(() => {

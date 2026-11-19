@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react';
 import { MONTHS, MONTHS_SHORT } from '../domain/isoWeek';
 import { PdfBotao } from '../ui/PdfBotao';
 import { Indicadores } from './Indicadores';
+import { DetalheAtividades, DetalheEmergenciasOm } from './Detalhes';
 import { GraficoBarras, GraficoColunas, LegendaSeries, SERIES, type Serie } from './graficos';
 import { useAtividades, useOms, useProg } from './context';
 import { CampoArea } from './CampoArea';
 import {
   AREA_INTERNA,
   contarOms,
+  emergenciasPorOm,
   omFutura,
   fmtHH,
   hojeIso,
@@ -23,6 +25,17 @@ import {
 } from './model';
 
 type Periodo = 'mes' | 'tri' | 'ano' | 'livre';
+/** cartão clicado: mostra as atividades que formam o número */
+type SelKpi = 'todas' | 'emergencia' | 'oms_emerg' | 'nao_programada' | 'cancelada' | 'mobilizadas' | 'retrabalho' | 'pessoas';
+const FILTRO_KPI: Record<Exclude<SelKpi, 'oms_emerg'>, { nome: string; f: (a: Atividade) => boolean }> = {
+  todas: { nome: 'Atividades', f: () => true },
+  pessoas: { nome: 'Atividades com pessoas (não canceladas)', f: (a) => a.classe !== 'cancelada' && a.pessoas > 0 },
+  emergencia: { nome: 'Emergências (registros-dia)', f: (a) => a.classe === 'emergencia' },
+  nao_programada: { nome: 'Não programadas', f: (a) => a.classe === 'nao_programada' },
+  cancelada: { nome: 'Canceladas', f: (a) => a.classe === 'cancelada' },
+  mobilizadas: { nome: 'Canceladas com a equipe mobilizada', f: (a) => a.classe === 'cancelada' && a.mobilizada },
+  retrabalho: { nome: 'Retrabalhos', f: (a) => a.retrabalho },
+};
 
 const nomeMes = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 const curtoMes = (ym: string) => `${MONTHS_SHORT[Number(ym.slice(5, 7)) - 1]}/${ym.slice(2, 4)}`;
@@ -52,6 +65,8 @@ export function Dashboard() {
   const [area, setArea] = useState('');
   const [tabela, setTabela] = useState(false);
   const [foco, setFoco] = useState<Serie | null>(null);
+  const [selKpi, setSelKpi] = useState<SelKpi | null>(null);
+  const clicar = (k: SelKpi) => setSelKpi((x) => (x === k ? null : k));
 
   const [ini, fim] =
     periodo === 'mes' ? [atual, atual] : periodo === 'tri' ? [somaMeses(atual, -2), atual] : periodo === 'ano' ? [`${atual.slice(0, 4)}-01`, atual] : de <= ate ? [de, ate] : [ate, de];
@@ -61,6 +76,7 @@ export function Dashboard() {
 
   const lista = useMemo(() => (todas ?? []).filter((a) => !area || (a.area || AREA_INTERNA) === area), [todas, area]);
   const r = resumir(lista);
+  const emerg = useMemo(() => emergenciasPorOm(lista), [lista]);
   const gArea = useMemo(() => porArea(lista), [lista]);
   const gMes = useMemo(() => porMes(lista), [lista]);
   const gTipo = useMemo(() => porTipo(lista), [lista]);
@@ -119,25 +135,42 @@ export function Dashboard() {
           <p className="muted">Carregando…</p>
         ) : (
           <>
+            <p className="small muted dica-int">Toque num cartão para ver as atividades que formam o número.</p>
             <div className="kpis">
-              <Kpi v={r.total} t="Atividades" />
-              <Kpi v={r.pessoasDia} t="Pessoas × dia" />
+              <Kpi v={r.total} t="Atividades" sel={selKpi} k="todas" onK={clicar} />
+              <Kpi v={r.pessoasDia} t="Pessoas × dia" sel={selKpi} k="pessoas" onK={clicar} />
               <Kpi v={pct(r.indiceProgramacao)} t="Índice de programação" dica="programadas ÷ executadas (prog. + não prog. + emerg.)" />
-              <Kpi v={r.classes.emergencia} t={`Emergências (${pct(r.total - r.classes.sem ? r.classes.emergencia / (r.total - r.classes.sem) : null)})`} />
-              <Kpi v={r.classes.nao_programada} t="Não programadas" />
-              <Kpi v={r.classes.cancelada} t={`Canceladas (${pct(r.indiceCancelamento)})`} />
+              <Kpi v={r.classes.emergencia} t={`Emergências — registros-dia (${pct(r.total - r.classes.sem ? r.classes.emergencia / (r.total - r.classes.sem) : null)})`} sel={selKpi} k="emergencia" onK={clicar} />
+              <Kpi
+                v={emerg.ocorrencias.length}
+                t={`OMs em emergência · ${emerg.diasOm} dias-OM`}
+                dica={emerg.media === null ? undefined : `média de ${emerg.media.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} dia(s) por OM`}
+                sel={selKpi}
+                k="oms_emerg"
+                onK={clicar}
+              />
+              <Kpi v={r.classes.nao_programada} t="Não programadas" sel={selKpi} k="nao_programada" onK={clicar} />
+              <Kpi v={r.classes.cancelada} t={`Canceladas (${pct(r.indiceCancelamento)})`} sel={selKpi} k="cancelada" onK={clicar} />
               <Kpi
                 v={fmtHH(r.horasPerdidas)}
                 t="HH em cancelamentos (equipe mobilizada)"
                 dica={`${r.mobilizadas} atividade(s) canceladas com a equipe mobilizada · horas apropriadas na OM (pessoas × horas)`}
+                sel={selKpi}
+                k="mobilizadas"
+                onK={clicar}
               />
-              <Kpi v={r.retrabalho} t="Retrabalhos" />
+              <Kpi v={r.retrabalho} t="Retrabalhos" sel={selKpi} k="retrabalho" onK={clicar} />
               {oms ? (
                 <Kpi v={cOms.aberta + cOms.retornada} t="OMs sem baixa" dica={`${cOms.aberta} aguardando retorno · ${cOms.retornada} aguardando baixa`} />
               ) : (
                 <Kpi v={r.comOm} t="Atividades com OM" />
               )}
             </div>
+            {selKpi === 'oms_emerg' ? (
+              <DetalheEmergenciasOm titulo="OMs em emergência" ocorrencias={emerg.ocorrencias} onFechar={() => setSelKpi(null)} />
+            ) : (
+              selKpi && <DetalheAtividades titulo={FILTRO_KPI[selKpi].nome} lista={lista.filter(FILTRO_KPI[selKpi].f)} onFechar={() => setSelKpi(null)} />
+            )}
             {r.classes.sem > 0 && (
               <p className="small muted">
                 {r.classes.sem} de {r.total} atividades não têm classificação (importadas da planilha sem PROG/Ñ PROG/EMERG/CANC marcado). Os índices
@@ -249,12 +282,20 @@ export function Dashboard() {
   );
 }
 
-function Kpi({ v, t, dica }: { v: number | string; t: string; dica?: string }) {
+function Kpi({ v, t, dica, sel, k, onK }: { v: number | string; t: string; dica?: string; sel?: SelKpi | null; k?: SelKpi; onK?: (k: SelKpi) => void }) {
+  if (!k || !onK)
+    return (
+      <div className="kpi" title={dica}>
+        <b>{v}</b>
+        <span>{t}</span>
+      </div>
+    );
   return (
-    <div className="kpi" title={dica}>
+    <button type="button" className={'kpi kpi-click' + (sel === k ? ' on' : '')} title={(dica ? dica + ' · ' : '') + 'Ver as atividades'} aria-pressed={sel === k} onClick={() => onK(k)}>
       <b>{v}</b>
       <span>{t}</span>
-    </div>
+      {dica && <span className="kpi-sub">{dica}</span>}
+    </button>
   );
 }
 

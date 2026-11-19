@@ -201,3 +201,28 @@ describe('efetivo do dia: só o contrato; apoio à parte', () => {
     expect(r.ocupacao).toBeCloseTo(0.5);
   });
 });
+
+import { emergenciasPorOm } from '../prog/model';
+describe('emergências por OM', () => {
+  it('mesma OM em vários dias conta uma vez; soma os dias-OM', () => {
+    const l = [
+      at({ classe: 'emergencia', om: '900000000001', data: '2026-11-10', area: 'COQUERIA', equipamento: 'C-1' }),
+      at({ classe: 'emergencia', om: '900000000001', data: '2026-11-11', area: 'COQUERIA', equipamento: 'C-1' }),
+      at({ classe: 'emergencia', om: '900000000001', data: '2026-11-11', area: 'COQUERIA', equipamento: 'C-1' }), // 2 registros no mesmo dia = 1 dia
+      at({ classe: 'emergencia', om: '900000000002', data: '2026-11-11', area: 'URCP', equipamento: 'U-2' }),
+      // sem OM: mesma área + equipamento ("L-21" = "l21") é uma ocorrência
+      at({ classe: 'emergencia', om: '', data: '2026-11-12', area: 'PÁTIO', equipamento: 'L-21' }),
+      at({ classe: 'emergencia', om: '', data: '2026-11-13', area: 'PÁTIO', equipamento: 'l21' }),
+      at({ classe: 'emergencia', om: '', data: '2026-11-13', area: 'SINTER', equipamento: 'L-21' }),
+      at({ classe: 'programada', om: '900000000003', data: '2026-11-13' }),
+    ];
+    const e = emergenciasPorOm(l);
+    expect(e.ocorrencias).toHaveLength(4);
+    expect(e.diasOm).toBe(2 + 1 + 2 + 1);
+    expect(e.semOm).toBe(2);
+    expect(e.ocorrencias[0].dias).toEqual(['2026-11-12', '2026-11-13']);
+    expect(e.ocorrencias.find((g) => g.om === '900000000001')!.dias).toEqual(['2026-11-10', '2026-11-11']);
+    expect(e.media).toBe(1.5);
+    expect(emergenciasPorOm([]).media).toBeNull();
+  });
+});

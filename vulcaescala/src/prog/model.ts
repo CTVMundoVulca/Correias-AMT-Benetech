@@ -903,3 +903,45 @@ export function completarPedidoParada(id: string, v: unknown): PedidoParada | nu
     resposta: str(p.resposta, RESPOSTA_MAX),
   };
 }
+
+// ------------------------------------------------------------------ emergências por OM
+
+/** Uma OM (ou ocorrência sem OM) em emergência, com os dias em que houve trabalho nela. */
+export interface OcorrenciaEmergencia {
+  chave: string;
+  /** número da OM ('' = sem OM: agrupado por área + equipamento) */
+  om: string;
+  area: string;
+  equipamento: string;
+  /** dias distintos com atividade de emergência nesta OM ("AAAA-MM-DD", em ordem) */
+  dias: string[];
+  registros: Atividade[];
+}
+
+/** "L-21", "L 21" e "l21" viram a mesma chave de equipamento */
+const chaveEquip = (s: string) => s.toUpperCase().replace(/[\s\-_.]+/g, '');
+
+/**
+ * Emergências contadas por OM: a mesma OM trabalhada em vários dias é uma ocorrência só.
+ * Sem número de OM, agrupa por área + equipamento (sem equipamento, cada registro conta 1).
+ * diasOm = soma dos dias de cada OM (esforço em emergência).
+ */
+export function emergenciasPorOm(lista: Atividade[]): { ocorrencias: OcorrenciaEmergencia[]; diasOm: number; semOm: number; media: number | null } {
+  const m = new Map<string, OcorrenciaEmergencia>();
+  for (const a of lista) {
+    if (a.classe !== 'emergencia') continue;
+    const om = limparOm(a.om);
+    const area = a.area || AREA_INTERNA;
+    const eq = chaveEquip(a.equipamento);
+    const chave = om ? `om:${om}` : eq ? `eq:${area}|${eq}` : `id:${a.id}`;
+    const g = m.get(chave) ?? { chave, om, area, equipamento: a.equipamento, dias: [], registros: [] };
+    if (!g.dias.includes(a.data)) g.dias.push(a.data);
+    g.registros.push(a);
+    m.set(chave, g);
+  }
+  const ocorrencias = [...m.values()]
+    .map((g) => ({ ...g, dias: g.dias.sort() }))
+    .sort((a, b) => b.dias.length - a.dias.length || b.dias[b.dias.length - 1].localeCompare(a.dias[a.dias.length - 1]));
+  const diasOm = ocorrencias.reduce((s, g) => s + g.dias.length, 0);
+  return { ocorrencias, diasOm, semOm: ocorrencias.filter((g) => !g.om).length, media: ocorrencias.length ? diasOm / ocorrencias.length : null };
+}
