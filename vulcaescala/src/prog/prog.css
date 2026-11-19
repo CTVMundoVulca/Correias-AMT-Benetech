@@ -429,6 +429,10 @@
 .exec.ok { color: var(--ok-ink); }
 .exec.mob { color: var(--pend-ink); font-weight: 600; }
 .mobilizada { border-left: 3px solid var(--pend-line); padding-left: 10px; }
+.mob-periodos { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.mob-periodo { width: 100%; align-items: flex-end; gap: 8px; }
+.mob-periodo .mob-dur { min-width: 3.2em; padding-bottom: 12px; }
+.mob-periodo .icon-btn { margin-bottom: 4px; }
 .exec.nao { color: var(--red-ink); }
 .exec.reprog { color: var(--pend-ink); }
 

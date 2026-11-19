@@ -18,7 +18,10 @@ import {
   MOTIVO_MAX,
   duracaoHoras,
   fmtDuracao,
-  horaValida,
+  horasDosPeriodos,
+  limparPeriodos,
+  periodosDaMob,
+  MOB_PERIODOS_MAX,
   fmtHH,
   horasValidas,
   PESSOAS_MAX,
@@ -77,13 +80,17 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     horario: limparTexto(base.horario, HORARIO_MAX),
     motivo: base.classe === 'cancelada' ? limparTexto(base.motivo, MOTIVO_MAX) : '',
     mobilizada: base.classe === 'cancelada' && base.mobilizada,
-    // com início e fim, as horas são calculadas; sem eles, ficam as já registradas (lançamentos antigos)
-    horasMobilizadas:
-      base.classe === 'cancelada' && base.mobilizada
-        ? horasValidas(duracaoHoras(base.mobInicio, base.mobFim) || (base.mobInicio || base.mobFim ? 0 : base.horasMobilizadas))
-        : 0,
-    mobInicio: base.classe === 'cancelada' && base.mobilizada ? horaValida(base.mobInicio) : '',
-    mobFim: base.classe === 'cancelada' && base.mobilizada ? horaValida(base.mobFim) : '',
+    // com os períodos (início e fim), as horas são a soma; sem eles, ficam as já registradas (lançamentos antigos)
+    ...(() => {
+      if (base.classe !== 'cancelada' || !base.mobilizada) return { horasMobilizadas: 0, mobInicio: '', mobFim: '', mobPeriodos: [] };
+      const per = limparPeriodos(periodosDaMob(base));
+      return {
+        horasMobilizadas: horasValidas(per.length ? horasDosPeriodos(per) : base.horasMobilizadas),
+        mobInicio: per[0]?.inicio ?? '',
+        mobFim: per[per.length - 1]?.fim ?? '',
+        mobPeriodos: per,
+      };
+    })(),
     pessoas: Math.max(0, Math.min(PESSOAS_MAX, Math.round(base.pessoas || 0))),
     // salvar pela programação conta como revisão da atividade lançada na escala
     revisarEscala: false,
@@ -107,6 +114,7 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     if (x.om && x.om.length < 6) return toast('Número da OM incompleto.', 'warn');
     if (x.mobilizada && !x.om) return toast('Informe a OM em que as horas serão apropriadas.', 'warn');
     if (x.mobilizada && !x.pessoas) return toast('Informe quantas pessoas ficaram aguardando.', 'warn');
+    if (x.mobilizada && x.mobPeriodos.some((p) => !p.inicio || !p.fim)) return toast('Complete o início e o fim de cada período de espera.', 'warn');
     if (x.mobilizada && !x.horasMobilizadas) return toast('Informe a hora de início e a hora do fim da espera.', 'warn');
     // mudou a data depois de programada = reprogramação (entra no KPI de estabilidade)
     const reprog = !nova && x.data !== atual.data;
@@ -346,7 +354,15 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
               onChange={(e) => set('motivo', e.target.value)}
             />
             <label className="check">
-              <input type="checkbox" checked={a.mobilizada} onChange={(e) => set('mobilizada', e.target.checked)} /> Equipe mobilizada — apropriar horas na OM
+              <input
+                type="checkbox"
+                checked={a.mobilizada}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setA((x) => ({ ...x, mobilizada: on, mobPeriodos: on && !periodosDaMob(x).length ? [{ inicio: '', fim: '' }] : periodosDaMob(x) }));
+                }}
+              />{' '}
+              Equipe mobilizada — apropriar horas na OM
             </label>
             {a.mobilizada && (
               <div className="stack mobilizada">
@@ -363,31 +379,61 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
                       onChange={(e) => set('pessoas', Number(e.target.value) || 0)}
                     />
                   </label>
-                  <label className="field grow">
-                    Início da espera
-                    <input className="input" type="time" aria-label="Início da espera" value={a.mobInicio} onChange={(e) => set('mobInicio', e.target.value)} />
-                  </label>
-                  <label className="field grow">
-                    Fim (cancelamento)
-                    <input className="input" type="time" aria-label="Fim da espera" value={a.mobFim} onChange={(e) => set('mobFim', e.target.value)} />
-                  </label>
                 </div>
                 {(() => {
-                  const h = duracaoHoras(a.mobInicio, a.mobFim) || (a.mobInicio || a.mobFim ? 0 : a.horasMobilizadas);
+                  const per = periodosDaMob(a);
+                  const linhas = per.length ? per : [{ inicio: '', fim: '' }];
+                  const mudar = (i: number, campo: 'inicio' | 'fim', v: string) =>
+                    setA((x) => ({ ...x, mobPeriodos: linhas.map((p, j) => (j === i ? { ...p, [campo]: v } : p)) }));
+                  const h = per.length ? horasDosPeriodos(per) : a.horasMobilizadas;
+                  const meiaNoite = per.some((p) => p.inicio && p.fim && p.fim < p.inicio);
                   return (
-                    <p className="small muted">
-                      {h > 0 ? (
-                        <>
-                          Equipe parada: <b>{fmtDuracao(h)}</b>
-                          {a.mobInicio && a.mobFim && a.mobFim < a.mobInicio ? ' (passou da meia-noite)' : ''}
-                              {!a.mobInicio && !a.mobFim ? ' (registrado sem horário)' : ''} · Total:{' '}
-                          {a.pessoas ? <b>{fmtHH(a.pessoas * h)}</b> : 'informe as pessoas'} a apropriar{a.om ? ` na OM ${a.om}` : ' (informe a OM acima)'}.
-                        </>
-                      ) : (
-                        'Informe o início e o fim da espera: o tempo parado é calculado.'
-                      )}{' '}
-                      A atividade continua cancelada nos indicadores; a OM segue para retorno do supervisor e baixa.
-                    </p>
+                    <>
+                      <div className="mob-periodos">
+                        {linhas.map((p, i) => (
+                          <div key={i} className="row nowrap mob-periodo">
+                            <label className="field grow">
+                              {linhas.length > 1 ? `Espera ${i + 1}: início` : 'Início da espera'}
+                              <input className="input" type="time" aria-label={`Início da espera ${i + 1}`} value={p.inicio} onChange={(e) => mudar(i, 'inicio', e.target.value)} />
+                            </label>
+                            <label className="field grow">
+                              Fim
+                              <input className="input" type="time" aria-label={`Fim da espera ${i + 1}`} value={p.fim} onChange={(e) => mudar(i, 'fim', e.target.value)} />
+                            </label>
+                            <span className="small muted mob-dur num">{p.inicio && p.fim ? fmtDuracao(duracaoHoras(p.inicio, p.fim)) : ''}</span>
+                            {linhas.length > 1 && (
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label={`Remover espera ${i + 1}`}
+                                onClick={() => setA((x) => ({ ...x, mobPeriodos: linhas.filter((_, j) => j !== i) }))}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        {linhas.length < MOB_PERIODOS_MAX && (
+                          <button type="button" className="btn small" onClick={() => setA((x) => ({ ...x, mobPeriodos: [...linhas, { inicio: '', fim: '' }] }))}>
+                            + Outro período de espera
+                          </button>
+                        )}
+                      </div>
+                      <p className="small muted">
+                        {h > 0 ? (
+                          <>
+                            Equipe parada: <b>{fmtDuracao(h)}</b>
+                            {linhas.length > 1 ? ` em ${linhas.length} períodos` : ''}
+                            {meiaNoite ? ' (passou da meia-noite)' : ''}
+                            {!per.length ? ' (registrado sem horário)' : ''} · Total:{' '}
+                            {a.pessoas ? <b>{fmtHH(a.pessoas * h)}</b> : 'informe as pessoas'} a apropriar{a.om ? ` na OM ${a.om}` : ' (informe a OM acima)'}.
+                          </>
+                        ) : (
+                          'Informe o início e o fim da espera: o tempo parado é calculado.'
+                        )}{' '}
+                        A atividade continua cancelada nos indicadores; a OM segue para retorno do supervisor e baixa.
+                      </p>
+                    </>
                   );
                 })()}
               </div>

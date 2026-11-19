@@ -11,7 +11,7 @@ import { useAtrasosPeriodo } from './atrasosProg';
 import { duracaoMin, fmtDuracao as fmtDurAtraso } from '../cloud/atrasos';
 import { corDaArea } from './Painel';
 import { dataBr } from './Solicitar';
-import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contaParaOm, contarOms, fmtDuracao, omFutura, fmtHH, horasHomemMobilizadas, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
+import { INICIO_CONTROLE_OMS, SITUACOES, buscaBate, cancelamentoDasOms, contaParaOm, contarOms, faixasMob, fmtDuracao, omFutura, fmtHH, horasHomemMobilizadas, diasEntre, hojeIso, mesesEntre, type Atividade, type OmInfo, type SituacaoOm } from './model';
 
 type Filtro = SituacaoOm | 'pendentes' | 'todas' | 'futuras';
 
@@ -211,7 +211,7 @@ export function Oms() {
                       {mob.map((a) => (
                         <div key={a.id} className="exec mob">
                           ⏱ Cancelada em {dataBr(a.data).slice(0, 5)}{a.motivo ? ` (${a.motivo})` : ''} · apropriar <b>{fmtHH(horasHomemMobilizadas(a))}</b> ({a.pessoas} pessoa
-                          {a.pessoas === 1 ? '' : 's'} × {fmtDuracao(a.horasMobilizadas)}{a.mobInicio && a.mobFim ? `, ${a.mobInicio}–${a.mobFim}` : ''})
+                          {a.pessoas === 1 ? '' : 's'} × {fmtDuracao(a.horasMobilizadas)}{faixasMob(a) ? `, ${faixasMob(a)}` : ''})
                         </div>
                       ))}
                       {exec.length > 0 ? (

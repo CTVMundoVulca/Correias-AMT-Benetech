@@ -5,7 +5,7 @@ import { addDays, fromIsoDate, locateDay, mondayOf, parseWeekKey, toIsoDate } fr
 import { newId } from '../domain/ids';
 import { nomeNaEscala } from '../integracao/progEscala';
 import { useProg } from './context';
-import { AREA_INTERNA, horasHomemMobilizadas, type Atividade } from './model';
+import { AREA_INTERNA, faixasMob, horasHomemMobilizadas, type Atividade } from './model';
 
 /**
  * Atrasos registrados na Escala (escala_atrasos) vistos pela Programação.
@@ -81,6 +81,8 @@ export interface Perda {
   pessoas: number;
   /** horas × pessoas */
   hh: number;
+  /** horários para mostrar ("09:00–10:00, 13:00–14:00"); vazio = início–fim */
+  faixas?: string;
   /** a pessoa não está ligada a uma atividade da programação (só na escala) */
   semVinculo: boolean;
   atraso?: Atraso;
@@ -139,6 +141,7 @@ export function perdasDoPeriodo(lista: Atividade[], dados: AtrasosPeriodo | null
       motivo: `Cancelada: ${a.motivo || 'sem motivo'}`,
       inicio: a.mobInicio,
       fim: a.mobFim,
+      faixas: faixasMob(a),
       horas: a.horasMobilizadas,
       pessoas: a.pessoas,
       hh: horasHomemMobilizadas(a),

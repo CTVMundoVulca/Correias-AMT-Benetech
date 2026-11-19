@@ -224,3 +224,21 @@ describe('equipamento e área no começo do nome da escala', () => {
     expect(p.escala).toEqual([{ type: 'activity/rename', weekKey: '2026-W47', dayIndex: 2, activityId: 'prog-a', nome: 'L-203 - PÁTIO DE MINÉRIO · EQUIPE NOITE - TROCA DA CORREIA' }]);
   });
 });
+
+describe('cancelamento com equipe mobilizada: vários períodos de espera', () => {
+  it('soma os períodos e mantém compatibilidade com o lançamento antigo', async () => {
+    const { completarAtividade, periodosDaMob, horasDosPeriodos, faixasMob, horasHomemMobilizadas } = await import('../prog/model');
+    const per = [{ inicio: '09:00', fim: '10:00' }, { inicio: '13:00', fim: '14:30' }];
+    expect(horasDosPeriodos(per)).toBe(2.5);
+    const d = completarAtividade('a', { ...at('a', '2026-11-16'), classe: 'cancelada', mobilizada: true, pessoas: 3, mobPeriodos: per, mobInicio: '09:00', mobFim: '14:30', horasMobilizadas: 2.5 })!;
+    expect(d.mobPeriodos).toEqual(per);
+    expect(faixasMob(d)).toBe('09:00–10:00, 13:00–14:30');
+    expect(horasHomemMobilizadas(d)).toBe(7.5);
+    // antigo: só início e fim
+    const antigo = completarAtividade('b', { ...at('b', '2026-11-16'), classe: 'cancelada', mobilizada: true, mobInicio: '07:15', mobFim: '10:45', horasMobilizadas: 3.5 })!;
+    expect(antigo.mobPeriodos).toEqual([]);
+    expect(periodosDaMob(antigo)).toEqual([{ inicio: '07:15', fim: '10:45' }]);
+    // horários inválidos e linhas vazias saem
+    expect(completarAtividade('c', { ...at('c', '2026-11-16'), classe: 'cancelada', mobilizada: true, mobPeriodos: [{ inicio: '25:00', fim: '' }, { inicio: '08:00', fim: '09:00' }] as never })!.mobPeriodos).toEqual([{ inicio: '08:00', fim: '09:00' }]);
+  });
+});
