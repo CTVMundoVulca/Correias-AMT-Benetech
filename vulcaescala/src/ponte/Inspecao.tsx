@@ -37,7 +37,21 @@ export function Inspecao() {
   return <Entrar logadoComo={email} />;
 }
 
-function Entrar({ logadoComo }: { logadoComo: string }) {
+export function Entrar({
+  logadoComo,
+  titulo = 'Fazer inspeção',
+  texto = 'Só operadores habilitados, com o treinamento válido. Escolha o seu nome e digite o seu PIN pessoal.',
+  botao = 'Entrar e começar o checklist',
+  voltar = '#/',
+  extra,
+}: {
+  logadoComo: string;
+  titulo?: string;
+  texto?: string;
+  botao?: string;
+  voltar?: string;
+  extra?: React.ReactNode;
+}) {
   const { api, operadores, operadoresFonte, operadoresErro, hoje } = usePonte();
   const [sel, setSel] = useState('');
   const [pin, setPin] = useState('');
@@ -65,12 +79,13 @@ function Entrar({ logadoComo }: { logadoComo: string }) {
 
   return (
     <div className="stack">
-      <button className="link small" onClick={() => irPara('#/')}>
-        ‹ Painel
+      <button className="link small" onClick={() => irPara(voltar)}>
+        ‹ Voltar
       </button>
       <section className="card pad stack">
-        <h2>Fazer inspeção</h2>
-        <p className="small muted">Só operadores habilitados, com o treinamento válido. Escolha o seu nome e digite o seu PIN pessoal.</p>
+        <h2>{titulo}</h2>
+        <p className="small muted">{texto}</p>
+        {extra}
         {logadoComo && <p className="banner info small">Este aparelho está com outra sessão ({logadoComo}). Ao entrar com o PIN, ela é encerrada.</p>}
         <SituacaoLista fonte={operadoresFonte} erro={operadoresErro} vazia={!lista.length} />
         {!lista.length ? (
@@ -113,7 +128,7 @@ function Entrar({ logadoComo }: { logadoComo: string }) {
                     />
                   </label>
                   <button className="btn primary" type="submit" disabled={busy}>
-                    {busy ? 'Entrando…' : 'Entrar e começar o checklist'}
+                    {busy ? 'Entrando…' : botao}
                   </button>
                 </>
               )

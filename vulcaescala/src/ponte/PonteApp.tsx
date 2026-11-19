@@ -12,9 +12,18 @@ import { Painel } from './Painel';
 import { Inspecao } from './Inspecao';
 import { Detalhe } from './Detalhe';
 import { Gestao } from './Gestao';
+import { DetalheManutencao, FormManutencao, ListaManutencoes } from './Manutencoes';
+import { ouvirManutencoes, type Manutencao } from './manutencao';
 
 type Phase = 'sdk' | 'fail' | 'auth-off' | 'ready';
-type Rota = { tela: 'painel' } | { tela: 'inspecao' } | { tela: 'gestao' } | { tela: 'detalhe'; id: string };
+type Rota =
+  | { tela: 'painel' }
+  | { tela: 'inspecao' }
+  | { tela: 'gestao' }
+  | { tela: 'detalhe'; id: string }
+  | { tela: 'manutencoes' }
+  | { tela: 'manut-form'; id: string | null }
+  | { tela: 'manut'; id: string };
 /** histórico carregado no painel */
 export const HISTORICO_DIAS = 60;
 
@@ -22,6 +31,12 @@ function lerRota(): Rota {
   const h = window.location.hash;
   const m = /^#\/c\/([\w-]+)$/.exec(h);
   if (m) return { tela: 'detalhe', id: m[1] };
+  const me = /^#\/m\/([\w-]+)\/editar$/.exec(h);
+  if (me) return { tela: 'manut-form', id: me[1] };
+  const mm = /^#\/m\/([\w-]+)$/.exec(h);
+  if (mm) return { tela: 'manut', id: mm[1] };
+  if (h.startsWith('#/manutencoes/nova')) return { tela: 'manut-form', id: null };
+  if (h.startsWith('#/manutencoes')) return { tela: 'manutencoes' };
   if (h.startsWith('#/inspecao')) return { tela: 'inspecao' };
   if (h.startsWith('#/gestao')) return { tela: 'gestao' };
   return { tela: 'painel' };
@@ -44,6 +59,8 @@ export function PonteApp() {
   const [operadoresErro, setOperadoresErro] = useState('');
   const [checklists, setChecklists] = useState<Checklist[] | null>(null);
   const [pendente, setPendente] = useState(false);
+  const [manuts, setManuts] = useState<Manutencao[] | null>(null);
+  const [manutPendente, setManutPendente] = useState(false);
   const [rota, setRota] = useState<Rota>(lerRota);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [hoje, setHoje] = useState(hojeIso);
@@ -127,10 +144,19 @@ export function PonteApp() {
       setPendente(p);
     }, () => setChecklists([]));
     const u3 = email ? ouvirPapeis(api, setPapeis) : () => setPapeis(PAPEIS_VAZIOS);
+    const u4 = ouvirManutencoes(
+      api,
+      (l, p) => {
+        setManuts(l);
+        setManutPendente(p);
+      },
+      () => setManuts([]),
+    );
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
   }, [phase, api, desde, email]);
 
@@ -152,11 +178,13 @@ export function PonteApp() {
             // excluídos saem do painel, do histórico e das contagens (ficam no histórico de exclusão)
             checklists: checklists ? checklists.filter((c) => !c.excluidoEm) : null,
             excluidos: (checklists ?? []).filter((c) => !!c.excluidoEm),
-            pendente,
+            pendente: pendente || manutPendente,
             hoje,
+            manutencoes: manuts ? manuts.filter((m) => !m.excluidoEm) : null,
+            manutExcluidas: (manuts ?? []).filter((m) => !!m.excluidoEm),
           }
         : null,
-    [api, email, uid, admin, operador, operadores, operadoresFonte, operadoresErro, checklists, pendente, hoje],
+    [api, email, uid, admin, operador, operadores, operadoresFonte, operadoresErro, checklists, pendente, manutPendente, hoje, manuts],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };
@@ -167,14 +195,19 @@ export function PonteApp() {
     return <Splash title={titulo} text="Sem conexão com a nuvem. Na primeira vez neste aparelho é preciso internet." action={{ label: 'Tentar de novo', onClick: () => window.location.reload() }} secondary={menu} />;
   if (phase !== 'ready' || !ctx || !api) return <Splash title={titulo} text="Conectando…" />;
 
+  // administrador entrou pela tela de manutenção: volta para onde estava
+  if (rota.tela === 'gestao' && admin) {
+    const volta = /[?&]volta=([^&]+)/.exec(window.location.hash)?.[1];
+    if (volta) setTimeout(() => irPara(decodeURIComponent(volta)), 0);
+  }
   // Gestão sem conta de administrador: tela de login (e-mail e senha)
   if (rota.tela === 'gestao' && (!email || operador))
     return <AuthScreen api={api} titulo="Ponte rolante — Gestão" voltarLabel="‹ Voltar ao painel" onVoltar={() => irPara('#/')} />;
 
   const status = !online
     ? { cls: 'offline', short: 'Offline', long: 'Sem internet: o checklist fica neste aparelho e é enviado quando a conexão voltar.' }
-    : pendente
-      ? { cls: 'saving', short: 'Enviando…', long: 'Enviando o checklist para a nuvem…' }
+    : pendente || manutPendente
+      ? { cls: 'saving', short: 'Enviando…', long: 'Enviando para a nuvem…' }
       : { cls: 'ok', short: 'Sincronizado', long: 'Sincronizado.' };
 
   return (
@@ -185,6 +218,9 @@ export function PonteApp() {
         {rota.tela === 'inspecao' && <Inspecao />}
         {rota.tela === 'gestao' && <Gestao />}
         {rota.tela === 'detalhe' && <Detalhe id={rota.id} />}
+        {rota.tela === 'manutencoes' && <ListaManutencoes />}
+        {rota.tela === 'manut-form' && <FormManutencao key={rota.id ?? 'nova'} id={rota.id} />}
+        {rota.tela === 'manut' && <DetalheManutencao id={rota.id} />}
       </main>
     </Ctx.Provider>
   );

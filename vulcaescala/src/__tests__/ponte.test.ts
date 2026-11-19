@@ -64,3 +64,17 @@ describe('ponte rolante', () => {
     expect(doDia([c('1', '2026-11-16T10:00')], '2026-11-17')).toBeNull();
   });
 });
+
+import { completarManutencao, ordenarManutencoes, PARTE } from '../ponte/manutencao';
+describe('ponte: manutenções', () => {
+  it('normaliza o registro vindo da nuvem e ordena do mais recente', () => {
+    const m = completarManutencao('m1', { data: '2026-11-18', tipo: 'Corretiva', om: '900012345678', descricao: 'x', anexos: [{ id: 'a', nome: 'OM.pdf', mime: 'application/pdf', tamanho: 10, partes: 1 }, { id: 'b' }] })!;
+    expect(m).toMatchObject({ tipo: 'Corretiva', om: '900012345678', excluidoEm: '' });
+    expect(m.anexos).toHaveLength(1);
+    expect(completarManutencao('m2', { data: '18/11/2026' })).toBeNull();
+    expect(completarManutencao('m3', { data: '2026-11-18', tipo: 'Xyz' })?.tipo).toBe('Outro');
+    const l = ordenarManutencoes([{ ...m, id: 'a', data: '2026-11-10' }, { ...m, id: 'b', data: '2026-11-18' }]);
+    expect(l.map((x) => x.id)).toEqual(['b', 'a']);
+    expect(PARTE).toBeLessThan(1_000_000); // cabe num documento do Firestore
+  });
+});

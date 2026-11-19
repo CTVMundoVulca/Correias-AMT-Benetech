@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { irPara, usePonte } from './context';
+import { ResumoManutencoes } from './Manutencoes';
 import { INICIO_PONTE, MODELO, criticosNC, dataBr, doDia, horaDe, ordenarOperadores, situacaoTreinamento, somaDias, textoTreinamento, type Checklist } from './model';
 
 const DIAS_HISTORICO = 30;
@@ -70,6 +71,8 @@ export function Painel() {
           {admin ? 'Gestão' : '⚙ Gestão'}
         </button>
       </div>
+
+      <ResumoManutencoes />
 
       <section className="card pad stack">
         <h3>Operadores habilitados</h3>
