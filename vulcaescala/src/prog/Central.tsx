@@ -10,9 +10,10 @@ import { DiaSelecionado } from './DiaSelecionado';
 import { proximosDiasUteis } from './kpis';
 import { CalendarioMes, MapaSemana, corDaArea, diasDaSemana, gradeDoMes, mesDeIso, segundaDe, type Mes } from './Painel';
 import { dataBr } from './Solicitar';
-import { DetalheAtividades, DetalheEmergenciasOm, DetalhePerdas } from './Detalhes';
+import { DetalheAtividades, DetalheEmergenciasOm } from './Detalhes';
+import { PainelPerdas } from './PainelPerdas';
 import { perdasDoPeriodo, somarPerdas, useAtrasosPeriodo } from './atrasosProg';
-import { AREA_INTERNA, TIPOS_PARADA, emergenciasPorOm, fmtHH, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Atividade, type Solicitacao } from './model';
+import { AREA_INTERNA, TIPOS_PARADA, emergenciasPorOm, hojeIso, mesDe, mesesEntre, pct, porArea, resumir, type Atividade, type Solicitacao } from './model';
 
 const somaMes = (ym: string, n: number) => {
   const [y, m] = ym.split('-').map(Number);
@@ -85,6 +86,7 @@ export function Central() {
   // filtro cruzado: a área escolhida filtra os cartões e a rosca; a classificação escolhida filtra as barras das áreas
   const [sel, setSel] = useState<Selecao>(SEM_SEL);
   const selRef = useRef<HTMLDivElement>(null);
+  const perdasRef = useRef<HTMLDivElement>(null);
   const doMesArea = useMemo(() => (sel.area ? doMes.filter((a) => areaDe(a) === sel.area) : doMes), [doMes, sel.area]);
   const r = resumir(doMesArea);
   const exec = r.classes.programada + r.classes.nao_programada + r.classes.emergencia;
@@ -266,11 +268,11 @@ export function Central() {
           ico="⏳"
           cor="k-naoprog"
           titulo="HH perdidas"
-          valor={atrasosMes ? fmtHH(tPerdas.hh) : '…'}
-          extra={`${tPerdas.horas.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} h parado · ${tPerdas.atrasos} atraso(s) · ${tPerdas.cancelamentos} canc.`}
-          ativo={sel.perdas}
+          valor={atrasosMes ? `${Math.round(tPerdas.hh).toLocaleString('pt-BR')} HH` : '…'}
+          extra={`atrasos: ${Math.round(tPerdas.hhAtrasos).toLocaleString('pt-BR')} HH`}
+          extra2={`cancelam.: ${Math.round(tPerdas.hhCancel).toLocaleString('pt-BR')} HH`}
           apagado={!!sel.classe}
-          onClick={() => mostrar(sel.perdas ? { ...SEM_SEL, area: sel.area } : { ...SEM_SEL, area: sel.area, perdas: true })}
+          onClick={() => perdasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         />
       </div>
       <div className="central-grid dupla">
@@ -348,13 +350,15 @@ export function Central() {
       </div>
       <div ref={selRef}>
         {temSel &&
-          (sel.perdas ? (
-            <DetalhePerdas titulo={`${tituloSel} — ${nomeMes}`} perdas={perdas} onFechar={() => setSel(SEM_SEL)} />
-          ) : sel.oms ? (
+          (sel.oms ? (
             <DetalheEmergenciasOm titulo={`${tituloSel} — ${nomeMes}`} ocorrencias={emerg.ocorrencias} onFechar={() => setSel(SEM_SEL)} />
           ) : (
             <DetalheAtividades titulo={`${tituloSel} — ${nomeMes}`} lista={detalhe} onFechar={() => setSel(SEM_SEL)} />
           ))}
+      </div>
+
+      <div ref={perdasRef} className="perdas-ancora">
+        <PainelPerdas titulo={`Horas perdidas — ${nomeMes}${sel.area ? ` · ${sel.area}` : ''}`} perdas={perdas} carregando={!atrasosMes} />
       </div>
 
       <AcoesRapidas linkAreas={linkAreas} />
