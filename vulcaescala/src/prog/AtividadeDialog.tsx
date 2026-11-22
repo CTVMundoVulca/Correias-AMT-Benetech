@@ -51,11 +51,13 @@ interface Props {
   nova: boolean;
   oms: Map<string, OmInfo> | null;
   solicitacao?: Solicitacao;
+  /** chamado com a atividade gravada (a Escala usa para incluir a atividade no dia) */
+  onSalvo?: (a: Atividade) => void;
   onClose: () => void;
 }
 
 /** Lançar / editar uma atividade da programação (administradores). */
-export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Props) {
+export function AtividadeDialog({ atual, nova, oms, solicitacao, onSalvo, onClose }: Props) {
   const { api, por, areas, feriados, motivosCancelamento, pode } = useProg();
   const [editarMotivos, setEditarMotivos] = useState(false);
   // motivos de espera: a mesma lista dos atrasos da Escala
@@ -126,7 +128,9 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onClose }: Prop
     if (x.mobilizada && !x.horasMobilizadas) return toast('Informe a hora de início e a hora do fim da espera.', 'warn');
     // mudou a data depois de programada = reprogramação (entra no KPI de estabilidade)
     const reprog = !nova && x.data !== atual.data;
-    gravar(reprog ? { ...x, reprogramacoes: x.reprogramacoes + 1, dataOriginal: atual.dataOriginal || atual.data } : x, nova ? undefined : mesDe(atual.data));
+    const salva = reprog ? { ...x, reprogramacoes: x.reprogramacoes + 1, dataOriginal: atual.dataOriginal || atual.data } : x;
+    gravar(salva, nova ? undefined : mesDe(atual.data));
+    onSalvo?.(salva);
     if (solicitacao && nova)
       gravarSolicitacao(api, {
         ...solicitacao,
