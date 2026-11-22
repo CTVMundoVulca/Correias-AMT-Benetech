@@ -19,6 +19,8 @@ import { ActivityCard } from "./ActivityCard";
 import { AbsencePicker } from "./AbsencePicker";
 import { PendingWorkerDialog } from "./PendingWorkerDialog";
 import { ProgDoDia } from "./ProgDoDia";
+import { NovaAtividadeProg } from "./NovaAtividadeProg";
+import { useAtrasosApi } from "../atrasos/AtrasosCtx";
 
 interface Props {
   weekKey: string;
@@ -44,6 +46,9 @@ export function DayBlock({
   const [newName, setNewName] = useState("");
   const [absenceOpen, setAbsenceOpen] = useState(false);
   const [pendingWorker, setPendingWorker] = useState<Worker | null>(null);
+  // com a nuvem ligada, a atividade nova é lançada pelo formulário completo da programação
+  const cloudApi = useAtrasosApi();
+  const [novaProg, setNovaProg] = useState(false);
 
   const ref = { weekKey, dayIndex };
   const byId = new Map(state.workers.map((w) => [w.id, w]));
@@ -203,24 +208,41 @@ export function DayBlock({
             />
           )}
 
-          {!ro && (
-            <form className="row nowrap" onSubmit={addActivity}>
-              <input
-                className="input grow"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Nova atividade"
-                aria-label={`Nova atividade em ${dayLabel}`}
-                enterKeyHint="done"
-              />
+          {!ro &&
+            (cloudApi ? (
               <button
-                className="btn primary"
-                type="submit"
-                disabled={!newName.trim()}
+                className="btn add-ativ"
+                type="button"
+                onClick={() => setNovaProg(true)}
+                aria-label={`Nova atividade em ${dayLabel}`}
               >
-                Adicionar
+                + Atividade
               </button>
-            </form>
+            ) : (
+              <form className="row nowrap" onSubmit={addActivity}>
+                <input
+                  className="input grow"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Nova atividade"
+                  aria-label={`Nova atividade em ${dayLabel}`}
+                  enterKeyHint="done"
+                />
+                <button
+                  className="btn primary"
+                  type="submit"
+                  disabled={!newName.trim()}
+                >
+                  Adicionar
+                </button>
+              </form>
+            ))}
+          {novaProg && (
+            <NovaAtividadeProg
+              data={toIsoDate(date)}
+              dia={ref}
+              onClose={() => setNovaProg(false)}
+            />
           )}
 
           {folgaAuto && !plantao && !ro && (

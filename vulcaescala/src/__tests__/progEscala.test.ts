@@ -256,3 +256,18 @@ describe('cancelamento com equipe mobilizada: vários períodos de espera', () =
     expect(perdasPorMotivo(l).map((m) => m.chave)).toEqual(['Cancelamento: espera · Recurso', 'Cancelamento: espera · Bloqueio']);
   });
 });
+
+describe('atividade lançada na Escala pelo formulário da Programação', () => {
+  it('nasce ligada à programação: nada a sincronizar e nada a revisar', () => {
+    // o formulário grava na programação (origem "app") e a escala inclui com o id "prog-<id>"
+    const a = at('nova1', '2026-11-18', { descricao: 'REPARO NA EMENDA DA CORREIA C-5', area: 'COQUERIA', equipamento: 'C-5', classe: 'emergencia', pessoas: 3 });
+    const nome = nomeNaEscala(a);
+    expect(nome).toBe('C-5 - COQUERIA · REPARO NA EMENDA DA CORREIA C-5');
+    const p = rodar([dia('2026-11-18', [{ id: 'prog-nova1', nome, workerIds: [] }], 2)], [a]);
+    expect(p.escala).toEqual([]);
+    expect(p.avisos).toEqual([]);
+    expect(p.prog.map((x) => [x.id, x.escalaNome, x.revisarEscala])).toEqual([['nova1', nome, false]]);
+    // segunda passada: estável
+    expect(rodar([dia('2026-11-18', [{ id: 'prog-nova1', nome, workerIds: [] }], 2)], p.prog).prog).toEqual([]);
+  });
+});
