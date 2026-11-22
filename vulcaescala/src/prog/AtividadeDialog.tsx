@@ -121,7 +121,6 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onSalvo, onClos
     if (!x.classe) return toast('Informe quando a demanda foi comunicada ou escolha a classificação.', 'warn');
     if (x.classe === 'cancelada' && !x.motivo) return toast('Informe o motivo do cancelamento.', 'warn');
     if (x.om && x.om.length < 6) return toast('Número da OM incompleto.', 'warn');
-    if (x.mobilizada && !x.om) return toast('Informe a OM em que as horas serão apropriadas.', 'warn');
     if (x.mobilizada && !x.pessoas) return toast('Informe quantas pessoas ficaram aguardando.', 'warn');
     if (x.mobilizada && x.mobPeriodos.some((p) => !p.inicio || !p.fim)) return toast('Complete o início e o fim de cada período de espera.', 'warn');
     if (x.mobilizada && x.mobPeriodos.some((p) => !p.motivo && !p.descricao)) return toast('Informe o motivo ou a justificativa de cada período de espera.', 'warn');
@@ -464,12 +463,14 @@ export function AtividadeDialog({ atual, nova, oms, solicitacao, onSalvo, onClos
                             {linhas.length > 1 ? ` em ${linhas.length} períodos` : ''}
                             {meiaNoite ? ' (passou da meia-noite)' : ''}
                             {!per.length ? ' (registrado sem horário)' : ''} · Total:{' '}
-                            {a.pessoas ? <b>{fmtHH(a.pessoas * h)}</b> : 'informe as pessoas'} a apropriar{a.om ? ` na OM ${a.om}` : ' (informe a OM acima)'}.
+                            {a.pessoas ? <b>{fmtHH(a.pessoas * h)}</b> : 'informe as pessoas'}
+                            {a.om ? ` a apropriar na OM ${a.om}` : ' (sem OM informada)'}.
                           </>
                         ) : (
                           'Informe o início e o fim da espera: o tempo parado é calculado.'
                         )}{' '}
-                        A atividade continua cancelada nos indicadores; a OM segue para retorno do supervisor e baixa.
+                        A atividade continua cancelada nos indicadores e as horas entram nas horas perdidas.
+                        {a.om ? ' A OM segue para retorno do supervisor e baixa.' : ' Sem a OM, as horas não são apropriadas no SAP: informe a OM acima quando souber.'}
                       </p>
                     </>
                   );
