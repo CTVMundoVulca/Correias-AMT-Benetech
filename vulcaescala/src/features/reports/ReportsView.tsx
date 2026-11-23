@@ -181,11 +181,12 @@ function Summary({ from, to }: { from: Date; to: Date }) {
       if (!dayHasData(day)) continue;
       days++;
       const fer = folgaAutoNaData(state, date);
+      const dataIso = toIsoDate(date);
       for (const a of day.absences) m.get(a.workerId)!.absent++;
-      for (const w of folgasDeFeriado(day, state.workers, fer)) m.get(w.id)!.absent++;
+      for (const w of folgasDeFeriado(day, state.workers, fer, dataIso)) m.get(w.id)!.absent++;
       const alloc = new Set(day.activities.flatMap((a) => a.workerIds));
       for (const id of alloc) m.get(id)!.worked++;
-      for (const w of pendingWorkers(day, state.workers, fer)) m.get(w.id)!.pending++;
+      for (const w of pendingWorkers(day, state.workers, dataIso, fer)) m.get(w.id)!.pending++;
     }
     return { days, rows: sortByName(state.workers).map((w) => ({ w, ...m.get(w.id)! })) };
   }, [state, from, to]);

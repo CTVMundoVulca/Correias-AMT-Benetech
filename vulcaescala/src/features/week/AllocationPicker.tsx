@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useStore } from '../../state/store';
 import type { DayRef } from '../../state/reducer';
 import { allocationStatus, folgaAutoDoDia, getDay, pendingWorkers, sortByName, statusLabel } from '../../domain/schedule';
+import { toIsoDate, weekDates } from '../../domain/isoWeek';
 import { matchesSearch } from '../../domain/names';
-import { tipoAusencia } from '../../domain/types';
+import { apoioNaData, tipoAusencia } from '../../domain/types';
 import { useToast } from '../../ui/Toast';
 import { Modal } from '../../ui/Modal';
 
@@ -29,7 +30,8 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
   if (!activity) return null; // removida enquanto a janela estava aberta
 
   const feriado = folgaAutoDoDia(state, dayRef.weekKey, dayRef.dayIndex);
-  const pendingCount = pendingWorkers(day, state.workers, feriado).length;
+  const dataDoDia = toIsoDate(weekDates(dayRef.weekKey)[dayRef.dayIndex]);
+  const pendingCount = pendingWorkers(day, state.workers, dataDoDia, feriado).length;
   const list = sortByName(state.workers.filter((w) => w.ativo && matchesSearch(w.nome, query)));
 
   return (
@@ -80,7 +82,7 @@ export function AllocationPicker({ dayRef, dayLabel, activityId, onClose }: Prop
                 }}
               >
                 <span className="pick-name">
-                  {w.nome} {w.apoio && <span className="tag-apoio">Apoio</span>}
+                  {w.nome} {apoioNaData(w, dataDoDia) && <span className="tag-apoio">Apoio</span>}
                 </span>
                 {st.kind !== 'free' ? (
                   <span className="pick-status">{statusLabel(st)}</span>

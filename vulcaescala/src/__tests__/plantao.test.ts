@@ -69,7 +69,7 @@ describe('supervisor e encarregado não são efetivo de execução', () => {
     // dia útil com atividade: supervisor sem alocação não é pendência
     const w = (id: string, f: string) => ({ id, nome: id, funcao: f, ativo: true });
     const day = { activities: [{ id: 'x', nome: 'X', workerIds: ['a'] }], absences: [] };
-    expect(pendingWorkers(day, [w('a', 'Vulcanizador'), w('b', 'Vulcanizador'), w('S', 'Supervisor')]).map((x) => x.id)).toEqual(['b']);
+    expect(pendingWorkers(day, [w('a', 'Vulcanizador'), w('b', 'Vulcanizador'), w('S', 'Supervisor')], '2026-11-20').map((x) => x.id)).toEqual(['b']);
   });
 });
 

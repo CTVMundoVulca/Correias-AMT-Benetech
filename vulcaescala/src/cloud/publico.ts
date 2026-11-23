@@ -1,6 +1,7 @@
 import type { FirebaseApi } from './firebase';
 import { dayDocId, mapsToState, type DocMaps } from './sync';
-import { AUSENCIAS_PADRAO, FUNCOES_PADRAO, type AppState, type Day, type TipoAusencia, type Worker } from '../domain/types';
+import { apoioNaData, AUSENCIAS_PADRAO, FUNCOES_PADRAO, type AppState, type Day, type TipoAusencia, type Worker } from '../domain/types';
+import { hojeIso } from '../domain/isoWeek';
 
 /**
  * CÓPIA PÚBLICA DA ESCALA (visualização sem login)
@@ -36,9 +37,11 @@ export function projetarDia(d: Day): Day {
 
 export function projetarConfig(m: DocMaps): PubConfig {
   const aus = (m.ausencias ?? AUSENCIAS_PADRAO).filter((t) => AUS_PUBLICAS.has(t.id)).map((t) => ({ ...t }));
+  const hoje = hojeIso();
   return {
+    // apoio por período vira apoio "hoje" resolvido: a cópia pública não guarda as datas do período
     efetivo: Object.values(m.workers)
-      .map((w) => ({ id: w.id, nome: w.nome, funcao: w.funcao, ativo: w.ativo, ...(w.apoio ? { apoio: true } : {}) }))
+      .map((w) => ({ id: w.id, nome: w.nome, funcao: w.funcao, ativo: w.ativo, ...(apoioNaData(w, hoje) ? { apoio: true } : {}) }))
       .sort((a, b) => a.id.localeCompare(b.id)),
     funcoes: [...(m.funcoes ?? FUNCOES_PADRAO)],
     ausencias: [...aus, { ...AUS_GENERICA }],

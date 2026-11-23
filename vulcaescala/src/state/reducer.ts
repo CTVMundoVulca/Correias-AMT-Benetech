@@ -1,4 +1,4 @@
-import { AbsenceType, Activity, AppState, CorAusencia, Day, Funcao, Worker, cleanFuncao, cleanMatricula, cleanNomeAusencia, cleanSigla, emptyWeek } from '../domain/types';
+import { AbsenceType, Activity, AppState, CorAusencia, Day, Funcao, PeriodoApoio, Worker, cleanFuncao, cleanMatricula, cleanNomeAusencia, cleanPeriodosApoio, cleanSigla, emptyWeek } from '../domain/types';
 import { cleanName, nameKey } from '../domain/names';
 import { FERIADO_NOME_MAX, isoValido } from '../domain/feriados';
 
@@ -9,8 +9,8 @@ export interface DayRef {
 
 export type Action =
   | { type: 'state/replace'; state: AppState }
-  | { type: 'worker/add'; id: string; nome: string; funcao: Funcao; matricula?: string; apoio?: boolean }
-  | { type: 'worker/update'; id: string; nome: string; funcao: Funcao; matricula?: string; apoio?: boolean }
+  | { type: 'worker/add'; id: string; nome: string; funcao: Funcao; matricula?: string; apoio?: boolean; apoioPeriodos?: PeriodoApoio[] }
+  | { type: 'worker/update'; id: string; nome: string; funcao: Funcao; matricula?: string; apoio?: boolean; apoioPeriodos?: PeriodoApoio[] }
   | { type: 'worker/setActive'; id: string; ativo: boolean }
   | { type: 'worker/remove'; id: string }
   | { type: 'funcao/add'; nome: string }
@@ -64,10 +64,17 @@ export function withMatricula(w: Worker, matricula: string | undefined): Worker 
   return m ? { ...rest, matricula: m } : rest;
 }
 
-/** Grava "apoio" só quando verdadeiro (o padrão é efetivo do contrato). */
-export function withApoio(w: Worker, apoio: boolean | undefined): Worker {
-  const { apoio: _old, ...rest } = w;
+/**
+ * Grava o apoio de outro contrato: por período (`apoioPeriodos`, quando há algum) tem
+ * prioridade sobre o fixo (`apoio`) — os dois modos não se combinam. Sem nenhum dos dois,
+ * o padrão é efetivo do contrato.
+ */
+export function withApoio(w: Worker, apoio: boolean | undefined, apoioPeriodos?: PeriodoApoio[]): Worker {
+  const { apoio: _old, apoioPeriodos: _oldP, ...rest } = w;
   void _old;
+  void _oldP;
+  const periodos = cleanPeriodosApoio(apoioPeriodos);
+  if (periodos.length) return { ...rest, apoioPeriodos: periodos };
   return apoio ? { ...rest, apoio: true } : rest;
 }
 
@@ -101,7 +108,10 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'worker/add': {
       const nome = cleanName(action.nome);
       if (!nome || isDuplicateName(state, nome) || state.workers.some((w) => w.id === action.id)) return state;
-      return { ...state, workers: [...state.workers, withApoio(withMatricula({ id: action.id, nome, funcao: action.funcao, ativo: true }, action.matricula), action.apoio)] };
+      return {
+        ...state,
+        workers: [...state.workers, withApoio(withMatricula({ id: action.id, nome, funcao: action.funcao, ativo: true }, action.matricula), action.apoio, action.apoioPeriodos)],
+      };
     }
     case 'worker/update': {
       const nome = cleanName(action.nome);
@@ -109,7 +119,9 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         workers: state.workers.map((w) =>
-          w.id === action.id ? withApoio(withMatricula({ ...w, nome, funcao: action.funcao }, action.matricula ?? w.matricula), action.apoio ?? w.apoio) : w,
+          w.id === action.id
+            ? withApoio(withMatricula({ ...w, nome, funcao: action.funcao }, action.matricula ?? w.matricula), action.apoio ?? w.apoio, action.apoioPeriodos ?? w.apoioPeriodos)
+            : w,
         ),
       };
     }

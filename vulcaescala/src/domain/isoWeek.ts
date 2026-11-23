@@ -104,6 +104,24 @@ export function addDays(d: Date, n: number): Date {
   return new Date(d.getTime() + n * DAY_MS);
 }
 
+/** Data de hoje em "AAAA-MM-DD" (dia civil do aparelho, sem hora). */
+export function hojeIso(now: Date = new Date()): string {
+  return toIsoDate(toUtcDay(now));
+}
+
+/**
+ * Dias (semana + índice) entre duas datas ISO, inclusive. Datas inválidas, invertidas
+ * ou um período maior que `max` dias (padrão 1 ano, evita loop por engano) → lista vazia.
+ */
+export function diasEntre(inicio: string, fim: string, max = 366): { weekKey: string; dayIndex: number }[] {
+  const ini = fromIsoDate(inicio);
+  const f = fromIsoDate(fim);
+  if (!ini || !f || f.getTime() < ini.getTime()) return [];
+  const out: { weekKey: string; dayIndex: number }[] = [];
+  for (let d = ini; d.getTime() <= f.getTime() && out.length < max; d = addDays(d, 1)) out.push(locateDay(d));
+  return out;
+}
+
 export const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 export const WEEKDAYS_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 

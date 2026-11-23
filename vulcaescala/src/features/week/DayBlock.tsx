@@ -55,8 +55,9 @@ export function DayBlock({
   const feriado = feriadoDoDia(state, weekKey, dayIndex);
   // feriado ou fim de semana: quem não está escalado fica de folga automaticamente
   const folgaAuto = folgaAutoDoDia(state, weekKey, dayIndex);
-  const pending = pendingWorkers(day, state.workers, folgaAuto);
-  const folgas = folgasDeFeriado(day, state.workers, folgaAuto);
+  const dataDoDia = toIsoDate(date);
+  const pending = pendingWorkers(day, state.workers, dataDoDia, folgaAuto);
+  const folgas = folgasDeFeriado(day, state.workers, folgaAuto, dataDoDia);
   const ausentes = day.absences.length + folgas.length;
   const [folgaWorker, setFolgaWorker] = useState<Worker | null>(null);
   const allocated = allocatedIds(day).size;
