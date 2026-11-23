@@ -27,16 +27,18 @@ export function absenceOf(day: Day, workerId: string): AbsenceType | undefined {
 /**
  * PENDENTE num dia = (a) ativo, (b) o dia tem pelo menos uma atividade,
  * (c) não está em nenhuma atividade do dia e (d) não tem ausência no dia.
- * Dia sem atividade não gera pendência.
+ * Dia sem atividade não gera pendência. `data` (AAAA-MM-DD) é a data desse dia: decide se um
+ * apoio por período conta como apoio NAQUELE dia (sem ela, voltar ao contrato hoje criaria
+ * pendência retroativa nos dias já passados em que a pessoa ainda estava de apoio).
  */
-export function pendingWorkers(day: Day, workers: Worker[], feriado: string | null = null): Worker[] {
+export function pendingWorkers(day: Day, workers: Worker[], data: string, feriado: string | null = null): Worker[] {
   // feriado ou fim de semana: quem não está escalado está de folga automaticamente (não é pendência)
   if (day.activities.length === 0 || feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
   // apoio de outro contrato: só entra no dia em que é alocado (não gera pendência)
   // supervisor/encarregado: liderança, não é efetivo de execução (não gera pendência)
-  return sortByName(workers.filter((w) => w.ativo && ehExecucao(w) && !alloc.has(w.id) && !absent.has(w.id)));
+  return sortByName(workers.filter((w) => w.ativo && ehExecucao(w, data) && !alloc.has(w.id) && !absent.has(w.id)));
 }
 
 /** Nome do feriado (nacional ou municipal) no dia da semana, ou null. */
@@ -70,11 +72,11 @@ export function folgaAutoDoDia(state: AppState, weekKey: string, dayIndex: numbe
  * outra ausência registrada. Não é gravada: alocar a pessoa ou registrar outra
  * ausência (ex.: atestado) muda o status na hora.
  */
-export function folgasDeFeriado(day: Day, workers: Worker[], feriado: string | null): Worker[] {
+export function folgasDeFeriado(day: Day, workers: Worker[], feriado: string | null, data: string): Worker[] {
   if (!feriado) return [];
   const alloc = allocatedIds(day);
   const absent = new Set(day.absences.map((a) => a.workerId));
-  return sortByName(workers.filter((w) => w.ativo && ehExecucao(w) && !alloc.has(w.id) && !absent.has(w.id)));
+  return sortByName(workers.filter((w) => w.ativo && ehExecucao(w, data) && !alloc.has(w.id) && !absent.has(w.id)));
 }
 
 export interface DayPending {
@@ -90,7 +92,8 @@ export function weekPending(state: AppState, weekKey: string): { days: DayPendin
     const day = getDay(state, weekKey, i);
     if (!day.activities.length) continue;
     hasActivities = true;
-    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers, folgaAutoDoDia(state, weekKey, i)).length });
+    const data = toIsoDate(weekDates(weekKey)[i]);
+    days.push({ dayIndex: i, count: pendingWorkers(day, state.workers, data, folgaAutoDoDia(state, weekKey, i)).length });
   }
   return { days, total: days.reduce((s, d) => s + d.count, 0), hasActivities };
 }

@@ -34,28 +34,28 @@ describe('escala', () => {
       { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' },
       { type: 'absence/set', ...ref, workerId: 'b', tipo: 'folga' },
     ]);
-    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']); // davi inativo não conta
+    expect(pendingWorkers(getDay(s, W, 0), s.workers, '2026-11-02').map((w) => w.id)).toEqual(['c']); // davi inativo não conta
   });
 
   it('dia sem atividade não gera pendência, mesmo com gente ativa', () => {
     const s = build(base);
-    expect(pendingWorkers(getDay(s, W, 1), s.workers)).toEqual([]);
+    expect(pendingWorkers(getDay(s, W, 1), s.workers, '2026-11-03')).toEqual([]);
     // ausência sozinha também não cria pendência
     const s2 = reducer(s, { type: 'absence/set', weekKey: W, dayIndex: 1, workerId: 'a', tipo: 'folga' });
-    expect(pendingWorkers(getDay(s2, W, 1), s2.workers)).toEqual([]);
+    expect(pendingWorkers(getDay(s2, W, 1), s2.workers, '2026-11-03')).toEqual([]);
   });
 
   it('pendência é recalculada a cada alteração', () => {
     let s = build(base);
-    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['a', 'b', 'c']);
+    expect(pendingWorkers(getDay(s, W, 0), s.workers, '2026-11-02').map((w) => w.id)).toEqual(['a', 'b', 'c']);
     s = reducer(s, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'x', workerId: 'a' });
     s = reducer(s, { type: 'absence/set', ...ref, workerId: 'b', tipo: 'exame' });
-    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']);
+    expect(pendingWorkers(getDay(s, W, 0), s.workers, '2026-11-02').map((w) => w.id)).toEqual(['c']);
     s = reducer(s, { type: 'activity/setWorker', allocated: true, ...ref, activityId: 'y', workerId: 'c' });
-    expect(pendingWorkers(getDay(s, W, 0), s.workers)).toEqual([]);
+    expect(pendingWorkers(getDay(s, W, 0), s.workers, '2026-11-02')).toEqual([]);
     // remover a atividade devolve a pessoa para pendente
     s = reducer(s, { type: 'activity/remove', ...ref, activityId: 'y' });
-    expect(pendingWorkers(getDay(s, W, 0), s.workers).map((w) => w.id)).toEqual(['c']);
+    expect(pendingWorkers(getDay(s, W, 0), s.workers, '2026-11-02').map((w) => w.id)).toEqual(['c']);
   });
 
   it('pendências da semana por dia', () => {
@@ -266,11 +266,11 @@ describe('feriados: folga automática', () => {
 
   it('quem não está escalado fica de folga; alocado trabalha; outra ausência prevalece', () => {
     const day = getDay(s0, W, 0);
-    expect(folgasDeFeriado(day, s0.workers, 'Finados').map((w) => w.id)).toEqual(['c']); // davi é inativo
-    expect(pendingWorkers(day, s0.workers, 'Finados')).toEqual([]);
+    expect(folgasDeFeriado(day, s0.workers, 'Finados', '2026-11-02').map((w) => w.id)).toEqual(['c']); // davi é inativo
+    expect(pendingWorkers(day, s0.workers, '2026-11-02', 'Finados')).toEqual([]);
     // alocar a pessoa tira da folga automática
     const s1 = reducer(s0, { type: 'activity/setWorker', allocated: true, ...fin, activityId: 'y', workerId: 'c' });
-    expect(folgasDeFeriado(getDay(s1, W, 0), s1.workers, 'Finados')).toEqual([]);
+    expect(folgasDeFeriado(getDay(s1, W, 0), s1.workers, 'Finados', '2026-11-02')).toEqual([]);
   });
 
   it('resumo e consultas mostram a folga automática', () => {
@@ -295,8 +295,8 @@ describe('feriados: folga automática', () => {
     expect(folgaAutoDoDia(s, W, 6)).toBe('Fim de semana');
     expect(folgaAutoDoDia(s, W, 4)).toBeNull(); // sexta normal
     const day = getDay(s, W, 5);
-    expect(pendingWorkers(day, s.workers, folgaAutoDoDia(s, W, 5))).toEqual([]);
-    expect(folgasDeFeriado(day, s.workers, 'Fim de semana').map((w) => w.id)).toEqual(['b', 'c']);
+    expect(pendingWorkers(day, s.workers, '2026-11-07', folgaAutoDoDia(s, W, 5))).toEqual([]);
+    expect(folgasDeFeriado(day, s.workers, 'Fim de semana', '2026-11-07').map((w) => w.id)).toEqual(['b', 'c']);
     expect(weekPending(s, W).days.find((d) => d.dayIndex === 5)).toEqual({ dayIndex: 5, count: 0 });
   });
 

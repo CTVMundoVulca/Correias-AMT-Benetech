@@ -1,5 +1,5 @@
 import type * as FsMod from 'firebase/firestore';
-import { AUSENCIAS_PADRAO, AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, TipoAusencia, Worker, emptyDay, emptyWeek } from '../domain/types';
+import { AUSENCIAS_PADRAO, AppState, CURRENT_VERSION, Day, FUNCOES_PADRAO, TipoAusencia, Worker, cleanPeriodosApoio, emptyDay, emptyWeek } from '../domain/types';
 import { cleanName } from '../domain/names';
 import { migrate } from '../storage/migrations';
 import { Action, reducer, withApoio, withMatricula } from '../state/reducer';
@@ -115,6 +115,8 @@ function readWorker(id: string, data: unknown): Worker {
   const w = (data ?? {}) as Partial<Worker>;
   const base: Worker = { id, nome: String(w.nome ?? ''), funcao: (w.funcao ?? 'Vulcanizador') as Worker['funcao'], ativo: w.ativo !== false };
   const comMat = typeof w.matricula === 'string' && w.matricula ? { ...base, matricula: w.matricula } : base;
+  const periodos = cleanPeriodosApoio(w.apoioPeriodos);
+  if (periodos.length) return { ...comMat, apoioPeriodos: periodos };
   return w.apoio === true ? { ...comMat, apoio: true } : comMat;
 }
 
@@ -601,11 +603,15 @@ export class CloudSync {
           let w: Worker | null = snap.exists() ? readWorker(id, snap.data()) : null;
           if (action.type === 'worker/add') {
             if (w) return w; // já criado (ação repetida)
-            w = withApoio(withMatricula({ id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true }, action.matricula), action.apoio);
+            w = withApoio(withMatricula({ id, nome: cleanName(action.nome), funcao: action.funcao, ativo: true }, action.matricula), action.apoio, action.apoioPeriodos);
           } else if (!w) {
             return null; // removido por outra pessoa
           } else if (action.type === 'worker/update') {
-            w = withApoio(withMatricula({ ...w, nome: cleanName(action.nome), funcao: action.funcao }, action.matricula ?? w.matricula), action.apoio ?? w.apoio);
+            w = withApoio(
+              withMatricula({ ...w, nome: cleanName(action.nome), funcao: action.funcao }, action.matricula ?? w.matricula),
+              action.apoio ?? w.apoio,
+              action.apoioPeriodos ?? w.apoioPeriodos,
+            );
           } else {
             w = { ...w, ativo: action.ativo };
           }

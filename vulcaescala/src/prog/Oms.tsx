@@ -22,7 +22,9 @@ type Filtro = SituacaoOm | 'pendentes' | 'todas' | 'futuras';
 export function Oms() {
   const { api, por, pode } = useProg();
   const seleciona = pode.programar || pode.retorno;
-  const rec = useRecolhiveis('prog:oms-grupos', () => false);
+  // áreas abrem expandidas por padrão: esta tela é uma fila de trabalho (retorno/baixa),
+  // não um resumo para navegar — esconder por padrão fazia OMs pendentes passarem despercebidas
+  const rec = useRecolhiveis('prog:oms-grupos', () => true);
   const toast = useToast();
   const confirm = useConfirm();
   const oms = useOms();
@@ -280,10 +282,10 @@ export function Oms() {
           ))}
         </div>
         <input className="input" type="search" placeholder="Buscar OM, equipamento, área…" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        {grupos.length > 1 && !busca.trim() && (
+        {grupos.length > 0 && !busca.trim() && (
           <div className="row recolher-barra">
             <span className="small muted grow">
-              {lista.length} OM(s) em {grupos.length} área(s) — toque na área para abrir
+              {lista.length} OM(s) em {grupos.length} área(s) — toque na área para abrir ou fechar
             </span>
             <button className="btn small" onClick={() => rec.todos(grupos.map(([a]) => a), true)}>
               ▾ Expandir todas

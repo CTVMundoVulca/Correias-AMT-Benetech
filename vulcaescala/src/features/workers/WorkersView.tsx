@@ -2,7 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useStore } from '../../state/store';
 import { isDuplicateName } from '../../state/reducer';
 import { newId } from '../../domain/ids';
-import { Funcao, MATRICULA_MAX, Worker, ehExecucao, foraDaExecucao } from '../../domain/types';
+import { Funcao, MATRICULA_MAX, PERIODOS_APOIO_MAX, PeriodoApoio, Worker, apoioNaData, ehExecucao, foraDaExecucao, periodoApoioEm, proximoPeriodoApoio } from '../../domain/types';
+import { hojeIso } from '../../domain/isoWeek';
 import { FuncoesDialog } from './FuncoesDialog';
 import { AusenciasDialog } from './AusenciasDialog';
 import { cleanName, matchesSearch, similarNames } from '../../domain/names';
@@ -28,16 +29,21 @@ export function WorkersView() {
   const [query, setQuery] = useState('');
   const [situacao, setSituacao] = useState<Situacao>('todos');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const hoje = hojeIso();
 
   const list = useMemo(
     () =>
       sortByName(state.workers).filter(
         (w) =>
           (situacao === 'todos' ||
-            (situacao === 'contrato' ? !w.apoio : situacao === 'apoio' ? !!w.apoio : (situacao === 'ativos') === w.ativo)) &&
+            (situacao === 'contrato'
+              ? !apoioNaData(w, hoje)
+              : situacao === 'apoio'
+                ? apoioNaData(w, hoje)
+                : (situacao === 'ativos') === w.ativo)) &&
           matchesSearch(w.nome, query),
       ),
-    [state.workers, situacao, query],
+    [state.workers, situacao, query, hoje],
   );
   const active = state.workers.filter((w) => w.ativo).length;
 
@@ -116,12 +122,12 @@ export function WorkersView() {
         <div className="row between">
           <span className="muted small tabnum">
             {active} ativo(s) · {state.workers.length - active} inativo(s) ·{' '}
-            <b>{state.workers.filter((w) => w.ativo && ehExecucao(w)).length}</b> de execução ·{' '}
+            <b>{state.workers.filter((w) => w.ativo && ehExecucao(w, hoje)).length}</b> de execução ·{' '}
             <span title="Supervisor, encarregado, motorista e eletricista: não contam como efetivo de execução">
-              {state.workers.filter((w) => w.ativo && !w.apoio && foraDaExecucao(w.funcao)).length} fora da execução (supervisão, encarregado, motorista, eletricista)
+              {state.workers.filter((w) => w.ativo && !apoioNaData(w, hoje) && foraDaExecucao(w.funcao)).length} fora da execução (supervisão, encarregado, motorista, eletricista)
             </span>{' '}
             ·{' '}
-            {state.workers.filter((w) => w.ativo && w.apoio).length} de apoio
+            {state.workers.filter((w) => w.ativo && apoioNaData(w, hoje)).length} de apoio hoje
           </span>
         </div>
         <form className="form-row" onSubmit={add}>
@@ -192,7 +198,7 @@ export function WorkersView() {
                   <div className="worker-meta">
                     <span>{w.funcao}</span>
                     {w.matricula && <span className="tabnum">Mat. {w.matricula}</span>}
-                    {w.apoio && <span className="tag-apoio">Apoio</span>}
+                    <TagApoio worker={w} hoje={hoje} />
                     <span className={'status-dot' + (w.ativo ? '' : ' off')}>{w.ativo ? 'Ativo' : 'Inativo'}</span>
                   </div>
                 </div>
@@ -225,14 +231,43 @@ export function WorkersView() {
   );
 }
 
+const fmtBr = (iso: string) => iso.split('-').reverse().join('/');
+
+/** Selo "Apoio": mostra até quando (período) ou que é fixo; se ainda não começou, avisa quando. */
+function TagApoio({ worker: w, hoje }: { worker: Worker; hoje: string }) {
+  if (apoioNaData(w, hoje)) {
+    const p = periodoApoioEm(w, hoje);
+    const titulo = p ? (p.fim ? `Apoio até ${fmtBr(p.fim)}` : `Apoio desde ${fmtBr(p.inicio)} (sem data de volta)`) : 'Apoio fixo';
+    return (
+      <span className="tag-apoio" title={titulo}>
+        Apoio
+      </span>
+    );
+  }
+  const proximo = proximoPeriodoApoio(w, hoje);
+  return proximo ? (
+    <span className="tag-apoio" title={`Apoio agendado de ${fmtBr(proximo.inicio)}${proximo.fim ? ` a ${fmtBr(proximo.fim)}` : ''}`}>
+      Apoio em {fmtBr(proximo.inicio)}
+    </span>
+  ) : null;
+}
+
+type ModoApoio = 'nao' | 'fixo' | 'periodo';
+
 function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) {
   const { state, dispatch } = useStore();
   const toast = useToast();
   const [nome, setNome] = useState(worker.nome);
   const [funcao, setFuncao] = useState<Funcao>(worker.funcao);
   const [matricula, setMatricula] = useState(worker.matricula ?? '');
-  const [apoio, setApoio] = useState(!!worker.apoio);
+  const [modoApoio, setModoApoio] = useState<ModoApoio>(worker.apoioPeriodos?.length ? 'periodo' : worker.apoio ? 'fixo' : 'nao');
+  const [periodos, setPeriodos] = useState<PeriodoApoio[]>(worker.apoioPeriodos?.length ? worker.apoioPeriodos : [{ inicio: hojeIso(), fim: '' }]);
   const [error, setError] = useState<string | null>(null);
+
+  const setPeriodo = (i: number, campo: keyof PeriodoApoio, valor: string) =>
+    setPeriodos((ps) => ps.map((p, idx) => (idx === i ? { ...p, [campo]: valor } : p)));
+  const addPeriodo = () => setPeriodos((ps) => (ps.length < PERIODOS_APOIO_MAX ? [...ps, { inicio: hojeIso(), fim: '' }] : ps));
+  const removePeriodo = (i: number) => setPeriodos((ps) => ps.filter((_, idx) => idx !== i));
 
   const save = (e: FormEvent) => {
     e.preventDefault();
@@ -242,7 +277,9 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
       setError(`${n} já está cadastrado.`);
       return;
     }
-    dispatch({ type: 'worker/update', id: worker.id, nome: n, funcao, matricula, apoio });
+    const apoio = modoApoio === 'fixo';
+    const apoioPeriodos = modoApoio === 'periodo' ? periodos.filter((p) => p.inicio) : [];
+    dispatch({ type: 'worker/update', id: worker.id, nome: n, funcao, matricula, apoio, apoioPeriodos });
     toast('Colaborador atualizado');
     onDone();
   };
@@ -273,9 +310,53 @@ function WorkerEdit({ worker, onDone }: { worker: Worker; onDone: () => void }) 
           <option key={f}>{f}</option>
         ))}
       </select>
-      <label className="check small">
-        <input type="checkbox" checked={apoio} onChange={(e) => setApoio(e.target.checked)} /> Apoio de outro contrato (não conta no efetivo do contrato)
-      </label>
+      <div className="field">
+        <span>Apoio de outro contrato (não conta no efetivo do contrato)</span>
+        <div className="segmented" role="radiogroup" aria-label="Apoio de outro contrato">
+          <button type="button" role="radio" aria-checked={modoApoio === 'nao'} className={'seg' + (modoApoio === 'nao' ? ' on' : '')} onClick={() => setModoApoio('nao')}>
+            Não é apoio
+          </button>
+          <button type="button" role="radio" aria-checked={modoApoio === 'fixo'} className={'seg' + (modoApoio === 'fixo' ? ' on' : '')} onClick={() => setModoApoio('fixo')}>
+            Fixo
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={modoApoio === 'periodo'}
+            className={'seg' + (modoApoio === 'periodo' ? ' on' : '')}
+            onClick={() => setModoApoio('periodo')}
+          >
+            Por período
+          </button>
+        </div>
+      </div>
+      {modoApoio === 'periodo' && (
+        <div className="stack">
+          {periodos.map((p, i) => (
+            <div key={i} className="two-cols">
+              <label className="field">
+                Início
+                <input className="input" type="date" value={p.inicio} onChange={(e) => setPeriodo(i, 'inicio', e.target.value)} />
+              </label>
+              <div className="field">
+                <span>Fim (opcional)</span>
+                <div className="row nowrap">
+                  <input className="input grow" type="date" value={p.fim} min={p.inicio} onChange={(e) => setPeriodo(i, 'fim', e.target.value)} />
+                  {periodos.length > 1 && (
+                    <button type="button" className="btn small ghost-danger" onClick={() => removePeriodo(i)} aria-label="Remover este período">
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn small" onClick={addPeriodo} disabled={periodos.length >= PERIODOS_APOIO_MAX}>
+            + Outro período
+          </button>
+          <p className="muted small">Sem data de fim = ainda sem data de volta definida. Quando a pessoa retornar ao contrato, preencha o fim (ou troque para "Não é apoio").</p>
+        </div>
+      )}
       {error && (
         <p className="text-danger small" role="alert">
           {error}

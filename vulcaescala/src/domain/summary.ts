@@ -1,5 +1,6 @@
 import { AbsenceType, AppState, Worker, ehExecucao } from './types';
 import { absenceOf, folgaAutoDoDia, folgasDeFeriado, getDay, sortByName, FOLGA_FERIADO } from './schedule';
+import { toIsoDate, weekDates } from './isoWeek';
 
 export interface WeekKpis {
   activities: number;
@@ -30,7 +31,7 @@ export function weekKpis(state: AppState, weekKey: string): WeekKpis {
     const d = getDay(state, weekKey, i);
     activities += d.activities.length;
     allocations += d.activities.reduce((s, a) => s + a.workerIds.length, 0);
-    absences += d.absences.length + folgasDeFeriado(d, state.workers, folgaAutoDoDia(state, weekKey, i)).length;
+    absences += d.absences.length + folgasDeFeriado(d, state.workers, folgaAutoDoDia(state, weekKey, i), toIsoDate(weekDates(weekKey)[i])).length;
   }
   return { activities, allocations, absences, activeWorkers: state.workers.filter((w) => w.ativo && ehExecucao(w)).length };
 }
