@@ -55,6 +55,10 @@
 .rel-head img { height: 34px; }
 .rel-head h1 { font-size: 1.25rem; color: #001a33; }
 .rel-kicker { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.6px; color: #1f7fc4; text-transform: uppercase; }
+.rel-formcod {
+  margin-left: auto; align-self: flex-start; background: #001a33; color: #fff; font-weight: 700;
+  font-size: 0.68rem; letter-spacing: 0.4px; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; white-space: nowrap;
+}
 .rel-bloco { break-inside: avoid; margin-bottom: 10px; }
 .rel-bloco h2 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.4px; background: #001a33; color: #fff; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; }
 .rel-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
@@ -141,6 +145,7 @@
 .modo-pdf .rel-head { padding-bottom: 6px; margin-bottom: 6px; gap: 10px; }
 .modo-pdf .rel-head img { height: 28px; }
 .modo-pdf .rel-head h1 { font-size: 1.05rem; }
+.modo-pdf .rel-formcod { font-size: 0.6rem; padding: 3px 6px; }
 .modo-pdf .rel-bloco { margin-bottom: 6px; }
 .modo-pdf .rel-bloco h2, .modo-pdf .rel-fotos h2 { font-size: 10px; padding: 2px 6px; margin-bottom: 3px; }
 .modo-pdf .rel-kv { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 10px; }

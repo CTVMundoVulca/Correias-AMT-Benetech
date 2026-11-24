@@ -4,12 +4,15 @@ import { irPara, useEmenda } from './context';
 import { ouvirEmenda, ouvirFotos } from './data';
 import { fmtData, margemOrvalho, type Emenda, type Foto, type Liberacao } from './model';
 
+/** Formulário padrão da empresa para o Registro de Emenda — atualizar aqui quando a revisão mudar. */
+const FORMULARIO_PADRAO = 'FOR GTO 054 — REV.08';
+
 /**
  * Relatório da emenda em PDF, gerado no próprio aparelho (funciona também no iPhone pela
  * tela inicial, onde imprimir não funciona). Depois: salvar, compartilhar ou imprimir.
  */
 export function Relatorio({ id }: { id: string }) {
-  const { api } = useEmenda();
+  const { api, isAdmin } = useEmenda();
   const [e, setE] = useState<Emenda | null | undefined>(undefined);
   const [fotos, setFotos] = useState<Foto[]>([]);
   const ref = useRef<HTMLElement>(null);
@@ -33,7 +36,11 @@ export function Relatorio({ id }: { id: string }) {
         <button className="btn" onClick={() => irPara(`#/e/${id}`)}>
           ‹ Voltar
         </button>
-        <PdfBotao alvo={() => ref.current} titulo={`Emenda ${e.numero || 'sem numero'} - TAG ${e.tag || 'sem TAG'} - ${fmtData(e.data)}`} />
+        {isAdmin ? (
+          <PdfBotao alvo={() => ref.current} titulo={`Emenda ${e.numero || 'sem numero'} - TAG ${e.tag || 'sem TAG'} - ${fmtData(e.data)}`} />
+        ) : (
+          <p className="small muted">Gerar PDF é restrito aos administradores (o relatório expõe dados pessoais da equipe).</p>
+        )}
       </div>
 
       <header className="rel-head">
@@ -42,6 +49,7 @@ export function Relatorio({ id }: { id: string }) {
           <div className="rel-kicker">Contrato AMT</div>
           <h1>Relatório de Emenda</h1>
         </div>
+        <div className="rel-formcod">{FORMULARIO_PADRAO}</div>
       </header>
       {e.concluidoEm ? (
         <div className="rel-situacao ok">
