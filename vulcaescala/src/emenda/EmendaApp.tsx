@@ -4,7 +4,7 @@ import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { Splash } from '../cloud/AuthScreens';
 import { Ctx, type EmendaCtx } from './context';
 import { ouvirAparelhos, ouvirFuncionarios, ouvirListas, ouvirPrensa, souAdmin, souLideranca } from './data';
-import { LISTAS_PADRAO, PRENSA_VAZIA, type EquipItem, type EquipPrensa, type Funcionario, type Listas } from './model';
+import { LISTAS_PADRAO, type EquipItem, type Funcionario, type ItemPrensa, type Listas } from './model';
 import { EmendaLista } from './EmendaLista';
 import { EmendaEditor } from './EmendaEditor';
 import { Relatorio } from './Relatorio';
@@ -36,7 +36,7 @@ export function EmendaApp() {
   const [uid, setUid] = useState('');
   const [efetivo, setEfetivo] = useState<Funcionario[]>([]);
   const [aparelhos, setAparelhos] = useState<EquipItem[]>([]);
-  const [prensa, setPrensa] = useState<EquipPrensa>(PRENSA_VAZIA);
+  const [prensa, setPrensa] = useState<ItemPrensa[]>([]);
   const [listas, setListas] = useState<Listas>(LISTAS_PADRAO);
   const [rota, setRota] = useState<Rota>(lerRota);
   const [pend, setPend] = useState({ pendente: false, offline: false });

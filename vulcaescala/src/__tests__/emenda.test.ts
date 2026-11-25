@@ -248,3 +248,34 @@ describe('aparelhos: um cadastro só', () => {
     ]);
   });
 });
+
+describe('prensa: cadastro único (prensas, painéis e bombas)', () => {
+  it('painéis/bombas cadastrados antes só com o nome entram no cadastro novo (nada se perde)', async () => {
+    const { cleanItensPrensa } = await import('../emenda/model');
+    const l = cleanItensPrensa({
+      itens: [{ tipo: 'Prensa', fabricante: 'sampla', modelo: 'M1', codigo: 'pr-01', serie: 'NS, 1' }],
+      paineis: ['PAINEL SAMPLA 01'],
+      bombas: ['BOMBA SAMPLA 01', 'PR-01'],
+    });
+    expect(l.map((x) => [x.tipo, x.codigo, x.fabricante, x.serie])).toEqual([
+      ['Prensa', 'PR-01', 'SAMPLA', 'NS 1'], // vírgula sai (separa itens no relatório)
+      ['Painel', 'PAINEL SAMPLA 01', '', ''],
+      ['Bomba', 'BOMBA SAMPLA 01', '', ''],
+    ]);
+  });
+
+  it('descrição gravada no relatório e patrimônio de volta; série pelo fabricante', async () => {
+    const { descricaoItemPrensa, codigoDaEntrada, seriePeloFabricante } = await import('../emenda/model');
+    const d = descricaoItemPrensa({ tipo: 'Painel', fabricante: 'SAMPLA', modelo: 'MOD X', codigo: 'P-01', serie: '123' });
+    expect(d).toBe('P-01 · SAMPLA · MOD X · Nº série 123');
+    expect(codigoDaEntrada(d)).toBe('P-01');
+    expect(codigoDaEntrada('Sampla')).toBe('SAMPLA'); // texto antigo digitado
+    expect(seriePeloFabricante('nilos')).toBe('Nilos');
+    expect(seriePeloFabricante('SAMPLA')).toBe('Sampla');
+    expect(seriePeloFabricante('OUTRA')).toBeNull();
+  });
+
+  it('relatório antigo abre com a prensa utilizada vazia', () => {
+    expect(completarEmenda({ id: 'x' }).prensaEquip).toBe('');
+  });
+});

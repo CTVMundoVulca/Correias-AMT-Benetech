@@ -79,6 +79,11 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertFails(anon().doc('emenda_config/prensa').set({ paineis: [], bombas: [], outra: [] }));
     await assertFails(anon().doc('emenda_config/prensa').set({ paineis: Array.from({ length: 51 }, (_, i) => 'P' + i), bombas: [] }));
     await assertFails(semLogin().doc('emenda_config/prensa').get());
+    // cadastro único (itens com fabricante, modelo, patrimônio e nº de série)
+    const item = { tipo: 'Prensa', fabricante: 'SAMPLA', modelo: 'M1', codigo: 'PR-01', serie: 'NS1' };
+    await assertSucceeds(anon().doc('emenda_config/prensa').set({ itens: [item] }));
+    await assertFails(anon().doc('emenda_config/prensa').set({ itens: Array.from({ length: 151 }, (_, i) => ({ ...item, codigo: 'P' + i })) }));
+    await assertFails(anon().doc('emenda_config/prensa').set({ itens: [item], outra: 1 }));
     // foto do check list da prensa: mesma coleção das fotos, posição reservada (-1)
     await assertSucceeds(anon().doc('emendas/e1/fotos/fp').set({ ...foto, id: 'fp', ordem: -1, legenda: 'Check list de inspeção da prensa' }));
   });

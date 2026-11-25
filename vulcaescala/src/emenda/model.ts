@@ -131,6 +131,8 @@ export interface Emenda {
   obsVulc: string;
   // 7 prensa
   seriePrensa: 'N/A' | 'Nilos' | 'Sampla' | '';
+  /** prensa utilizada, escolhida do cadastro (patrimônio · fabricante · modelo · nº de série) */
+  prensaEquip: string;
   prensaTestada: SimNao;
   paineis: string;
   bombas: string;
@@ -265,12 +267,60 @@ export const equipamentosIniciais = (nomes: string[] = LISTAS_PADRAO.equipamento
 export const ORDEM_FOTO_PRENSA = -1;
 export const LEGENDA_FOTO_PRENSA = 'Check list de inspeção da prensa';
 
-/** Equipamentos da prensa cadastrados (seção 7): painéis e bombas. */
-export interface EquipPrensa {
-  paineis: string[];
-  bombas: string[];
+/**
+ * Cadastro único dos equipamentos da prensa (seção 7): prensas, painéis e bombas, cada um com
+ * fabricante, modelo, patrimônio/identificação e nº de série. No relatório, escolhe-se pelo
+ * patrimônio e fica gravada a descrição completa (o relatório não muda se o cadastro mudar).
+ */
+export const TIPOS_PRENSA = ['Prensa', 'Painel', 'Bomba'] as const;
+export type TipoItemPrensa = (typeof TIPOS_PRENSA)[number];
+export interface ItemPrensa {
+  tipo: TipoItemPrensa;
+  fabricante: string;
+  modelo: string;
+  codigo: string;
+  serie: string;
 }
-export const PRENSA_VAZIA: EquipPrensa = { paineis: [], bombas: [] };
+export const FABRICANTES_PRENSA = ['NILOS', 'SAMPLA'];
+
+/** texto do item sem vírgulas (a vírgula separa os itens no relatório) */
+const semVirgula = (v: unknown) => (typeof v === 'string' ? v.replace(/,/g, ' ').replace(/\s+/g, ' ').trim() : '');
+
+/**
+ * Limpa o cadastro vindo da nuvem. Painéis e bombas cadastrados antes (só o nome, em
+ * `paineis`/`bombas`) entram como itens com o nome no patrimônio — nada se perde.
+ */
+export function cleanItensPrensa(raw: { itens?: unknown; paineis?: unknown; bombas?: unknown }): ItemPrensa[] {
+  const out: ItemPrensa[] = [];
+  const add = (it: ItemPrensa) => {
+    if (it.codigo && !out.some((x) => x.codigo === it.codigo)) out.push(it);
+  };
+  for (const a of Array.isArray(raw.itens) ? raw.itens : []) {
+    if (!a || typeof a !== 'object') continue;
+    const o = a as Record<string, unknown>;
+    const tipo = (TIPOS_PRENSA as readonly string[]).includes(o.tipo as string) ? (o.tipo as TipoItemPrensa) : 'Painel';
+    add({ tipo, fabricante: semVirgula(o.fabricante).toUpperCase(), modelo: semVirgula(o.modelo), codigo: normCodigo(semVirgula(o.codigo)), serie: semVirgula(o.serie) });
+  }
+  const antigos = (l: unknown, tipo: TipoItemPrensa) => {
+    for (const n of Array.isArray(l) ? l : []) if (typeof n === 'string') add({ tipo, fabricante: '', modelo: '', codigo: normCodigo(semVirgula(n)), serie: '' });
+  };
+  antigos(raw.paineis, 'Painel');
+  antigos(raw.bombas, 'Bomba');
+  return out.sort((x, y) => TIPOS_PRENSA.indexOf(x.tipo) - TIPOS_PRENSA.indexOf(y.tipo) || x.codigo.localeCompare(y.codigo, 'pt-BR'));
+}
+
+/** Descrição gravada no relatório: "P-01 · SAMPLA · MOD X · Nº série 123" */
+export const descricaoItemPrensa = (it: ItemPrensa) =>
+  [it.codigo, it.fabricante, it.modelo, it.serie && `Nº série ${it.serie}`].filter(Boolean).join(' · ');
+
+/** Patrimônio de uma entrada gravada no relatório (o que vem antes do primeiro " · "). */
+export const codigoDaEntrada = (entrada: string) => normCodigo(entrada.split(' · ')[0] ?? '');
+
+/** Série da prensa (Nilos/Sampla) a partir do fabricante cadastrado; outro fabricante = não muda. */
+export function seriePeloFabricante(fab: string): 'Nilos' | 'Sampla' | null {
+  const f = fab.trim().toUpperCase();
+  return f === 'NILOS' ? 'Nilos' : f === 'SAMPLA' ? 'Sampla' : null;
+}
 
 /** "PAINEL 1, PAINEL 2" ⇄ lista (campos de texto da seção 7 continuam texto, para não mudar o formato salvo) */
 export const separarItens = (s: string) => s.split(',').map((x) => x.trim()).filter((x) => x && x.toUpperCase() !== 'N/A' && x.toUpperCase() !== 'NA');
@@ -345,6 +395,7 @@ export function novaEmenda(id: string, hoje: string, por: string, aparelhos: str
     ckFaltouMaterial: '',
     obsVulc: '',
     seriePrensa: '',
+    prensaEquip: '',
     prensaTestada: '',
     paineis: 'N/A',
     bombas: 'N/A',
@@ -574,6 +625,7 @@ export const CAMPOS_COPIADOS = [
   'tempoVulc',
   'pressaoVulc',
   'seriePrensa',
+  'prensaEquip',
   'prensaTestada',
   'paineis',
   'bombas',

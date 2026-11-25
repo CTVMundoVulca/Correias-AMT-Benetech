@@ -4,7 +4,7 @@ import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
 import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
 import { newId } from '../domain/ids';
-import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, LEGENDA_FOTO_PRENSA, ORDEM_FOTO_PRENSA } from './model';
+import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, codigoDaEntrada, descricaoItemPrensa, seriePeloFabricante, type ItemPrensa, LEGENDA_FOTO_PRENSA, ORDEM_FOTO_PRENSA } from './model';
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
   aparelhoPorCodigo,
@@ -819,19 +819,25 @@ function CampoPatrimonio({ q, upd }: { q: EquipItem; upd: (p: Partial<EquipItem>
 const LIBERACAO_LABEL = { libTecnico: 'técnico de área', libSupervisor: 'supervisor de área', libEletricista: 'técnico em elétrica' } as const;
 
 /**
- * Painéis e bombas da prensa: com equipamentos cadastrados, escolhe-se tocando (pode mais de um);
- * o relatório continua guardando texto ("PAINEL 1, PAINEL 2"), então registros antigos digitados
- * aparecem e continuam valendo.
+ * Equipamentos da prensa (seção 7), do cadastro único: a prensa (preenche a série Nilos/Sampla)
+ * e os painéis e bombas (pode mais de um). O relatório grava a descrição completa de cada item
+ * ("P-01 · SAMPLA · MOD X · Nº série 123"); textos antigos digitados continuam aparecendo.
  */
+const ANTIGO = '__antigo';
+
 function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
   const { prensa } = useEmenda();
   const [gerenciar, setGerenciar] = useState(false);
-  const campo = (c: 'paineis' | 'bombas', label: string) => {
-    const cad = prensa[c];
+  const prensas = prensa.filter((x) => x.tipo === 'Prensa');
+  const atual = prensas.find((x) => x.codigo === codigoDaEntrada(e.prensaEquip));
+  const campo = (c: 'paineis' | 'bombas', label: string, tipo: 'Painel' | 'Bomba') => {
+    const cad = prensa.filter((x) => x.tipo === tipo);
     if (!cad.length) return <Txt e={e} set={set} c={c} label={label} />;
     const marcados = separarItens(e[c]);
-    const opcoes = [...cad, ...marcados.filter((x) => !cad.includes(x))];
-    const alternar = (x: string) => set({ [c]: juntarItens(marcados.includes(x) ? marcados.filter((y) => y !== x) : [...marcados, x]) } as Partial<Emenda>);
+    const marcado = (it: ItemPrensa) => marcados.some((m) => codigoDaEntrada(m) === it.codigo);
+    const avulsos = marcados.filter((m) => !cad.some((it) => it.codigo === codigoDaEntrada(m)));
+    const alternar = (it: ItemPrensa) =>
+      set({ [c]: juntarItens(marcado(it) ? marcados.filter((m) => codigoDaEntrada(m) !== it.codigo) : [...marcados, descricaoItemPrensa(it)]) } as Partial<Emenda>);
     return (
       <div className="field">
         <span>{label}</span>
@@ -839,9 +845,21 @@ function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
           <button className={'opt' + (!marcados.length ? ' on' : '')} aria-pressed={!marcados.length} onClick={() => set({ [c]: 'N/A' } as Partial<Emenda>)}>
             N/A
           </button>
-          {opcoes.map((x) => (
-            <button key={x} className={'opt' + (marcados.includes(x) ? ' on' : '')} aria-pressed={marcados.includes(x)} onClick={() => alternar(x)}>
-              {x}
+          {cad.map((it) => (
+            <button key={it.codigo} className={'opt' + (marcado(it) ? ' on' : '')} aria-pressed={marcado(it)} onClick={() => alternar(it)} title={descricaoItemPrensa(it)}>
+              {it.codigo}
+              {it.fabricante && ` · ${it.fabricante}`}
+            </button>
+          ))}
+          {avulsos.map((m) => (
+            <button
+              key={m}
+              className="opt on"
+              aria-pressed
+              onClick={() => set({ [c]: juntarItens(marcados.filter((x) => x !== m)) } as Partial<Emenda>)}
+              title="Registro anterior (digitado)"
+            >
+              {m}
             </button>
           ))}
         </div>
@@ -850,9 +868,33 @@ function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
   };
   return (
     <>
+      {prensas.length > 0 && (
+        <label className="field">
+          Prensa utilizada
+          <select
+            className={inp(e.prensaEquip)}
+            value={atual?.codigo ?? (e.prensaEquip ? ANTIGO : '')}
+            onChange={(ev) => {
+              if (ev.target.value === ANTIGO) return;
+              const it = prensas.find((x) => x.codigo === ev.target.value);
+              if (!it) return set({ prensaEquip: '' });
+              const serie = seriePeloFabricante(it.fabricante);
+              set({ prensaEquip: descricaoItemPrensa(it), ...(serie ? { seriePrensa: serie } : {}) });
+            }}
+          >
+            <option value="">Selecione</option>
+            {e.prensaEquip && !atual && <option value={ANTIGO}>{e.prensaEquip}</option>}
+            {prensas.map((it) => (
+              <option key={it.codigo} value={it.codigo}>
+                {descricaoItemPrensa(it)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="g2">
-        {campo('paineis', 'Painéis utilizados')}
-        {campo('bombas', 'Bombas utilizadas')}
+        {campo('paineis', 'Painéis utilizados', 'Painel')}
+        {campo('bombas', 'Bombas utilizadas', 'Bomba')}
       </div>
       <button className="btn small" onClick={() => setGerenciar(true)}>
         Gerenciar equipamentos da prensa
