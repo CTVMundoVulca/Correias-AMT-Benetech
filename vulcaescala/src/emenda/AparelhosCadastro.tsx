@@ -3,7 +3,7 @@ import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useEmenda } from './context';
 import { gravarAparelhos } from './data';
-import { calibracaoVencida, fmtData, hojeIso, normCodigo, validadeSugerida, type EquipItem } from './model';
+import { calibracaoVencida, fmtData, hojeIso, mesmoTipo, normCodigo, tiposDeAparelho, validadeSugerida, type EquipItem } from './model';
 
 const VAZIO: EquipItem = { equip: '', marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' };
 
@@ -20,21 +20,25 @@ export function AparelhosCadastro() {
   const [editando, setEditando] = useState<string | null>(null);
   const [f, setF] = useState<EquipItem>(VAZIO);
   const hoje = hojeIso();
+  const tipos = tiposDeAparelho(aparelhos, listas.equipamentos);
 
   const abrir = (a?: EquipItem) => {
     setEditando(a ? a.codigo : '');
-    setF(a ? { ...a } : { ...VAZIO, equip: listas.equipamentos[0] ?? '' });
+    setF(a ? { ...a } : { ...VAZIO });
   };
   const set = (p: Partial<EquipItem>) => setF((x) => ({ ...x, ...p }));
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault();
     const codigo = normCodigo(f.codigo);
-    if (!f.equip) return toast('Escolha o equipamento.', 'warn');
+    // tipo: o mesmo nome já usado (mesma grafia), ou um tipo novo em maiúsculas
+    const digitado = f.equip.replace(/\s+/g, ' ').trim().toUpperCase();
+    const equip = tipos.find((t) => mesmoTipo(t, digitado)) ?? digitado;
+    if (!equip) return toast('Informe o equipamento (ex.: TERMÔMETRO INFRAVERMELHO).', 'warn');
     if (!codigo) return toast('Informe o patrimônio/identificação.', 'warn');
     if (codigo !== editando && aparelhos.some((a) => a.codigo === codigo)) return toast(`O patrimônio ${codigo} já está cadastrado.`, 'warn');
     if (f.dataCal && f.validadeCal && f.validadeCal < f.dataCal) return toast('A validade não pode ser antes da calibração.', 'warn');
-    const item = { ...f, codigo, marca: f.marca.trim(), certificado: f.certificado.trim() };
+    const item = { ...f, equip, codigo, marca: f.marca.trim(), certificado: f.certificado.trim() };
     const lista = editando ? aparelhos.map((a) => (a.codigo === editando ? item : a)) : [...aparelhos, item];
     try {
       await gravarAparelhos(api, lista);
@@ -55,10 +59,13 @@ export function AparelhosCadastro() {
 
   return (
     <section className="aparelhos-cad">
-      <h3 className="sub">Aparelhos cadastrados (por patrimônio)</h3>
-      <p className="small muted">No relatório, ao escolher o patrimônio, marca, certificado e datas da calibração são preenchidos sozinhos.</p>
+      <h3 className="sub">Aparelhos de medição cadastrados</h3>
+      <p className="small muted">
+        Cadastre cada aparelho uma vez. No relatório, ao escolher o aparelho (no campo Equipamento ou Patrimônio), marca, certificado e datas da
+        calibração são preenchidos sozinhos.
+      </p>
       {editando === null ? (
-        <button className="btn small primary" onClick={() => abrir()} disabled={!listas.equipamentos.length}>
+        <button className="btn small primary" onClick={() => abrir()}>
           + Cadastrar aparelho
         </button>
       ) : (
@@ -66,12 +73,19 @@ export function AparelhosCadastro() {
           <div className="g2">
             <label className="field linha-inteira">
               Equipamento
-              <select className="input" value={f.equip} onChange={(e) => set({ equip: e.target.value })}>
-                {f.equip && !listas.equipamentos.includes(f.equip) && <option>{f.equip}</option>}
-                {listas.equipamentos.map((o) => (
-                  <option key={o}>{o}</option>
+              <input
+                className="input"
+                list="tipos-aparelho"
+                value={f.equip}
+                onChange={(e) => set({ equip: e.target.value })}
+                placeholder="Escolha ou digite (ex.: TERMÔMETRO INFRAVERMELHO)"
+                style={{ textTransform: 'uppercase' }}
+              />
+              <datalist id="tipos-aparelho">
+                {tipos.map((o) => (
+                  <option key={o} value={o} />
                 ))}
-              </select>
+              </datalist>
             </label>
             <label className="field">
               Marca / modelo

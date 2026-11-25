@@ -223,6 +223,30 @@ export function cleanAparelhos(raw: unknown): EquipItem[] {
 
 export const aparelhoPorCodigo = (lista: EquipItem[], codigo: string) => lista.find((a) => a.codigo === normCodigo(codigo));
 
+/** Nome do tipo comparável: ignora espaços, maiúsculas e a forma do acento (texto digitado em aparelhos diferentes). */
+export const chaveTipo = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toUpperCase();
+export const mesmoTipo = (a: string, b: string) => chaveTipo(a) === chaveTipo(b);
+/** Aparelhos cadastrados de um tipo (todos, se o tipo estiver vazio). */
+export const aparelhosDoTipo = (lista: EquipItem[], tipo: string) => (tipo ? lista.filter((a) => mesmoTipo(a.equip, tipo)) : lista);
+
+/**
+ * Tipos de aparelho (um cadastro só): os da lista padrão/antiga mais os que aparecem no
+ * cadastro de aparelhos — cadastrar um aparelho de um tipo novo já cria o tipo.
+ */
+export function tiposDeAparelho(cad: EquipItem[], antigos: string[]): string[] {
+  const out = [...antigos];
+  for (const a of cad) if (a.equip && !out.some((t) => mesmoTipo(t, a.equip))) out.push(a.equip);
+  return out;
+}
+
+/** Linhas da seção 4 do relatório novo: um por tipo; com um único aparelho cadastrado do tipo, já preenchida. */
+export function linhasIniciais(cad: EquipItem[], antigos: string[]): EquipItem[] {
+  return tiposDeAparelho(cad, antigos).map((t) => {
+    const d = aparelhosDoTipo(cad, t);
+    return d.length === 1 ? { ...d[0] } : { equip: t, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' };
+  });
+}
+
 /** Calibração vencida na data de referência ("AAAA-MM-DD")? Sem validade = não dá para dizer. */
 export const calibracaoVencida = (a: Pick<EquipItem, 'validadeCal'>, data: string) => !!a.validadeCal && !!data && a.validadeCal < data;
 

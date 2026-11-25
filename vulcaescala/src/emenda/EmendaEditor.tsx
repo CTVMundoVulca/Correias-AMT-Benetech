@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '../ui/Toast';
 import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
@@ -8,6 +8,9 @@ import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separa
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
   aparelhoPorCodigo,
+  aparelhosDoTipo,
+  linhasIniciais,
+  tiposDeAparelho,
   calibracaoVencida,
   validadeSugerida,
   concluido,
@@ -50,7 +53,11 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
   const excluirEmenda = useExcluirEmenda();
   const [remoto, setRemoto] = useState<Emenda | null | undefined>(undefined);
   // relatório novo ainda não gravado: modelo local (com a data escolhida)
-  const [modelo] = useState(() => (novo ? novaEmenda(id, novo, por, ctx.listas.equipamentos) : null));
+  // (as linhas da seção 4 vêm do cadastro de aparelhos; recalculadas se o cadastro carregar depois)
+  const modelo = useMemo(
+    () => (novo ? { ...novaEmenda(id, novo, por, ctx.listas.equipamentos), equipamentos: linhasIniciais(ctx.aparelhos, ctx.listas.equipamentos) } : null),
+    [novo, id, por, ctx.listas.equipamentos, ctx.aparelhos],
+  );
   const criado = useRef(!novo);
   const [draft, setDraft] = useState<Partial<Emenda>>({});
   const fila = useRef<Partial<Emenda>>({});
@@ -665,7 +672,8 @@ function MateriaisSection({ lista, e, set }: { lista: 'materiaisEmenda' | 'mater
 }
 
 function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
-  const { listas } = useEmenda();
+  const { listas, aparelhos } = useEmenda();
+  const tipos = tiposDeAparelho(aparelhos, listas.equipamentos);
   const [gerenciar, setGerenciar] = useState(false);
   const upd = (i: number, p: Partial<EquipItem>) => {
     const n = [...e.equipamentos];
@@ -679,12 +687,34 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
           <div className="g2">
             <label className="field linha-inteira">
               Equipamento
-              <select className={inp(q.equip)} value={q.equip} onChange={(ev) => upd(i, { equip: ev.target.value })}>
+              <select
+                className={inp(q.equip)}
+                value={q.codigo && aparelhoPorCodigo(aparelhos, q.codigo) ? AP + aparelhoPorCodigo(aparelhos, q.codigo)!.codigo : q.equip}
+                onChange={(ev) => {
+                  const v = ev.target.value;
+                  // aparelho cadastrado (com patrimônio): preenche a linha inteira
+                  const escolhido = v.startsWith(AP) ? aparelhoPorCodigo(aparelhos, v.slice(AP.length)) : undefined;
+                  if (escolhido) return upd(i, { ...escolhido });
+                  // só o tipo: se houver um único aparelho cadastrado dele, já preenche
+                  const doTipo = aparelhosDoTipo(aparelhos, v);
+                  upd(i, v && doTipo.length === 1 ? { ...doTipo[0] } : { equip: v });
+                }}
+              >
                 <option value="">Selecione</option>
-                {q.equip && !listas.equipamentos.includes(q.equip) && <option>{q.equip}</option>}
-                {listas.equipamentos.map((o) => (
+                {q.equip && !tipos.includes(q.equip) && <option>{q.equip}</option>}
+                {tipos.map((o) => (
                   <option key={o}>{o}</option>
                 ))}
+                {aparelhos.length > 0 && (
+                  <optgroup label="Aparelhos cadastrados (preenche tudo)">
+                    {aparelhos.map((a) => (
+                      <option key={a.codigo} value={AP + a.codigo}>
+                        {a.equip} · {a.codigo}
+                        {a.marca ? ` · ${a.marca}` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
             <label className="field">
@@ -735,6 +765,8 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
 }
 
 const OUTRO = '__outro';
+/** prefixo do valor de um aparelho cadastrado na lista do Equipamento */
+const AP = 'ap:';
 
 /**
  * Patrimônio da seção 4: com aparelhos cadastrados, escolhe-se o patrimônio na lista (do tipo
@@ -757,7 +789,7 @@ function CampoPatrimonio({ q, upd }: { q: EquipItem; upd: (p: Partial<EquipItem>
         )}
       </label>
     );
-  const opcoes = aparelhos.filter((a) => !q.equip || a.equip === q.equip);
+  const opcoes = aparelhosDoTipo(aparelhos, q.equip);
   if (atual && !opcoes.includes(atual)) opcoes.unshift(atual);
   return (
     <label className="field">
