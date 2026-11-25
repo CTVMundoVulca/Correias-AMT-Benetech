@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useEmenda } from './context';
-import { gravarListas } from './data';
+import { gravarAparelhos, gravarListas } from './data';
+import { AparelhosCadastro } from './AparelhosCadastro';
 import type { Listas } from './model';
 
 const ABAS: { id: keyof Listas; label: string }[] = [
@@ -14,7 +15,7 @@ const ABAS: { id: keyof Listas; label: string }[] = [
 
 /** Gerenciar as listas do relatório: materiais (3 e 3.1), fabricantes e aparelhos de medição (4). */
 export function ListasDialog({ onClose, inicial = 'materiaisEmenda' }: { onClose: () => void; inicial?: keyof Listas }) {
-  const { api, listas } = useEmenda();
+  const { api, listas, aparelhos } = useEmenda();
   const toast = useToast();
   const [aba, setAba] = useState<keyof Listas>(inicial);
   const [editando, setEditando] = useState<string | null>(null);
@@ -40,10 +41,15 @@ export function ListasDialog({ onClose, inicial = 'materiaisEmenda' }: { onClose
     if (!v || !editando) return;
     if (v !== editando && listas[aba].includes(v)) return toast('Já está na lista.', 'warn');
     void salvar({ ...listas, [aba]: listas[aba].map((x) => (x === editando ? v : x)) }, 'Atualizado');
+    // tipo renomeado: os aparelhos cadastrados desse tipo acompanham
+    if (aba === 'equipamentos' && v !== editando && aparelhos.some((a) => a.equip === editando))
+      void gravarAparelhos(api, aparelhos.map((a) => (a.equip === editando ? { ...a, equip: v } : a))).catch(() => toast('Não foi possível atualizar os aparelhos cadastrados.', 'danger'));
     setEditando(null);
   };
   const remove = (v: string) => {
     if (listas[aba].length <= 1) return toast('A lista precisa ter pelo menos um item.', 'warn');
+    const n = aba === 'equipamentos' ? aparelhos.filter((a) => a.equip === v).length : 0;
+    if (n) return toast(`Há ${n} aparelho(s) cadastrado(s) desse tipo. Remova-os do cadastro antes.`, 'warn');
     void salvar({ ...listas, [aba]: listas[aba].filter((x) => x !== v) }, 'Removido');
   };
 
@@ -105,6 +111,7 @@ export function ListasDialog({ onClose, inicial = 'materiaisEmenda' }: { onClose
           ),
         )}
       </ul>
+      {aba === 'equipamentos' && <AparelhosCadastro />}
     </Modal>
   );
 }

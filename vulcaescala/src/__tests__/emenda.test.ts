@@ -138,8 +138,9 @@ describe('conclusão do relatório de emenda', () => {
     // vulcanização: na fria não é exigida; na quente é, e "N/A" não vale
     expect(pendenciasConclusao({ ...ok, tipoEmenda: 'Frio', tempVulc: '', tempoVulc: '', pressaoVulc: '' })).toEqual([]);
     const quente = pendenciasConclusao({ ...ok, tipoEmenda: 'Quente', tempVulc: 'N/A', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '', horaAbertura: '11:00' });
-    expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa']);
-    // dureza: obrigatória só no cabo de aço
+    // na quente a inspeção pós-vulcanização também exige as observações
+    expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa', 'Observações da inspeção pós-vulcanização']);
+    // dureza: obrigatória no cabo de aço e na emenda a quente (lona a frio: opcional)
     expect(pendenciasConclusao({ ...ok, dureza: '' })).toEqual([]);
     expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', dureza: '' })).toContain('Dureza Shore A');
     expect(concluido(ok)).toBe(false);
@@ -153,5 +154,69 @@ describe('corte do controle de conclusão (02/11/2026)', () => {
     expect(foraDoControle({ data: '2026-11-01', concluidoEm: '' })).toBe(true);
     expect(foraDoControle({ data: '2026-11-02', concluidoEm: '' })).toBe(false);
     expect(foraDoControle({ data: '2026-10-20', concluidoEm: '2026-11-16T10:00:00Z' })).toBe(false);
+  });
+});
+
+describe('cadastro de aparelhos de medição (por patrimônio)', () => {
+  it('limpa o que vem da nuvem: sem patrimônio sai, repetido vale o primeiro, patrimônio padronizado', async () => {
+    const { cleanAparelhos } = await import('../emenda/model');
+    const l = cleanAparelhos([
+      { equip: 'TERMO-HIGRÔMETRO', marca: 'Marca A', codigo: ' pat-2448 ', certificado: 'S-1', dataCal: '2026-10-21', validadeCal: '2027-10-21' },
+      { equip: 'DURÔMETRO', codigo: '' },
+      { equip: 'DURÔMETRO', codigo: 'PAT-2448', marca: 'repetido' },
+      'lixo',
+      { equip: 'DURÔMETRO', codigo: 'PAT-0007', marca: 7 },
+    ]);
+    expect(l.map((a) => [a.equip, a.codigo, a.marca])).toEqual([
+      ['DURÔMETRO', 'PAT-0007', ''],
+      ['TERMO-HIGRÔMETRO', 'PAT-2448', 'Marca A'],
+    ]);
+    expect(cleanAparelhos(undefined)).toEqual([]);
+  });
+
+  it('acha pelo patrimônio (sem diferenciar maiúsculas/espaços) e sugere validade de 1 ano', async () => {
+    const { aparelhoPorCodigo, cleanAparelhos, validadeSugerida, calibracaoVencida } = await import('../emenda/model');
+    const l = cleanAparelhos([{ equip: 'TERMO-HIGRÔMETRO', marca: 'Marca A', codigo: 'PAT-2448', certificado: 'S-1', dataCal: '2026-10-21', validadeCal: '2027-10-21' }]);
+    expect(aparelhoPorCodigo(l, ' pat-2448')?.certificado).toBe('S-1');
+    expect(aparelhoPorCodigo(l, 'PAT-9999')).toBeUndefined();
+    expect(validadeSugerida('2026-10-21')).toBe('2027-10-21');
+    expect(validadeSugerida('')).toBe('');
+    expect(calibracaoVencida(l[0], '2027-10-21')).toBe(false);
+    expect(calibracaoVencida(l[0], '2027-10-22')).toBe(true);
+    expect(calibracaoVencida({ validadeCal: '' }, '2027-10-22')).toBe(false);
+  });
+});
+
+describe('seção 7 (prensa) e inspeção pós-vulcanização', () => {
+  it('relatório antigo: abre com a assinatura do técnico em elétrica vazia e mantém o texto antigo', () => {
+    const e = completarEmenda({ id: 'x', assEletricista: 'FULANO TESTE' } as never);
+    expect(e.assEletricista).toBe('FULANO TESTE');
+    expect(e.libEletricista).toEqual({ workerId: '', nome: '', matricula: '', data: '', assinatura: '' });
+  });
+
+  it('painéis/bombas: texto "A, B" ⇄ lista; N/A = nenhum', async () => {
+    const { juntarItens, separarItens } = await import('../emenda/model');
+    expect(separarItens('PAINEL 1, PAINEL 2')).toEqual(['PAINEL 1', 'PAINEL 2']);
+    expect(separarItens('N/A')).toEqual([]);
+    expect(separarItens('NA')).toEqual([]);
+    expect(separarItens('Sampla')).toEqual(['Sampla']); // texto antigo digitado continua
+    expect(juntarItens(['PAINEL 1', 'PAINEL 2'])).toBe('PAINEL 1, PAINEL 2');
+    expect(juntarItens([])).toBe('N/A');
+  });
+
+  it('emenda a quente: dureza, bolha, acabamento, faltou material e observações obrigatórios para concluir', async () => {
+    const { pendenciasConclusao } = await import('../emenda/model');
+    const quente = { ...novaEmenda('q', '2026-11-25', 'x'), tipoEmenda: 'Quente' as const, tipoCorreia: 'Lona' as const };
+    const p = pendenciasConclusao(quente);
+    for (const item of ['Dureza Shore A', 'Presença de bolha?', 'Feito acabamento?', 'Faltou material?', 'Observações da inspeção pós-vulcanização']) expect(p).toContain(item);
+    const ok = pendenciasConclusao({ ...quente, dureza: '58', ckBolha: 'Não', ckAcabamento: 'Sim', ckFaltouMaterial: 'Não', obsVulc: 'Sem desvios' });
+    expect(ok.some((s) => /Dureza|bolha|acabamento|Faltou|Observações da inspeção/.test(s))).toBe(false);
+  });
+
+  it('emenda a frio em lona: dureza e observações continuam opcionais', async () => {
+    const { pendenciasConclusao } = await import('../emenda/model');
+    const p = pendenciasConclusao({ ...novaEmenda('f', '2026-11-25', 'x'), tipoEmenda: 'Frio', tipoCorreia: 'Lona' });
+    expect(p).not.toContain('Dureza Shore A');
+    expect(p).not.toContain('Observações da inspeção pós-vulcanização');
   });
 });

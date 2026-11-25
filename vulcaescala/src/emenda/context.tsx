@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { FirebaseApi } from '../cloud/firebase';
-import type { Funcionario, Listas } from './model';
+import type { EquipItem, EquipPrensa, Funcionario, Listas } from './model';
 
 export interface EmendaCtx {
   api: FirebaseApi;
@@ -14,6 +14,10 @@ export interface EmendaCtx {
   /** lista de colaboradores da emenda (separada do efetivo da escala) */
   efetivo: Funcionario[];
   listas: Listas;
+  /** aparelhos de medição cadastrados por patrimônio (preenchem a seção 4) */
+  aparelhos: EquipItem[];
+  /** painéis e bombas da prensa cadastrados (seção 7) */
+  prensa: EquipPrensa;
   /** informa ao cabeçalho se há gravações pendentes / sem conexão */
   setPendencia: (pendente: boolean, offline: boolean) => void;
 }

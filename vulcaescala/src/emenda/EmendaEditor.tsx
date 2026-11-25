@@ -4,9 +4,12 @@ import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
 import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
 import { newId } from '../domain/ids';
-import { emendaComBase, hojeIso } from './model';
+import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, LEGENDA_FOTO_PRENSA, ORDEM_FOTO_PRENSA } from './model';
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
+  aparelhoPorCodigo,
+  calibracaoVencida,
+  validadeSugerida,
   concluido,
   foraDoControle,
   pendenciasConclusao,
@@ -27,6 +30,7 @@ import { SignaturePad } from './SignaturePad';
 import { FotosSection } from './FotosSection';
 import { EfetivoDialog } from './EfetivoDialog';
 import { ListasDialog } from './ListasDialog';
+import { PrensaDialog } from './PrensaDialog';
 
 type SetFn = (campos: Partial<Emenda>) => void;
 
@@ -333,7 +337,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         </div>
         <h3 className="sub">Inspeção pós-vulcanização</h3>
         <div className="g2">
-          <Txt e={e} set={set} c="dureza" label={e.tipoCorreia === 'Cabo Aço' ? 'Menor valor dureza Shore A' : 'Menor valor dureza Shore A (opcional na lona)'} mode="numeric" />
+          <Txt e={e} set={set} c="dureza" label={durezaObrigatoria(e) ? 'Menor valor dureza Shore A' : 'Menor valor dureza Shore A (opcional na lona a frio)'} mode="numeric" />
           <Opts e={e} set={set} c="ckBolha" label="Presença de bolha?" op={['Não', 'Sim']} />
           <Opts e={e} set={set} c="ckAcabamento" label="Feito acabamento?" op={['Sim', 'Não']} />
           <Opts e={e} set={set} c="ckFaltouMaterial" label="Faltou material?" op={['Não', 'Sim']} />
@@ -345,11 +349,16 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <div className="g2">
           <Opts e={e} set={set} c="seriePrensa" label="Série da prensa" op={['N/A', 'Nilos', 'Sampla']} />
           <Opts e={e} set={set} c="prensaTestada" label="Prensa testada antes?" op={['N/A', 'Sim', 'Não']} />
-          <Txt e={e} set={set} c="paineis" label="Painéis utilizados" />
-          <Txt e={e} set={set} c="bombas" label="Bombas utilizadas" />
           <Txt e={e} set={set} c="dataTeste" label="Data do teste" />
-          <Txt e={e} set={set} c="assEletricista" label="Ass. técnico eletricista" />
         </div>
+        <EquipPrensaSection e={e} set={set} />
+        <h3 className="sub">Técnico em elétrica (teste da prensa)</h3>
+        {e.assEletricista && e.assEletricista.trim().toUpperCase() !== 'N/A' && !e.libEletricista.nome && (
+          <p className="small muted">Registro anterior: {e.assEletricista}</p>
+        )}
+        <EletricistaSection e={e} set={set} />
+        <h3 className="sub">Foto do check list de inspeção da prensa</h3>
+        <FotosSection emendaId={id} antesDeGravar={() => void garantirCriado()} travado={travado} unico={{ ordem: ORDEM_FOTO_PRENSA, legenda: LEGENDA_FOTO_PRENSA }} />
         <Area e={e} set={set} c="obsPrensa" label="Observações (justificar desvios)" />
       </Sec>
 
@@ -503,8 +512,9 @@ function Opts({ e, set, c, label, op }: { e: Emenda; set: SetFn; c: StrKeys; lab
 }
 
 /** Seleção de colaborador pelo nome (lista própria da emenda), como no app do Suzano. */
-function SelectColaborador({ nome, onPick, excluir = [] }: { nome: string; onPick: (f: Funcionario | null) => void; excluir?: string[] }) {
-  const { efetivo } = useEmenda();
+function SelectColaborador({ nome, onPick, excluir = [], lista }: { nome: string; onPick: (f: Funcionario | null) => void; excluir?: string[]; lista?: Funcionario[] }) {
+  const { efetivo: todos } = useEmenda();
+  const efetivo = lista ?? todos;
   return (
     <select className={inp(nome)} value={nome} onChange={(ev) => onPick(efetivo.find((f) => f.nome === ev.target.value) ?? null)}>
       <option value="">Selecione</option>
@@ -681,10 +691,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
               Marca / modelo
               <input className={inp(q.marca)} value={q.marca} onChange={(ev) => upd(i, { marca: ev.target.value })} />
             </label>
-            <label className="field">
-              Patrimônio/Identificação
-              <input className={inp(q.codigo)} value={q.codigo} onChange={(ev) => upd(i, { codigo: ev.target.value })} />
-            </label>
+            <CampoPatrimonio q={q} upd={(p) => upd(i, p)} />
             <label className="field">
               Certificado
               <input className={inp(q.certificado)} value={q.certificado} onChange={(ev) => upd(i, { certificado: ev.target.value })} />
@@ -698,8 +705,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
                 onChange={(ev) => {
                   const v = ev.target.value;
                   // validade sugerida: 1 ano após a calibração (como no app do Suzano)
-                  const val = /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${Number(v.slice(0, 4)) + 1}${v.slice(4)}` : q.validadeCal;
-                  upd(i, { dataCal: v, validadeCal: val });
+                  upd(i, { dataCal: v, validadeCal: validadeSugerida(v) || q.validadeCal });
                 }}
               />
             </label>
@@ -708,6 +714,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
               <input className={inp(q.validadeCal)} type="date" value={q.validadeCal} onChange={(ev) => upd(i, { validadeCal: ev.target.value })} />
             </label>
           </div>
+          {calibracaoVencida(q, e.data) && <p className="text-danger small">Calibração vencida em {fmtData(q.validadeCal)} (antes da data da emenda).</p>}
           <button className="btn small ghost-danger" onClick={() => set({ equipamentos: e.equipamentos.filter((_, j) => j !== i) })}>
             Remover equipamento
           </button>
@@ -727,7 +734,124 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
   );
 }
 
-function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico' | 'libSupervisor' }) {
+const OUTRO = '__outro';
+
+/**
+ * Patrimônio da seção 4: com aparelhos cadastrados, escolhe-se o patrimônio na lista (do tipo
+ * escolhido) e marca, certificado e calibração vêm do cadastro; "Outro" volta a digitar.
+ * Relatórios antigos com patrimônio digitado continuam como estão.
+ */
+function CampoPatrimonio({ q, upd }: { q: EquipItem; upd: (p: Partial<EquipItem>) => void }) {
+  const { aparelhos } = useEmenda();
+  const atual = q.codigo ? aparelhoPorCodigo(aparelhos, q.codigo) : undefined;
+  const [manual, setManual] = useState(() => !!q.codigo && !atual);
+  if (!aparelhos.length || manual)
+    return (
+      <label className="field">
+        Patrimônio/Identificação
+        <input className={inp(q.codigo)} value={q.codigo} onChange={(ev) => upd({ codigo: ev.target.value })} />
+        {aparelhos.length > 0 && (
+          <button type="button" className="link small" onClick={() => setManual(false)}>
+            Escolher do cadastro
+          </button>
+        )}
+      </label>
+    );
+  const opcoes = aparelhos.filter((a) => !q.equip || a.equip === q.equip);
+  if (atual && !opcoes.includes(atual)) opcoes.unshift(atual);
+  return (
+    <label className="field">
+      Patrimônio/Identificação
+      <select
+        className={inp(q.codigo)}
+        value={atual?.codigo ?? ''}
+        onChange={(ev) => {
+          if (ev.target.value === OUTRO) return setManual(true);
+          const a = aparelhoPorCodigo(aparelhos, ev.target.value);
+          upd(a ? { ...a } : { codigo: '' });
+        }}
+      >
+        <option value="">Selecione</option>
+        {opcoes.map((a) => (
+          <option key={a.codigo} value={a.codigo}>
+            {a.codigo}
+            {a.marca ? ` · ${a.marca}` : ''}
+          </option>
+        ))}
+        <option value={OUTRO}>Outro (digitar)…</option>
+      </select>
+    </label>
+  );
+}
+
+const LIBERACAO_LABEL = { libTecnico: 'técnico de área', libSupervisor: 'supervisor de área', libEletricista: 'técnico em elétrica' } as const;
+
+/**
+ * Painéis e bombas da prensa: com equipamentos cadastrados, escolhe-se tocando (pode mais de um);
+ * o relatório continua guardando texto ("PAINEL 1, PAINEL 2"), então registros antigos digitados
+ * aparecem e continuam valendo.
+ */
+function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
+  const { prensa } = useEmenda();
+  const [gerenciar, setGerenciar] = useState(false);
+  const campo = (c: 'paineis' | 'bombas', label: string) => {
+    const cad = prensa[c];
+    if (!cad.length) return <Txt e={e} set={set} c={c} label={label} />;
+    const marcados = separarItens(e[c]);
+    const opcoes = [...cad, ...marcados.filter((x) => !cad.includes(x))];
+    const alternar = (x: string) => set({ [c]: juntarItens(marcados.includes(x) ? marcados.filter((y) => y !== x) : [...marcados, x]) } as Partial<Emenda>);
+    return (
+      <div className="field">
+        <span>{label}</span>
+        <div className="opts" role="group" aria-label={label}>
+          <button className={'opt' + (!marcados.length ? ' on' : '')} aria-pressed={!marcados.length} onClick={() => set({ [c]: 'N/A' } as Partial<Emenda>)}>
+            N/A
+          </button>
+          {opcoes.map((x) => (
+            <button key={x} className={'opt' + (marcados.includes(x) ? ' on' : '')} aria-pressed={marcados.includes(x)} onClick={() => alternar(x)}>
+              {x}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  return (
+    <>
+      <div className="g2">
+        {campo('paineis', 'Painéis utilizados')}
+        {campo('bombas', 'Bombas utilizadas')}
+      </div>
+      <button className="btn small" onClick={() => setGerenciar(true)}>
+        Gerenciar equipamentos da prensa
+      </button>
+      {gerenciar && <PrensaDialog onClose={() => setGerenciar(false)} />}
+    </>
+  );
+}
+
+/** Técnico em elétrica: a lista mostra só quem está marcado como eletricista em "Gerenciar efetivo". */
+function EletricistaSection({ e, set }: { e: Emenda; set: SetFn }) {
+  const { efetivo } = useEmenda();
+  const [gerenciar, setGerenciar] = useState(false);
+  const eletricistas = efetivo.filter((f) => f.eletricista);
+  return (
+    <>
+      <LiberacaoSection e={e} set={set} c="libEletricista" lista={eletricistas} />
+      {eletricistas.length === 0 && (
+        <p className="small muted">
+          Nenhum técnico em elétrica marcado. Em “Gerenciar efetivo”, marque “Técnico em elétrica” em quem faz o teste da prensa.
+        </p>
+      )}
+      <button className="btn small" onClick={() => setGerenciar(true)}>
+        Gerenciar efetivo
+      </button>
+      {gerenciar && <EfetivoDialog onClose={() => setGerenciar(false)} />}
+    </>
+  );
+}
+
+function LiberacaoSection({ e, set, c, lista }: { e: Emenda; set: SetFn; c: keyof typeof LIBERACAO_LABEL; lista?: Funcionario[] }) {
   const lib = e[c];
   const upd = (p: Partial<Liberacao>) => set({ [c]: { ...liberacaoVazia(), ...lib, ...p } } as Partial<Emenda>);
   return (
@@ -735,7 +859,7 @@ function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico
       <div className="g2">
         <label className="field">
           Liberado por
-          <SelectColaborador nome={lib.nome} onPick={(f) => upd({ workerId: '', nome: f?.nome ?? '', matricula: f?.doc ?? '' })} />
+          <SelectColaborador nome={lib.nome} lista={lista} onPick={(f) => upd({ workerId: '', nome: f?.nome ?? '', matricula: f?.doc ?? '' })} />
         </label>
         <label className="field">
           Matrícula/CPF
@@ -747,7 +871,7 @@ function LiberacaoSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libTecnico
         <input className={inp(lib.data)} type="date" value={lib.data} onChange={(ev) => upd({ data: ev.target.value })} />
       </label>
       <span className="field">Assinatura</span>
-      <SignaturePad value={lib.assinatura} label={c === 'libTecnico' ? 'técnico de área' : 'supervisor de área'} onChange={(assinatura) => upd({ assinatura })} />
+      <SignaturePad value={lib.assinatura} label={LIBERACAO_LABEL[c]} onChange={(assinatura) => upd({ assinatura })} />
     </>
   );
 }

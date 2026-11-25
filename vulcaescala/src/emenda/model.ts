@@ -20,6 +20,8 @@ export interface Funcionario {
   nome: string;
   /** matrícula ou CPF */
   doc: string;
+  /** técnico em elétrica habilitado (assina o teste da prensa na seção 7); ausente = não */
+  eletricista?: boolean;
 }
 
 /**
@@ -133,7 +135,10 @@ export interface Emenda {
   paineis: string;
   bombas: string;
   dataTeste: string;
+  /** texto livre antigo (relatórios anteriores à assinatura do técnico em elétrica) */
   assEletricista: string;
+  /** técnico em elétrica que testou a prensa: nome, matrícula, data e assinatura */
+  libEletricista: Liberacao;
   obsPrensa: string;
   // 8 problemas
   problemaTipo: string;
@@ -189,6 +194,38 @@ export const LISTAS_PADRAO: Listas = {
   equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO', 'DURÔMETRO'],
 };
 
+/** Patrimônio/identificação padronizado: sem espaços sobrando, maiúsculas (chave do cadastro). */
+export const normCodigo = (s: string) => s.replace(/\s+/g, ' ').trim().toUpperCase();
+
+/** Validade sugerida: 1 ano após a calibração ("" se a data não for válida). */
+export function validadeSugerida(dataCal: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dataCal) ? `${Number(dataCal.slice(0, 4)) + 1}${dataCal.slice(4)}` : '';
+}
+
+/**
+ * Cadastro de aparelhos de medição (Gerenciar aparelhos): cada aparelho físico, identificado
+ * pelo patrimônio, com marca, certificado e calibração. No relatório, escolher o patrimônio
+ * preenche o resto. Registros vindos da nuvem são limpos (sem patrimônio = descartado;
+ * patrimônio repetido = vale o primeiro).
+ */
+export function cleanAparelhos(raw: unknown): EquipItem[] {
+  const out: EquipItem[] = [];
+  const s = (v: unknown) => (typeof v === 'string' ? v : '');
+  for (const a of Array.isArray(raw) ? raw : []) {
+    if (!a || typeof a !== 'object') continue;
+    const o = a as Record<string, unknown>;
+    const codigo = normCodigo(s(o.codigo));
+    if (!codigo || out.some((x) => x.codigo === codigo)) continue;
+    out.push({ equip: s(o.equip), marca: s(o.marca), codigo, certificado: s(o.certificado), dataCal: s(o.dataCal), validadeCal: s(o.validadeCal) });
+  }
+  return out.sort((x, y) => x.equip.localeCompare(y.equip, 'pt-BR') || x.codigo.localeCompare(y.codigo, 'pt-BR'));
+}
+
+export const aparelhoPorCodigo = (lista: EquipItem[], codigo: string) => lista.find((a) => a.codigo === normCodigo(codigo));
+
+/** Calibração vencida na data de referência ("AAAA-MM-DD")? Sem validade = não dá para dizer. */
+export const calibracaoVencida = (a: Pick<EquipItem, 'validadeCal'>, data: string) => !!a.validadeCal && !!data && a.validadeCal < data;
+
 /** Linhas da seção 4 já com o nome de cada aparelho (o restante a pessoa preenche). */
 export const equipamentosIniciais = (nomes: string[] = LISTAS_PADRAO.equipamentos): EquipItem[] =>
   nomes.map((equip) => ({ equip, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }));
@@ -197,6 +234,24 @@ export const equipamentosIniciais = (nomes: string[] = LISTAS_PADRAO.equipamento
  * Campos de foto guiados (mesma sequência do app do Suzano): cada campo mostra embaixo
  * qual foto vai nele. "+ Adicionar mais fotos" cria campos extras ("Emenda").
  */
+/**
+ * Foto do check list de inspeção da prensa (seção 7): fica na mesma coleção das fotos do
+ * relatório, numa posição reservada (fora dos campos numerados do registro fotográfico).
+ */
+export const ORDEM_FOTO_PRENSA = -1;
+export const LEGENDA_FOTO_PRENSA = 'Check list de inspeção da prensa';
+
+/** Equipamentos da prensa cadastrados (seção 7): painéis e bombas. */
+export interface EquipPrensa {
+  paineis: string[];
+  bombas: string[];
+}
+export const PRENSA_VAZIA: EquipPrensa = { paineis: [], bombas: [] };
+
+/** "PAINEL 1, PAINEL 2" ⇄ lista (campos de texto da seção 7 continuam texto, para não mudar o formato salvo) */
+export const separarItens = (s: string) => s.split(',').map((x) => x.trim()).filter((x) => x && x.toUpperCase() !== 'N/A' && x.toUpperCase() !== 'NA');
+export const juntarItens = (l: string[]) => (l.length ? l.join(', ') : 'N/A');
+
 export const FOTO_CAMPOS = ['Material de emenda', 'Material de emenda', 'Termômetro a laser', 'Termo higrômetro', 'Emenda'];
 
 /** Descrição padrão do campo de foto na posição `ordem` (0 = primeiro). */
@@ -279,6 +334,7 @@ export function novaEmenda(id: string, hoje: string, por: string, aparelhos: str
     retomada: 'N/A',
     libTecnico: liberacaoVazia(),
     libSupervisor: liberacaoVazia(),
+    libEletricista: liberacaoVazia(),
     concluidoEm: '',
     concluidoPor: '',
     concluidoUid: '',
@@ -304,7 +360,13 @@ export function emendaVazia(e: Emenda): boolean {
 export function completarEmenda(raw: Partial<Emenda> & { id: string }): Emenda {
   // registro antigo sem o campo de aparelhos não ganha linhas automáticas
   const base = novaEmenda(raw.id, raw.data ?? '', raw.atualizadoPor ?? '', []);
-  return { ...base, ...raw, libTecnico: { ...base.libTecnico, ...raw.libTecnico }, libSupervisor: { ...base.libSupervisor, ...raw.libSupervisor } };
+  return {
+    ...base,
+    ...raw,
+    libTecnico: { ...base.libTecnico, ...raw.libTecnico },
+    libSupervisor: { ...base.libSupervisor, ...raw.libSupervisor },
+    libEletricista: { ...base.libEletricista, ...raw.libEletricista },
+  };
 }
 
 // ---------------------------------------------------------------- cálculos
@@ -523,6 +585,9 @@ const semResposta = (v: unknown) => v === '' || v === undefined;
  * O que falta para concluir o relatório: identificação, efetivo da troca, dados da emenda,
  * check lists respondidos, vulcanização, inspeção e as duas liberações assinadas.
  */
+/** Dureza Shore A obrigatória: cabo de aço ou emenda a quente. */
+export const durezaObrigatoria = (e: Pick<Emenda, 'tipoCorreia' | 'tipoEmenda'>) => e.tipoCorreia === 'Cabo Aço' || e.tipoEmenda === 'Quente';
+
 export function pendenciasConclusao(e: Emenda): string[] {
   const f: string[] = [];
   const txt = (v: string, nome: string) => vazioTxt(v) && f.push(nome);
@@ -569,11 +634,13 @@ export function pendenciasConclusao(e: Emenda): string[] {
     valor(e.tempAbertura, 'Temp. abertura da prensa');
     valor(e.horaAbertura, 'Hora abertura da prensa');
   }
-  // dureza: medida só nas emendas de cabo de aço (na lona é opcional)
-  if (e.tipoCorreia === 'Cabo Aço') txt(e.dureza, 'Dureza Shore A');
+  // inspeção pós-vulcanização: dureza obrigatória no cabo de aço e em toda emenda A QUENTE
+  // (na lona a frio é opcional); na quente, as observações também são obrigatórias
+  if (durezaObrigatoria(e)) txt(e.dureza, 'Dureza Shore A');
   opc(e.ckBolha, 'Presença de bolha?');
   opc(e.ckAcabamento, 'Feito acabamento?');
   opc(e.ckFaltouMaterial, 'Faltou material?');
+  if (e.tipoEmenda === 'Quente') txt(e.obsVulc, 'Observações da inspeção pós-vulcanização');
   // 9–10 liberações
   for (const [l, nome] of [
     [e.libTecnico, 'técnico de área'],

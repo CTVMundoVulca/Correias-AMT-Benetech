@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, useEmenda } from './context';
 import { ouvirEmenda, ouvirFotos } from './data';
-import { fmtData, margemOrvalho, type Emenda, type Foto, type Liberacao } from './model';
+import { fmtData, margemOrvalho, ORDEM_FOTO_PRENSA, type Emenda, type Foto, type Liberacao } from './model';
 
 /** Formulário padrão da empresa para o Registro de Emenda — atualizar aqui quando a revisão mudar. */
 const FORMULARIO_PADRAO = 'FOR GTO 054 — REV.08';
@@ -30,6 +30,9 @@ export function Relatorio({ id }: { id: string }) {
   if (e === null) return <p className="pad">Relatório não encontrado.</p>;
 
   const aco = e.tipoCorreia === 'Cabo Aço';
+  // foto do check list da prensa vai na seção 7; as demais no registro fotográfico
+  const fotoPrensa = fotos.find((f) => f.ordem === ORDEM_FOTO_PRENSA);
+  const fotosProcesso = fotos.filter((f) => f.ordem >= 0);
   return (
     <article className="rel" ref={ref}>
       <div className="rel-toolbar no-print">
@@ -151,8 +154,26 @@ export function Relatorio({ id }: { id: string }) {
         <KV k="Painéis" v={e.paineis} />
         <KV k="Bombas" v={e.bombas} />
         <KV k="Data do teste" v={fmtData(e.dataTeste)} />
-        <KV k="Ass. técnico eletricista" v={e.assEletricista} />
+        <KV k="Técnico em elétrica" v={e.libEletricista.nome || (e.assEletricista ?? '')} />
+        <KV k="Matrícula/CPF" v={e.libEletricista.matricula} />
+        <KV k="Data (técnico em elétrica)" v={fmtData(e.libEletricista.data)} />
         <KV k="Observações" v={e.obsPrensa} full />
+        {(e.libEletricista.assinatura || fotoPrensa) && (
+          <div className="rel-prensa-extra full">
+            {e.libEletricista.assinatura && (
+              <div className="rel-sig">
+                <img src={e.libEletricista.assinatura} alt={`Assinatura — ${e.libEletricista.nome}`} />
+                <span className="small">Assinatura do técnico em elétrica</span>
+              </div>
+            )}
+            {fotoPrensa && (
+              <figure className="rel-foto-prensa">
+                <img src={fotoPrensa.data} alt={fotoPrensa.legenda} />
+                <figcaption>{fotoPrensa.legenda}</figcaption>
+              </figure>
+            )}
+          </div>
+        )}
       </Bloco>
 
       <Bloco t="8. Problemas durante a vulcanização">
@@ -168,11 +189,11 @@ export function Relatorio({ id }: { id: string }) {
         <Lib t="10. Liberação do supervisor de área" l={e.libSupervisor} />
       </div>
 
-      {fotos.length > 0 && (
+      {fotosProcesso.length > 0 && (
         <section className="rel-fotos">
           <h2>Etapas do processo (registro fotográfico)</h2>
           <div className="rel-foto-grid">
-            {fotos.map((f) => (
+            {fotosProcesso.map((f) => (
               <figure key={f.id}>
                 <img src={f.data} alt={f.legenda} />
                 <figcaption>{f.legenda}</figcaption>

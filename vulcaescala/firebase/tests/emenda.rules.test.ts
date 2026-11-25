@@ -67,6 +67,20 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO'] }));
     await assertFails(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], equipamentos: Array.from({ length: 31 }, (_, i) => 'E' + i) }));
     await assertFails(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], outra: [] }));
+    // aparelhos cadastrados por patrimônio: documento à parte, só a lista
+    const ap = { equip: 'TERMO-HIGRÔMETRO', marca: 'MARCA TESTE', codigo: 'PAT-0001', certificado: 'C-1', dataCal: '2026-10-21', validadeCal: '2027-10-21' };
+    await assertSucceeds(anon().doc('emenda_config/aparelhos').set({ lista: [ap] }));
+    await assertSucceeds(anon().doc('emenda_config/aparelhos').get());
+    await assertFails(anon().doc('emenda_config/aparelhos').set({ lista: [ap], outra: 1 }));
+    await assertFails(anon().doc('emenda_config/aparelhos').set({ lista: Array.from({ length: 201 }, (_, i) => ({ ...ap, codigo: 'P' + i })) }));
+    await assertFails(semLogin().doc('emenda_config/aparelhos').get());
+    // equipamentos da prensa (painéis e bombas)
+    await assertSucceeds(anon().doc('emenda_config/prensa').set({ paineis: ['PAINEL 01'], bombas: ['BOMBA 01'] }));
+    await assertFails(anon().doc('emenda_config/prensa').set({ paineis: [], bombas: [], outra: [] }));
+    await assertFails(anon().doc('emenda_config/prensa').set({ paineis: Array.from({ length: 51 }, (_, i) => 'P' + i), bombas: [] }));
+    await assertFails(semLogin().doc('emenda_config/prensa').get());
+    // foto do check list da prensa: mesma coleção das fotos, posição reservada (-1)
+    await assertSucceeds(anon().doc('emendas/e1/fotos/fp').set({ ...foto, id: 'fp', ordem: -1, legenda: 'Check list de inspeção da prensa' }));
   });
 
   it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda de outros', async () => {
