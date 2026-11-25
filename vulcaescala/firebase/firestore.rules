@@ -249,6 +249,15 @@ service cloud.firestore {
         && request.resource.data.lista.size() <= 200;
     }
 
+    // Equipamentos da prensa cadastrados (seção 7: painéis e bombas). Mesma regra das listas.
+    match /emenda_config/prensa {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.resource.data.keys().hasOnly(['paineis', 'bombas'])
+        && request.resource.data.paineis is list && request.resource.data.paineis.size() <= 50
+        && request.resource.data.bombas is list && request.resource.data.bombas.size() <= 50;
+    }
+
     // ═══ PROGRAMAÇÃO DA VULCANIZAÇÃO ═══
     // PAINEL (todos com o link, sessão anônima): vê programação, paradas confirmadas, fila de
     // solicitações e relatórios; pede serviço e informa paradas.

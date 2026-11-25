@@ -3,8 +3,8 @@ import { Header } from '../ui/Header';
 import { loadFirebase, type FirebaseApi } from '../cloud/firebase';
 import { Splash } from '../cloud/AuthScreens';
 import { Ctx, type EmendaCtx } from './context';
-import { ouvirAparelhos, ouvirFuncionarios, ouvirListas, souAdmin, souLideranca } from './data';
-import { LISTAS_PADRAO, type EquipItem, type Funcionario, type Listas } from './model';
+import { ouvirAparelhos, ouvirFuncionarios, ouvirListas, ouvirPrensa, souAdmin, souLideranca } from './data';
+import { LISTAS_PADRAO, PRENSA_VAZIA, type EquipItem, type EquipPrensa, type Funcionario, type Listas } from './model';
 import { EmendaLista } from './EmendaLista';
 import { EmendaEditor } from './EmendaEditor';
 import { Relatorio } from './Relatorio';
@@ -36,6 +36,7 @@ export function EmendaApp() {
   const [uid, setUid] = useState('');
   const [efetivo, setEfetivo] = useState<Funcionario[]>([]);
   const [aparelhos, setAparelhos] = useState<EquipItem[]>([]);
+  const [prensa, setPrensa] = useState<EquipPrensa>(PRENSA_VAZIA);
   const [listas, setListas] = useState<Listas>(LISTAS_PADRAO);
   const [rota, setRota] = useState<Rota>(lerRota);
   const [pend, setPend] = useState({ pendente: false, offline: false });
@@ -110,10 +111,12 @@ export function EmendaApp() {
     const u1 = ouvirFuncionarios(api, setEfetivo);
     const u2 = ouvirListas(api, setListas);
     const u3 = ouvirAparelhos(api, setAparelhos);
+    const u4 = ouvirPrensa(api, setPrensa);
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
   }, [phase, api]);
 
@@ -128,8 +131,8 @@ export function EmendaApp() {
   useEffect(() => () => clearTimeout(pendTimer.current), []);
 
   const ctx = useMemo<EmendaCtx | null>(
-    () => (api ? { api, por, isAdmin, lideranca, uid, efetivo, listas, aparelhos, setPendencia } : null),
-    [api, por, isAdmin, lideranca, uid, efetivo, listas, aparelhos, setPendencia],
+    () => (api ? { api, por, isAdmin, lideranca, uid, efetivo, listas, aparelhos, prensa, setPendencia } : null),
+    [api, por, isAdmin, lideranca, uid, efetivo, listas, aparelhos, prensa, setPendencia],
   );
 
   const menu = { label: 'Voltar ao menu de apps', onClick: () => window.location.assign('../') };

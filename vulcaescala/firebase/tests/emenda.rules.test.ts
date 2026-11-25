@@ -74,6 +74,13 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertFails(anon().doc('emenda_config/aparelhos').set({ lista: [ap], outra: 1 }));
     await assertFails(anon().doc('emenda_config/aparelhos').set({ lista: Array.from({ length: 201 }, (_, i) => ({ ...ap, codigo: 'P' + i })) }));
     await assertFails(semLogin().doc('emenda_config/aparelhos').get());
+    // equipamentos da prensa (painéis e bombas)
+    await assertSucceeds(anon().doc('emenda_config/prensa').set({ paineis: ['PAINEL 01'], bombas: ['BOMBA 01'] }));
+    await assertFails(anon().doc('emenda_config/prensa').set({ paineis: [], bombas: [], outra: [] }));
+    await assertFails(anon().doc('emenda_config/prensa').set({ paineis: Array.from({ length: 51 }, (_, i) => 'P' + i), bombas: [] }));
+    await assertFails(semLogin().doc('emenda_config/prensa').get());
+    // foto do check list da prensa: mesma coleção das fotos, posição reservada (-1)
+    await assertSucceeds(anon().doc('emendas/e1/fotos/fp').set({ ...foto, id: 'fp', ordem: -1, legenda: 'Check list de inspeção da prensa' }));
   });
 
   it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda de outros', async () => {

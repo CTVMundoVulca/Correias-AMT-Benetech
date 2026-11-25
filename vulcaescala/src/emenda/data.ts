@@ -1,6 +1,6 @@
 import type { FirebaseApi } from '../cloud/firebase';
 import { DOC_ADMIN } from '../cloud/sync';
-import { cleanAparelhos, completarEmenda, intervaloMes, LISTAS_PADRAO, type Emenda, type EquipItem, type Foto, type Funcionario, type Listas } from './model';
+import { cleanAparelhos, completarEmenda, intervaloMes, LISTAS_PADRAO, PRENSA_VAZIA, type Emenda, type EquipItem, type EquipPrensa, type Foto, type Funcionario, type Listas } from './model';
 
 /**
  * Firestore do Registro de Emenda (projeto Firebase do AMT):
@@ -9,6 +9,7 @@ import { cleanAparelhos, completarEmenda, intervaloMes, LISTAS_PADRAO, type Emen
  *   emenda_config/listas         materiais e fabricantes ("Gerenciar")
  *   emenda_config/efetivo        colaboradores da emenda: nome + matrícula/CPF ("Gerenciar efetivo")
  *   emenda_config/aparelhos      aparelhos de medição cadastrados por patrimônio ("Gerenciar aparelhos")
+ *   emenda_config/prensa         painéis e bombas da prensa cadastrados (seção 7)
  * O efetivo da emenda é uma lista PRÓPRIA, separada do cadastro da escala.
  *
  * Sem internet o próprio Firestore guarda as gravações no aparelho e envia
@@ -20,6 +21,8 @@ export const DOC_LISTAS = 'emenda_config/listas';
 export const DOC_FUNCIONARIOS = 'emenda_config/efetivo';
 /** Aparelhos de medição cadastrados (tipo, marca, patrimônio, certificado, calibração) */
 export const DOC_APARELHOS = 'emenda_config/aparelhos';
+/** Painéis e bombas da prensa (seção 7) */
+export const DOC_PRENSA = 'emenda_config/prensa';
 
 export interface Pendencia {
   /** há gravações deste aparelho ainda não confirmadas pela nuvem */
@@ -152,7 +155,7 @@ export function ouvirFuncionarios(api: FirebaseApi, cb: (l: Funcionario[]) => vo
       cb(
         (Array.isArray(l) ? l : [])
           .filter((f) => f && typeof f.nome === 'string' && f.nome)
-          .map((f) => ({ nome: f.nome, doc: typeof f.doc === 'string' ? f.doc : '' }))
+          .map((f) => ({ nome: f.nome, doc: typeof f.doc === 'string' ? f.doc : '', ...(f.eletricista === true ? { eletricista: true } : {}) }))
           .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
       );
     },
@@ -178,6 +181,27 @@ export function ouvirAparelhos(api: FirebaseApi, cb: (l: EquipItem[]) => void): 
 export function gravarAparelhos(api: FirebaseApi, lista: EquipItem[]): Promise<void> {
   const { fsMod, fs } = api;
   return fsMod.setDoc(fsMod.doc(fs, DOC_APARELHOS), { lista: cleanAparelhos(lista) });
+}
+
+const listaTexto = (l: unknown) =>
+  [...new Set((Array.isArray(l) ? l : []).filter((x): x is string => typeof x === 'string').map((x) => x.replace(/\s+/g, ' ').trim().toUpperCase()).filter(Boolean))];
+
+/** Painéis e bombas da prensa cadastrados. */
+export function ouvirPrensa(api: FirebaseApi, cb: (p: EquipPrensa) => void): Unsub {
+  const { fsMod, fs } = api;
+  return fsMod.onSnapshot(
+    fsMod.doc(fs, DOC_PRENSA),
+    (snap) => {
+      const d = snap.data() ?? {};
+      cb({ paineis: listaTexto(d.paineis), bombas: listaTexto(d.bombas) });
+    },
+    () => cb(PRENSA_VAZIA),
+  );
+}
+
+export function gravarPrensa(api: FirebaseApi, p: EquipPrensa): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, DOC_PRENSA), { paineis: listaTexto(p.paineis), bombas: listaTexto(p.bombas) });
 }
 
 /** Liderança (membro ou administrador)? A regra só deixa a liderança ler a lista de membros. */

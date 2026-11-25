@@ -13,7 +13,18 @@ import { FOTO_CAMPOS, legendaSugerida, type Foto } from './model';
  * foto, a descrição embaixo pode ser editada. "+ Adicionar mais fotos" cria campos extras.
  * Cada campo é a posição (ordem) da foto; cada foto é comprimida e gravada à parte.
  */
-export function FotosSection({ emendaId, antesDeGravar, travado = false }: { emendaId: string; antesDeGravar?: () => void; travado?: boolean }) {
+export function FotosSection({
+  emendaId,
+  antesDeGravar,
+  travado = false,
+  unico,
+}: {
+  emendaId: string;
+  antesDeGravar?: () => void;
+  travado?: boolean;
+  /** campo de foto único, numa posição reservada (ex.: check list da prensa na seção 7) */
+  unico?: { ordem: number; legenda: string };
+}) {
   const { api } = useEmenda();
   const toast = useToast();
   const confirm = useConfirm();
@@ -22,14 +33,19 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [extras, setExtras] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const alvo = useRef(0);
+  // campo único: a posição é sempre a reservada (nunca cai no registro fotográfico)
+  const alvo = useRef(unico ? unico.ordem : 0);
 
   useEffect(() => ouvirFotos(api, emendaId, setFotos, () => setFotos([])), [api, emendaId]);
 
-  const porCampo = new Map(fotos.map((f) => [f.ordem, f]));
-  const maior = fotos.reduce((m, f) => Math.max(m, f.ordem), -1);
+  // o registro fotográfico usa as posições 0, 1, 2…; posições negativas são campos reservados
+  const minhas = unico ? fotos.filter((f) => f.ordem === unico.ordem) : fotos.filter((f) => f.ordem >= 0);
+  const porCampo = new Map(minhas.map((f) => [f.ordem, f]));
+  const maior = minhas.reduce((m, f) => Math.max(m, f.ordem), -1);
   const total = Math.max(FOTO_CAMPOS.length, maior + 1) + extras;
-  const campos = Array.from({ length: total }, (_, i) => i);
+  const campos = unico ? [unico.ordem] : Array.from({ length: total }, (_, i) => i);
+  const sugestao = (i: number) => (unico ? unico.legenda : legendaSugerida(i));
+  const num = (i: number) => (unico ? '' : `${i + 1}. `);
 
   const escolher = (i: number) => {
     alvo.current = i;
@@ -63,7 +79,7 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
       }
       antesDeGravar?.();
       // sem internet a foto fica no aparelho e é enviada depois
-      void gravarFoto(api, emendaId, { id: newId(), ordem, legenda: legendaSugerida(ordem), data, criadoEm: new Date().toISOString() }).catch(() =>
+      void gravarFoto(api, emendaId, { id: newId(), ordem, legenda: sugestao(ordem), data, criadoEm: new Date().toISOString() }).catch(() =>
         toast('A nuvem recusou a foto.', 'danger'),
       );
       toast('Foto adicionada');
@@ -81,7 +97,7 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
     setVer(null);
   };
 
-  if (travado && !fotos.length) return <p className="small muted">Nenhuma foto registrada.</p>;
+  if (travado && !minhas.length) return <p className="small muted">Nenhuma foto registrada.</p>;
   return (
     <>
       <div className="foto-grid">
@@ -92,11 +108,11 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
           return (
             <figure key={i} className={'foto' + (f ? ' com-foto' : '')}>
               {f ? (
-                <button className="foto-img" onClick={() => setVer(f)} aria-label={`Ampliar foto ${i + 1}: ${f.legenda}`}>
+                <button className="foto-img" onClick={() => setVer(f)} aria-label={`Ampliar foto ${num(i)}${f.legenda}`}>
                   <img src={f.data} alt={f.legenda} loading="lazy" />
                 </button>
               ) : (
-                <button className="foto-slot" onClick={() => escolher(i)} disabled={ocupado !== null} aria-label={`Adicionar foto ${i + 1}: ${legendaSugerida(i)}`}>
+                <button className="foto-slot" onClick={() => escolher(i)} disabled={ocupado !== null} aria-label={`Adicionar foto ${num(i)}${sugestao(i)}`}>
                   <span className="foto-add" aria-hidden>
                     {ocupado === i ? '⏳' : '📷'}
                   </span>
@@ -111,18 +127,20 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
               )}
               {f && travado ? (
                 <figcaption className="foto-desc">
-                  {i + 1}. {f.legenda}
+                  {num(i)}
+                  {f.legenda}
                 </figcaption>
               ) : f ? (
                 <LegendaEditavel
                   key={f.id + f.legenda}
-                  numero={i + 1}
+                  numero={unico ? undefined : i + 1}
                   valor={f.legenda}
                   onSalvar={(v) => void legendaFoto(api, emendaId, f.id, v).catch(() => toast('Não foi possível salvar a descrição.', 'danger'))}
                 />
               ) : (
                 <figcaption className="foto-desc">
-                  {i + 1}. {legendaSugerida(i)}
+                  {num(i)}
+                  {sugestao(i)}
                 </figcaption>
               )}
             </figure>
@@ -130,7 +148,7 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
         })}
       </div>
       <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void adicionar(e.target.files?.[0])} />
-      {!travado && (
+      {!travado && !unico && (
         <button className="btn" onClick={() => setExtras((n) => n + 1)}>
           + Adicionar mais fotos
         </button>
@@ -146,7 +164,7 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
                   Remover
                 </button>
               )}
-              <a className="btn" href={ver.data} download={`emenda-foto-${ver.ordem + 1}.jpg`}>
+              <a className="btn" href={ver.data} download={unico ? 'emenda-checklist-prensa.jpg' : `emenda-foto-${ver.ordem + 1}.jpg`}>
                 Baixar
               </a>
               <button className="btn primary" onClick={() => setVer(null)}>
@@ -163,7 +181,7 @@ export function FotosSection({ emendaId, antesDeGravar, travado = false }: { eme
 }
 
 /** Descrição embaixo da foto: editável (grava ao sair do campo ou com Enter). */
-function LegendaEditavel({ numero, valor, onSalvar }: { numero: number; valor: string; onSalvar: (v: string) => void }) {
+function LegendaEditavel({ numero, valor, onSalvar }: { numero?: number; valor: string; onSalvar: (v: string) => void }) {
   const [texto, setTexto] = useState(valor);
   const salvar = () => {
     const v = texto.replace(/\s+/g, ' ').trim().slice(0, 60);
@@ -172,7 +190,7 @@ function LegendaEditavel({ numero, valor, onSalvar }: { numero: number; valor: s
   };
   return (
     <label className="foto-legenda">
-      <span className="foto-num">{numero}.</span>
+      {numero !== undefined && <span className="foto-num">{numero}.</span>}
       <input
         className="input"
         value={texto}
@@ -180,7 +198,7 @@ function LegendaEditavel({ numero, valor, onSalvar }: { numero: number; valor: s
         onChange={(e) => setTexto(e.target.value)}
         onBlur={salvar}
         onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-        aria-label={`Descrição da foto ${numero}`}
+        aria-label={numero !== undefined ? `Descrição da foto ${numero}` : 'Descrição da foto'}
       />
     </label>
   );
