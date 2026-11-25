@@ -150,6 +150,7 @@ export function Relatorio({ id }: { id: string }) {
 
       <Bloco t="7. Prensa">
         <KV k="Série" v={e.seriePrensa} />
+        {e.prensaEquip && <KV k="Prensa" v={e.prensaEquip} />}
         <KV k="Testada antes?" v={e.prensaTestada} />
         <KV k="Painéis" v={e.paineis} />
         <KV k="Bombas" v={e.bombas} />

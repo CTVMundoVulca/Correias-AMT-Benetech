@@ -249,13 +249,16 @@ service cloud.firestore {
         && request.resource.data.lista.size() <= 200;
     }
 
-    // Equipamentos da prensa cadastrados (seção 7: painéis e bombas). Mesma regra das listas.
+    // Equipamentos da prensa cadastrados (seção 7): cadastro único em `itens` (prensas, painéis
+    // e bombas com fabricante, modelo, patrimônio e nº de série). `paineis`/`bombas` = formato
+    // anterior (só o nome), ainda aceito. Mesma regra das listas.
     match /emenda_config/prensa {
       allow read: if signedIn();
       allow write: if signedIn()
-        && request.resource.data.keys().hasOnly(['paineis', 'bombas'])
-        && request.resource.data.paineis is list && request.resource.data.paineis.size() <= 50
-        && request.resource.data.bombas is list && request.resource.data.bombas.size() <= 50;
+        && request.resource.data.keys().hasOnly(['itens', 'paineis', 'bombas'])
+        && request.resource.data.get('itens', []) is list && request.resource.data.get('itens', []).size() <= 150
+        && request.resource.data.get('paineis', []) is list && request.resource.data.get('paineis', []).size() <= 50
+        && request.resource.data.get('bombas', []) is list && request.resource.data.get('bombas', []).size() <= 50;
     }
 
     // ═══ PROGRAMAÇÃO DA VULCANIZAÇÃO ═══

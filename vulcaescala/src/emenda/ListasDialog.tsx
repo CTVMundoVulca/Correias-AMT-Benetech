@@ -71,6 +71,8 @@ export function ListasDialog({ onClose, inicial = 'materiaisEmenda' }: { onClose
           </button>
         ))}
       </div>
+      {aba !== 'equipamentos' && (
+      <>
       <form className="row nowrap" onSubmit={add}>
         <input className="input grow" value={novo} onChange={(e) => setNovo(e.target.value)} placeholder="Novo item" aria-label="Novo item" />
         <button className="btn primary" type="submit" disabled={!novo.trim()}>
@@ -111,6 +113,9 @@ export function ListasDialog({ onClose, inicial = 'materiaisEmenda' }: { onClose
           ),
         )}
       </ul>
+      </>
+      )}
+      {/* aparelhos de medição: um cadastro só (o tipo vem de cada aparelho cadastrado) */}
       {aba === 'equipamentos' && <AparelhosCadastro />}
     </Modal>
   );

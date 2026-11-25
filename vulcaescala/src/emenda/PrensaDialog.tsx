@@ -1,51 +1,60 @@
 import { useState, type FormEvent } from 'react';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
+import { useConfirm } from '../ui/ConfirmDialog';
 import { useEmenda } from './context';
 import { gravarPrensa } from './data';
-import type { EquipPrensa } from './model';
+import { FABRICANTES_PRENSA, normCodigo, TIPOS_PRENSA, type ItemPrensa, type TipoItemPrensa } from './model';
 
-const ABAS: { id: keyof EquipPrensa; label: string }[] = [
-  { id: 'paineis', label: 'Painéis' },
-  { id: 'bombas', label: 'Bombas' },
-];
+const VAZIO: ItemPrensa = { tipo: 'Prensa', fabricante: '', modelo: '', codigo: '', serie: '' };
 
-/** Cadastro dos equipamentos da prensa (seção 7): painéis e bombas. Relatórios já feitos não mudam. */
-export function PrensaDialog({ onClose, inicial = 'paineis' }: { onClose: () => void; inicial?: keyof EquipPrensa }) {
+/**
+ * Cadastro único dos equipamentos da prensa (seção 7): prensas, painéis e bombas, cada um com
+ * fabricante, modelo, patrimônio/identificação e nº de série. No relatório, escolher o item
+ * grava a descrição completa; escolher a prensa preenche a série (Nilos/Sampla).
+ */
+export function PrensaDialog({ onClose }: { onClose: () => void }) {
   const { api, prensa } = useEmenda();
   const toast = useToast();
-  const [aba, setAba] = useState<keyof EquipPrensa>(inicial);
-  const [novo, setNovo] = useState('');
+  const confirm = useConfirm();
+  // null = formulário fechado; '' = item novo; patrimônio = editando esse item
   const [editando, setEditando] = useState<string | null>(null);
-  const [texto, setTexto] = useState('');
-  const norm = (v: string) => v.replace(/\s+/g, ' ').replace(/,/g, ' ').trim().toUpperCase();
+  const [f, setF] = useState<ItemPrensa>(VAZIO);
+  const set = (p: Partial<ItemPrensa>) => setF((x) => ({ ...x, ...p }));
 
-  const salvar = (p: EquipPrensa, msg: string) =>
-    gravarPrensa(api, p)
-      .then(() => toast(msg))
-      .catch(() => toast('Não foi possível salvar o cadastro.', 'danger'));
-
-  const add = (e: FormEvent) => {
-    e.preventDefault();
-    const v = norm(novo);
-    if (!v) return;
-    if (prensa[aba].includes(v)) return toast('Já está cadastrado.', 'warn');
-    void salvar({ ...prensa, [aba]: [...prensa[aba], v] }, 'Cadastrado');
-    setNovo('');
+  const abrir = (it?: ItemPrensa, tipo: TipoItemPrensa = 'Prensa') => {
+    setEditando(it ? it.codigo : '');
+    setF(it ? { ...it } : { ...VAZIO, tipo });
   };
-  const renomear = (e: FormEvent) => {
+
+  const salvar = async (e: FormEvent) => {
     e.preventDefault();
-    const v = norm(texto);
-    if (!v || !editando) return;
-    if (v !== editando && prensa[aba].includes(v)) return toast('Já está cadastrado.', 'warn');
-    void salvar({ ...prensa, [aba]: prensa[aba].map((x) => (x === editando ? v : x)) }, 'Atualizado');
-    setEditando(null);
+    const codigo = normCodigo(f.codigo);
+    if (!codigo) return toast('Informe o patrimônio/identificação.', 'warn');
+    if (codigo !== editando && prensa.some((x) => x.codigo === codigo)) return toast(`O patrimônio ${codigo} já está cadastrado.`, 'warn');
+    const item: ItemPrensa = { ...f, codigo, fabricante: f.fabricante.trim().toUpperCase(), modelo: f.modelo.trim(), serie: f.serie.trim() };
+    const lista = editando ? prensa.map((x) => (x.codigo === editando ? item : x)) : [...prensa, item];
+    try {
+      await gravarPrensa(api, lista);
+      toast(editando ? 'Item atualizado' : 'Item cadastrado');
+      setEditando(null);
+    } catch {
+      toast('Não foi possível salvar o cadastro.', 'danger');
+    }
+  };
+
+  const remover = async (it: ItemPrensa) => {
+    const ok = await confirm({ title: `Remover ${it.codigo}?`, message: <p>O item sai do cadastro. Relatórios já feitos não mudam.</p>, confirmLabel: 'Remover', danger: true });
+    if (!ok) return;
+    gravarPrensa(api, prensa.filter((x) => x.codigo !== it.codigo))
+      .then(() => toast('Removido'))
+      .catch(() => toast('Não foi possível salvar o cadastro.', 'danger'));
   };
 
   return (
     <Modal
       title="Equipamentos da prensa"
-      subtitle="Painéis e bombas que aparecem para escolher na seção 7"
+      subtitle="Prensas, painéis e bombas — cadastre cada um uma vez"
       onClose={onClose}
       footer={
         <button className="btn primary" onClick={onClose}>
@@ -53,47 +62,89 @@ export function PrensaDialog({ onClose, inicial = 'paineis' }: { onClose: () => 
         </button>
       }
     >
-      <div className="segmented" role="tablist">
-        {ABAS.map((a) => (
-          <button key={a.id} role="tab" aria-selected={aba === a.id} className={'seg' + (aba === a.id ? ' on' : '')} onClick={() => (setAba(a.id), setEditando(null))}>
-            {a.label}
-          </button>
-        ))}
-      </div>
-      <form className="row nowrap" onSubmit={add}>
-        <input className="input grow" value={novo} onChange={(e) => setNovo(e.target.value)} placeholder={aba === 'paineis' ? 'Ex.: PAINEL SAMPLA 01' : 'Ex.: BOMBA SAMPLA 02'} aria-label="Novo equipamento" />
-        <button className="btn primary" type="submit" disabled={!novo.trim()}>
-          Adicionar
+      <p className="small muted">No relatório, escolha a prensa, os painéis e as bombas pelo patrimônio: os dados cadastrados vão junto.</p>
+      {editando === null ? (
+        <button className="btn small primary" onClick={() => abrir()}>
+          + Cadastrar equipamento
         </button>
-      </form>
-      <ul className="plain-list funcao-list">
-        {prensa[aba].map((v) =>
-          editando === v ? (
-            <li key={v}>
-              <form className="row nowrap grow" onSubmit={renomear}>
-                <input className="input grow" value={texto} autoFocus onChange={(e) => setTexto(e.target.value)} aria-label={`Editar ${v}`} />
-                <button className="btn small" type="button" onClick={() => setEditando(null)}>
-                  Cancelar
+      ) : (
+        <form className="item-card" onSubmit={(e) => void salvar(e)}>
+          <div className="field">
+            <span>Tipo</span>
+            <div className="opts" role="radiogroup" aria-label="Tipo">
+              {TIPOS_PRENSA.map((t) => (
+                <button key={t} type="button" role="radio" aria-checked={f.tipo === t} className={'opt' + (f.tipo === t ? ' on' : '')} onClick={() => set({ tipo: t })}>
+                  {t}
                 </button>
-                <button className="btn small primary" type="submit" disabled={!texto.trim()}>
-                  Salvar
-                </button>
-              </form>
-            </li>
-          ) : (
-            <li key={v}>
-              <span className="grow">{v}</span>
-              <button className="btn small" onClick={() => (setEditando(v), setTexto(v))} aria-label={`Editar ${v}`}>
-                Editar
-              </button>
-              <button className="btn small ghost-danger" onClick={() => void salvar({ ...prensa, [aba]: prensa[aba].filter((x) => x !== v) }, 'Removido')} aria-label={`Remover ${v}`}>
-                Remover
-              </button>
-            </li>
-          ),
-        )}
-      </ul>
-      {prensa[aba].length === 0 && <p className="small muted">Nada cadastrado ainda.</p>}
+              ))}
+            </div>
+          </div>
+          <div className="g2">
+            <label className="field">
+              Fabricante
+              <input className="input" list="fabricantes-prensa" value={f.fabricante} onChange={(e) => set({ fabricante: e.target.value })} style={{ textTransform: 'uppercase' }} />
+              <datalist id="fabricantes-prensa">
+                {FABRICANTES_PRENSA.map((o) => (
+                  <option key={o} value={o} />
+                ))}
+              </datalist>
+            </label>
+            <label className="field">
+              Modelo
+              <input className="input" value={f.modelo} onChange={(e) => set({ modelo: e.target.value })} />
+            </label>
+            <label className="field">
+              Patrimônio/Identificação
+              <input className="input" value={f.codigo} onChange={(e) => set({ codigo: e.target.value })} style={{ textTransform: 'uppercase' }} />
+            </label>
+            <label className="field">
+              Nº de série
+              <input className="input" value={f.serie} onChange={(e) => set({ serie: e.target.value })} />
+            </label>
+          </div>
+          <div className="row">
+            <button className="btn small" type="button" onClick={() => setEditando(null)}>
+              Cancelar
+            </button>
+            <button className="btn small primary" type="submit" disabled={!f.codigo.trim()}>
+              Salvar equipamento
+            </button>
+          </div>
+        </form>
+      )}
+      {TIPOS_PRENSA.map((t) => {
+        const doTipo = prensa.filter((x) => x.tipo === t);
+        if (!doTipo.length) return null;
+        return (
+          <section key={t}>
+            <h3 className="sub">{t === 'Prensa' ? 'Prensas' : t === 'Painel' ? 'Painéis' : 'Bombas'}</h3>
+            <ul className="plain-list funcao-list">
+              {doTipo.map((it) => (
+                <li key={it.codigo}>
+                  <span className="grow">
+                    <b>{it.codigo}</b>
+                    {it.fabricante && ` · ${it.fabricante}`}
+                    {it.modelo && ` · ${it.modelo}`}
+                    {it.serie && (
+                      <>
+                        <br />
+                        <span className="small muted">Nº série {it.serie}</span>
+                      </>
+                    )}
+                  </span>
+                  <button className="btn small" onClick={() => abrir(it)} aria-label={`Editar ${it.codigo}`}>
+                    Editar
+                  </button>
+                  <button className="btn small ghost-danger" onClick={() => void remover(it)} aria-label={`Remover ${it.codigo}`}>
+                    Remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+      {prensa.length === 0 && editando === null && <p className="small muted">Nenhum equipamento cadastrado ainda.</p>}
     </Modal>
   );
 }

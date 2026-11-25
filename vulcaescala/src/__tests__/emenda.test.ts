@@ -220,3 +220,62 @@ describe('seção 7 (prensa) e inspeção pós-vulcanização', () => {
     expect(p).not.toContain('Observações da inspeção pós-vulcanização');
   });
 });
+
+describe('aparelhos: um cadastro só', () => {
+  const ap = (equip: string, codigo: string, marca = '') => ({ equip, marca, codigo, certificado: 'C', dataCal: '2026-07-28', validadeCal: '2027-07-28' });
+  const PADRAO = ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO', 'DURÔMETRO'];
+
+  it('mesmo tipo mesmo com acento gravado de outra forma, espaços ou minúsculas', async () => {
+    const { mesmoTipo, aparelhosDoTipo } = await import('../emenda/model');
+    const nfd = 'TERMÔMETRO INFRAVERMELHO'.normalize('NFD');
+    expect(nfd).not.toBe('TERMÔMETRO INFRAVERMELHO'); // visualmente igual, bytes diferentes
+    expect(mesmoTipo(nfd, 'termômetro  infravermelho ')).toBe(true);
+    expect(aparelhosDoTipo([ap(nfd, 'PAT-2450')], 'TERMÔMETRO INFRAVERMELHO')).toHaveLength(1);
+  });
+
+  it('tipos = lista padrão + tipos novos do cadastro (sem repetir)', async () => {
+    const { tiposDeAparelho } = await import('../emenda/model');
+    expect(tiposDeAparelho([ap('TERMÔMETRO INFRAVERMELHO', 'PAT-2450'), ap('PAQUÍMETRO', 'PAT-9')], PADRAO)).toEqual([...PADRAO, 'PAQUÍMETRO']);
+  });
+
+  it('relatório novo: tipo com um único aparelho já vem preenchido; com dois, só o tipo', async () => {
+    const { linhasIniciais } = await import('../emenda/model');
+    const l = linhasIniciais([ap('TERMÔMETRO INFRAVERMELHO', 'PAT-2450', 'Nol'), ap('DURÔMETRO', 'D1'), ap('DURÔMETRO', 'D2')], PADRAO);
+    expect(l.map((x) => [x.equip, x.codigo, x.marca])).toEqual([
+      ['TERMÔMETRO INFRAVERMELHO', 'PAT-2450', 'Nol'],
+      ['TERMO-HIGRÔMETRO', '', ''],
+      ['DURÔMETRO', '', ''],
+    ]);
+  });
+});
+
+describe('prensa: cadastro único (prensas, painéis e bombas)', () => {
+  it('painéis/bombas cadastrados antes só com o nome entram no cadastro novo (nada se perde)', async () => {
+    const { cleanItensPrensa } = await import('../emenda/model');
+    const l = cleanItensPrensa({
+      itens: [{ tipo: 'Prensa', fabricante: 'sampla', modelo: 'M1', codigo: 'pr-01', serie: 'NS, 1' }],
+      paineis: ['PAINEL SAMPLA 01'],
+      bombas: ['BOMBA SAMPLA 01', 'PR-01'],
+    });
+    expect(l.map((x) => [x.tipo, x.codigo, x.fabricante, x.serie])).toEqual([
+      ['Prensa', 'PR-01', 'SAMPLA', 'NS 1'], // vírgula sai (separa itens no relatório)
+      ['Painel', 'PAINEL SAMPLA 01', '', ''],
+      ['Bomba', 'BOMBA SAMPLA 01', '', ''],
+    ]);
+  });
+
+  it('descrição gravada no relatório e patrimônio de volta; série pelo fabricante', async () => {
+    const { descricaoItemPrensa, codigoDaEntrada, seriePeloFabricante } = await import('../emenda/model');
+    const d = descricaoItemPrensa({ tipo: 'Painel', fabricante: 'SAMPLA', modelo: 'MOD X', codigo: 'P-01', serie: '123' });
+    expect(d).toBe('P-01 · SAMPLA · MOD X · Nº série 123');
+    expect(codigoDaEntrada(d)).toBe('P-01');
+    expect(codigoDaEntrada('Sampla')).toBe('SAMPLA'); // texto antigo digitado
+    expect(seriePeloFabricante('nilos')).toBe('Nilos');
+    expect(seriePeloFabricante('SAMPLA')).toBe('Sampla');
+    expect(seriePeloFabricante('OUTRA')).toBeNull();
+  });
+
+  it('relatório antigo abre com a prensa utilizada vazia', () => {
+    expect(completarEmenda({ id: 'x' }).prensaEquip).toBe('');
+  });
+});
