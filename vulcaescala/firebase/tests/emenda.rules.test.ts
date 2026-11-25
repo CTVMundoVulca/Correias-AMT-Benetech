@@ -67,6 +67,13 @@ describe('Registro de Emenda: qualquer pessoa com o link (sessão anônima)', ()
     await assertSucceeds(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], equipamentos: ['TERMÔMETRO INFRAVERMELHO', 'TERMO-HIGRÔMETRO'] }));
     await assertFails(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], equipamentos: Array.from({ length: 31 }, (_, i) => 'E' + i) }));
     await assertFails(anon().doc('emenda_config/listas').set({ materiaisEmenda: ['A'], materiaisManta: ['B'], fabricantes: ['C'], outra: [] }));
+    // aparelhos cadastrados por patrimônio: documento à parte, só a lista
+    const ap = { equip: 'TERMO-HIGRÔMETRO', marca: 'MARCA TESTE', codigo: 'PAT-0001', certificado: 'C-1', dataCal: '2026-10-21', validadeCal: '2027-10-21' };
+    await assertSucceeds(anon().doc('emenda_config/aparelhos').set({ lista: [ap] }));
+    await assertSucceeds(anon().doc('emenda_config/aparelhos').get());
+    await assertFails(anon().doc('emenda_config/aparelhos').set({ lista: [ap], outra: 1 }));
+    await assertFails(anon().doc('emenda_config/aparelhos').set({ lista: Array.from({ length: 201 }, (_, i) => ({ ...ap, codigo: 'P' + i })) }));
+    await assertFails(semLogin().doc('emenda_config/aparelhos').get());
   });
 
   it('anônimo NÃO vê a escala (atestados), não altera o efetivo, não exclui emenda de outros', async () => {

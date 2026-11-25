@@ -239,6 +239,16 @@ service cloud.firestore {
         && request.resource.data.get('equipamentos', []).size() <= 30;
     }
 
+    // Aparelhos de medição cadastrados por patrimônio (marca, certificado, calibração):
+    // escolher o patrimônio no relatório preenche o resto. Mesma regra das listas acima.
+    match /emenda_config/aparelhos {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.resource.data.keys().hasOnly(['lista'])
+        && request.resource.data.lista is list
+        && request.resource.data.lista.size() <= 200;
+    }
+
     // ═══ PROGRAMAÇÃO DA VULCANIZAÇÃO ═══
     // PAINEL (todos com o link, sessão anônima): vê programação, paradas confirmadas, fila de
     // solicitações e relatórios; pede serviço e informa paradas.

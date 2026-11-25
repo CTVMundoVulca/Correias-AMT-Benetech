@@ -155,3 +155,33 @@ describe('corte do controle de conclusão (02/11/2026)', () => {
     expect(foraDoControle({ data: '2026-10-20', concluidoEm: '2026-11-16T10:00:00Z' })).toBe(false);
   });
 });
+
+describe('cadastro de aparelhos de medição (por patrimônio)', () => {
+  it('limpa o que vem da nuvem: sem patrimônio sai, repetido vale o primeiro, patrimônio padronizado', async () => {
+    const { cleanAparelhos } = await import('../emenda/model');
+    const l = cleanAparelhos([
+      { equip: 'TERMO-HIGRÔMETRO', marca: 'Marca A', codigo: ' pat-2448 ', certificado: 'S-1', dataCal: '2026-10-21', validadeCal: '2027-10-21' },
+      { equip: 'DURÔMETRO', codigo: '' },
+      { equip: 'DURÔMETRO', codigo: 'PAT-2448', marca: 'repetido' },
+      'lixo',
+      { equip: 'DURÔMETRO', codigo: 'PAT-0007', marca: 7 },
+    ]);
+    expect(l.map((a) => [a.equip, a.codigo, a.marca])).toEqual([
+      ['DURÔMETRO', 'PAT-0007', ''],
+      ['TERMO-HIGRÔMETRO', 'PAT-2448', 'Marca A'],
+    ]);
+    expect(cleanAparelhos(undefined)).toEqual([]);
+  });
+
+  it('acha pelo patrimônio (sem diferenciar maiúsculas/espaços) e sugere validade de 1 ano', async () => {
+    const { aparelhoPorCodigo, cleanAparelhos, validadeSugerida, calibracaoVencida } = await import('../emenda/model');
+    const l = cleanAparelhos([{ equip: 'TERMO-HIGRÔMETRO', marca: 'Marca A', codigo: 'PAT-2448', certificado: 'S-1', dataCal: '2026-10-21', validadeCal: '2027-10-21' }]);
+    expect(aparelhoPorCodigo(l, ' pat-2448')?.certificado).toBe('S-1');
+    expect(aparelhoPorCodigo(l, 'PAT-9999')).toBeUndefined();
+    expect(validadeSugerida('2026-10-21')).toBe('2027-10-21');
+    expect(validadeSugerida('')).toBe('');
+    expect(calibracaoVencida(l[0], '2027-10-21')).toBe(false);
+    expect(calibracaoVencida(l[0], '2027-10-22')).toBe(true);
+    expect(calibracaoVencida({ validadeCal: '' }, '2027-10-22')).toBe(false);
+  });
+});

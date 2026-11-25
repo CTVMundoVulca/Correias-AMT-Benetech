@@ -4,9 +4,12 @@ import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
 import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
 import { newId } from '../domain/ids';
-import { emendaComBase, hojeIso } from './model';
+import { emendaComBase, fmtData, hojeIso } from './model';
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
+  aparelhoPorCodigo,
+  calibracaoVencida,
+  validadeSugerida,
   concluido,
   foraDoControle,
   pendenciasConclusao,
@@ -681,10 +684,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
               Marca / modelo
               <input className={inp(q.marca)} value={q.marca} onChange={(ev) => upd(i, { marca: ev.target.value })} />
             </label>
-            <label className="field">
-              Patrimônio/Identificação
-              <input className={inp(q.codigo)} value={q.codigo} onChange={(ev) => upd(i, { codigo: ev.target.value })} />
-            </label>
+            <CampoPatrimonio q={q} upd={(p) => upd(i, p)} />
             <label className="field">
               Certificado
               <input className={inp(q.certificado)} value={q.certificado} onChange={(ev) => upd(i, { certificado: ev.target.value })} />
@@ -698,8 +698,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
                 onChange={(ev) => {
                   const v = ev.target.value;
                   // validade sugerida: 1 ano após a calibração (como no app do Suzano)
-                  const val = /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${Number(v.slice(0, 4)) + 1}${v.slice(4)}` : q.validadeCal;
-                  upd(i, { dataCal: v, validadeCal: val });
+                  upd(i, { dataCal: v, validadeCal: validadeSugerida(v) || q.validadeCal });
                 }}
               />
             </label>
@@ -708,6 +707,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
               <input className={inp(q.validadeCal)} type="date" value={q.validadeCal} onChange={(ev) => upd(i, { validadeCal: ev.target.value })} />
             </label>
           </div>
+          {calibracaoVencida(q, e.data) && <p className="text-danger small">Calibração vencida em {fmtData(q.validadeCal)} (antes da data da emenda).</p>}
           <button className="btn small ghost-danger" onClick={() => set({ equipamentos: e.equipamentos.filter((_, j) => j !== i) })}>
             Remover equipamento
           </button>
@@ -724,6 +724,56 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
       </button>
       {gerenciar && <ListasDialog inicial="equipamentos" onClose={() => setGerenciar(false)} />}
     </>
+  );
+}
+
+const OUTRO = '__outro';
+
+/**
+ * Patrimônio da seção 4: com aparelhos cadastrados, escolhe-se o patrimônio na lista (do tipo
+ * escolhido) e marca, certificado e calibração vêm do cadastro; "Outro" volta a digitar.
+ * Relatórios antigos com patrimônio digitado continuam como estão.
+ */
+function CampoPatrimonio({ q, upd }: { q: EquipItem; upd: (p: Partial<EquipItem>) => void }) {
+  const { aparelhos } = useEmenda();
+  const atual = q.codigo ? aparelhoPorCodigo(aparelhos, q.codigo) : undefined;
+  const [manual, setManual] = useState(() => !!q.codigo && !atual);
+  if (!aparelhos.length || manual)
+    return (
+      <label className="field">
+        Patrimônio/Identificação
+        <input className={inp(q.codigo)} value={q.codigo} onChange={(ev) => upd({ codigo: ev.target.value })} />
+        {aparelhos.length > 0 && (
+          <button type="button" className="link small" onClick={() => setManual(false)}>
+            Escolher do cadastro
+          </button>
+        )}
+      </label>
+    );
+  const opcoes = aparelhos.filter((a) => !q.equip || a.equip === q.equip);
+  if (atual && !opcoes.includes(atual)) opcoes.unshift(atual);
+  return (
+    <label className="field">
+      Patrimônio/Identificação
+      <select
+        className={inp(q.codigo)}
+        value={atual?.codigo ?? ''}
+        onChange={(ev) => {
+          if (ev.target.value === OUTRO) return setManual(true);
+          const a = aparelhoPorCodigo(aparelhos, ev.target.value);
+          upd(a ? { ...a } : { codigo: '' });
+        }}
+      >
+        <option value="">Selecione</option>
+        {opcoes.map((a) => (
+          <option key={a.codigo} value={a.codigo}>
+            {a.codigo}
+            {a.marca ? ` · ${a.marca}` : ''}
+          </option>
+        ))}
+        <option value={OUTRO}>Outro (digitar)…</option>
+      </select>
+    </label>
   );
 }
 

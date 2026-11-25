@@ -1,6 +1,6 @@
 import type { FirebaseApi } from '../cloud/firebase';
 import { DOC_ADMIN } from '../cloud/sync';
-import { completarEmenda, intervaloMes, LISTAS_PADRAO, type Emenda, type Foto, type Funcionario, type Listas } from './model';
+import { cleanAparelhos, completarEmenda, intervaloMes, LISTAS_PADRAO, type Emenda, type EquipItem, type Foto, type Funcionario, type Listas } from './model';
 
 /**
  * Firestore do Registro de Emenda (projeto Firebase do AMT):
@@ -8,6 +8,7 @@ import { completarEmenda, intervaloMes, LISTAS_PADRAO, type Emenda, type Foto, t
  *   emendas/{id}/fotos/{fotoId}  uma foto comprimida por documento
  *   emenda_config/listas         materiais e fabricantes ("Gerenciar")
  *   emenda_config/efetivo        colaboradores da emenda: nome + matrícula/CPF ("Gerenciar efetivo")
+ *   emenda_config/aparelhos      aparelhos de medição cadastrados por patrimônio ("Gerenciar aparelhos")
  * O efetivo da emenda é uma lista PRÓPRIA, separada do cadastro da escala.
  *
  * Sem internet o próprio Firestore guarda as gravações no aparelho e envia
@@ -17,6 +18,8 @@ export const COL_EMENDAS = 'emendas';
 export const DOC_LISTAS = 'emenda_config/listas';
 /** Lista de colaboradores do Registro de Emenda (nome + matrícula/CPF), separada do efetivo da escala */
 export const DOC_FUNCIONARIOS = 'emenda_config/efetivo';
+/** Aparelhos de medição cadastrados (tipo, marca, patrimônio, certificado, calibração) */
+export const DOC_APARELHOS = 'emenda_config/aparelhos';
 
 export interface Pendencia {
   /** há gravações deste aparelho ainda não confirmadas pela nuvem */
@@ -160,6 +163,21 @@ export function ouvirFuncionarios(api: FirebaseApi, cb: (l: Funcionario[]) => vo
 export function gravarFuncionarios(api: FirebaseApi, lista: Funcionario[]): Promise<void> {
   const { fsMod, fs } = api;
   return fsMod.setDoc(fsMod.doc(fs, DOC_FUNCIONARIOS), { lista });
+}
+
+/** Aparelhos de medição cadastrados, por tipo e patrimônio. */
+export function ouvirAparelhos(api: FirebaseApi, cb: (l: EquipItem[]) => void): Unsub {
+  const { fsMod, fs } = api;
+  return fsMod.onSnapshot(
+    fsMod.doc(fs, DOC_APARELHOS),
+    (snap) => cb(cleanAparelhos(snap.data()?.lista)),
+    () => cb([]),
+  );
+}
+
+export function gravarAparelhos(api: FirebaseApi, lista: EquipItem[]): Promise<void> {
+  const { fsMod, fs } = api;
+  return fsMod.setDoc(fsMod.doc(fs, DOC_APARELHOS), { lista: cleanAparelhos(lista) });
 }
 
 /** Liderança (membro ou administrador)? A regra só deixa a liderança ler a lista de membros. */
