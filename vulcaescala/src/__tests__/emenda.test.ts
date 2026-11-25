@@ -238,14 +238,24 @@ describe('aparelhos: um cadastro só', () => {
     expect(tiposDeAparelho([ap('TERMÔMETRO INFRAVERMELHO', 'PAT-2450'), ap('PAQUÍMETRO', 'PAT-9')], PADRAO)).toEqual([...PADRAO, 'PAQUÍMETRO']);
   });
 
-  it('relatório novo: tipo com um único aparelho já vem preenchido; com dois, só o tipo', async () => {
+  it('relatório novo: só tipos com aparelho completo; um aparelho = linha preenchida, dois = só o tipo', async () => {
     const { linhasIniciais } = await import('../emenda/model');
-    const l = linhasIniciais([ap('TERMÔMETRO INFRAVERMELHO', 'PAT-2450', 'Nol'), ap('DURÔMETRO', 'D1'), ap('DURÔMETRO', 'D2')], PADRAO);
+    const semCal = { ...ap('TERMO-HIGRÔMETRO', 'TH-1'), dataCal: '', validadeCal: '' };
+    const l = linhasIniciais([ap('TERMÔMETRO INFRAVERMELHO', 'PAT-2450', 'Nol'), ap('DURÔMETRO', 'D1'), ap('DURÔMETRO'.normalize('NFD'), 'D2'), semCal]);
     expect(l.map((x) => [x.equip, x.codigo, x.marca])).toEqual([
       ['TERMÔMETRO INFRAVERMELHO', 'PAT-2450', 'Nol'],
-      ['TERMO-HIGRÔMETRO', '', ''],
       ['DURÔMETRO', '', ''],
     ]);
+    expect(linhasIniciais([])).toEqual([]); // sem cadastro: nenhuma linha "só com o nome"
+  });
+
+  it('lista do relatório: só aparelhos com patrimônio, data e validade da calibração', async () => {
+    const { aparelhoCompleto, aparelhosPorTipo } = await import('../emenda/model');
+    expect(aparelhoCompleto(ap('DURÔMETRO', 'D1'))).toBe(true);
+    expect(aparelhoCompleto({ ...ap('DURÔMETRO', 'D1'), validadeCal: '' })).toBe(false);
+    expect(aparelhoCompleto({ ...ap('DURÔMETRO', 'D1'), dataCal: '' })).toBe(false);
+    const g = aparelhosPorTipo([ap('DURÔMETRO', 'D1'), { ...ap('PAQUÍMETRO', 'P9'), dataCal: '' }, ap('DURÔMETRO', 'D2')]);
+    expect(g.map(([t, l]) => [t, l.map((a) => a.codigo)])).toEqual([['DURÔMETRO', ['D1', 'D2']]]);
   });
 });
 
@@ -266,8 +276,9 @@ describe('prensa: cadastro único (prensas, painéis e bombas)', () => {
 
   it('descrição gravada no relatório e patrimônio de volta; série pelo fabricante', async () => {
     const { descricaoItemPrensa, codigoDaEntrada, seriePeloFabricante } = await import('../emenda/model');
-    const d = descricaoItemPrensa({ tipo: 'Painel', fabricante: 'SAMPLA', modelo: 'MOD X', codigo: 'P-01', serie: '123' });
-    expect(d).toBe('P-01 · SAMPLA · MOD X · Nº série 123');
+    const d = descricaoItemPrensa({ fabricante: 'SAMPLA', codigo: 'P-01' });
+    expect(d).toBe('P-01 · SAMPLA'); // modelo e nº de série saíram do relatório
+    expect(codigoDaEntrada('P-01 · SAMPLA · MOD X · Nº série 123')).toBe('P-01'); // relatório gravado antes continua reconhecido
     expect(codigoDaEntrada(d)).toBe('P-01');
     expect(codigoDaEntrada('Sampla')).toBe('SAMPLA'); // texto antigo digitado
     expect(seriePeloFabricante('nilos')).toBe('Nilos');

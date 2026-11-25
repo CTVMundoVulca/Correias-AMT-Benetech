@@ -3,7 +3,7 @@ import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useEmenda } from './context';
 import { gravarAparelhos } from './data';
-import { calibracaoVencida, fmtData, hojeIso, mesmoTipo, normCodigo, tiposDeAparelho, validadeSugerida, type EquipItem } from './model';
+import { aparelhoCompleto, calibracaoVencida, fmtData, hojeIso, mesmoTipo, normCodigo, tiposDeAparelho, validadeSugerida, type EquipItem } from './model';
 
 const VAZIO: EquipItem = { equip: '', marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' };
 
@@ -37,7 +37,8 @@ export function AparelhosCadastro() {
     if (!equip) return toast('Informe o equipamento (ex.: TERMÔMETRO INFRAVERMELHO).', 'warn');
     if (!codigo) return toast('Informe o patrimônio/identificação.', 'warn');
     if (codigo !== editando && aparelhos.some((a) => a.codigo === codigo)) return toast(`O patrimônio ${codigo} já está cadastrado.`, 'warn');
-    if (f.dataCal && f.validadeCal && f.validadeCal < f.dataCal) return toast('A validade não pode ser antes da calibração.', 'warn');
+    if (!f.dataCal || !f.validadeCal) return toast('Informe a data e a validade da calibração.', 'warn');
+    if (f.validadeCal < f.dataCal) return toast('A validade não pode ser antes da calibração.', 'warn');
     const item = { ...f, equip, codigo, marca: f.marca.trim(), certificado: f.certificado.trim() };
     const lista = editando ? aparelhos.map((a) => (a.codigo === editando ? item : a)) : [...aparelhos, item];
     try {
@@ -62,7 +63,7 @@ export function AparelhosCadastro() {
       <h3 className="sub">Aparelhos de medição cadastrados</h3>
       <p className="small muted">
         Cadastre cada aparelho uma vez. No relatório, ao escolher o aparelho (no campo Equipamento ou Patrimônio), marca, certificado e datas da
-        calibração são preenchidos sozinhos.
+        calibração são preenchidos sozinhos. Só aparecem no relatório os aparelhos com data e validade da calibração.
       </p>
       {editando === null ? (
         <button className="btn small primary" onClick={() => abrir()}>
@@ -128,6 +129,7 @@ export function AparelhosCadastro() {
               <span className="small muted tabnum">
                 {a.certificado ? `Cert. ${a.certificado} · ` : ''}cal. {fmtData(a.dataCal) || '—'} · val. {fmtData(a.validadeCal) || '—'}
                 {calibracaoVencida(a, hoje) && <b className="text-danger"> · calibração vencida</b>}
+                {!aparelhoCompleto(a) && <b className="text-danger"> · incompleto: não aparece no relatório (edite e informe a calibração)</b>}
               </span>
             </span>
             <button className="btn small" onClick={() => abrir(a)} aria-label={`Editar ${a.codigo}`}>

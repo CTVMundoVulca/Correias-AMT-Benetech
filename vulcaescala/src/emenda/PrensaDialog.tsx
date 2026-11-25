@@ -10,8 +10,9 @@ const VAZIO: ItemPrensa = { tipo: 'Prensa', fabricante: '', modelo: '', codigo: 
 
 /**
  * Cadastro único dos equipamentos da prensa (seção 7): prensas, painéis e bombas, cada um com
- * fabricante, modelo, patrimônio/identificação e nº de série. No relatório, escolher o item
- * grava a descrição completa; escolher a prensa preenche a série (Nilos/Sampla).
+ * fabricante e patrimônio/identificação. No relatório, escolher o item grava a descrição;
+ * escolher a prensa preenche a série (Nilos/Sampla). Modelo e nº de série saíram da tela, mas o
+ * que já estava gravado neles é mantido no cadastro ao editar.
  */
 export function PrensaDialog({ onClose }: { onClose: () => void }) {
   const { api, prensa } = useEmenda();
@@ -32,7 +33,7 @@ export function PrensaDialog({ onClose }: { onClose: () => void }) {
     const codigo = normCodigo(f.codigo);
     if (!codigo) return toast('Informe o patrimônio/identificação.', 'warn');
     if (codigo !== editando && prensa.some((x) => x.codigo === codigo)) return toast(`O patrimônio ${codigo} já está cadastrado.`, 'warn');
-    const item: ItemPrensa = { ...f, codigo, fabricante: f.fabricante.trim().toUpperCase(), modelo: f.modelo.trim(), serie: f.serie.trim() };
+    const item: ItemPrensa = { ...f, codigo, fabricante: f.fabricante.trim().toUpperCase() };
     const lista = editando ? prensa.map((x) => (x.codigo === editando ? item : x)) : [...prensa, item];
     try {
       await gravarPrensa(api, lista);
@@ -90,16 +91,8 @@ export function PrensaDialog({ onClose }: { onClose: () => void }) {
               </datalist>
             </label>
             <label className="field">
-              Modelo
-              <input className="input" value={f.modelo} onChange={(e) => set({ modelo: e.target.value })} />
-            </label>
-            <label className="field">
               Patrimônio/Identificação
               <input className="input" value={f.codigo} onChange={(e) => set({ codigo: e.target.value })} style={{ textTransform: 'uppercase' }} />
-            </label>
-            <label className="field">
-              Nº de série
-              <input className="input" value={f.serie} onChange={(e) => set({ serie: e.target.value })} />
             </label>
           </div>
           <div className="row">
@@ -124,13 +117,6 @@ export function PrensaDialog({ onClose }: { onClose: () => void }) {
                   <span className="grow">
                     <b>{it.codigo}</b>
                     {it.fabricante && ` · ${it.fabricante}`}
-                    {it.modelo && ` · ${it.modelo}`}
-                    {it.serie && (
-                      <>
-                        <br />
-                        <span className="small muted">Nº série {it.serie}</span>
-                      </>
-                    )}
                   </span>
                   <button className="btn small" onClick={() => abrir(it)} aria-label={`Editar ${it.codigo}`}>
                     Editar
