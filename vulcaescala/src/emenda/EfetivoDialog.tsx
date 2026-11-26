@@ -18,9 +18,11 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
   const [nome, setNome] = useState('');
   const [doc, setDoc] = useState('');
   const [eletricista, setEletricista] = useState(false);
+  const [libera, setLibera] = useState(false);
   const [busca, setBusca] = useState('');
-  const [soEletricistas, setSoEletricistas] = useState(false);
-  const comFlag = (f: { nome: string; doc: string }, el: boolean) => (el ? { ...f, eletricista: true } : f);
+  // filtro da lista: todos, só técnicos em elétrica ou só supervisores/encarregados
+  const [filtro, setFiltro] = useState<'' | 'eletricista' | 'liberaPrensa'>('');
+  const comFlag = (f: { nome: string; doc: string }, el: boolean, lib: boolean) => ({ ...f, ...(el ? { eletricista: true } : {}), ...(lib ? { liberaPrensa: true } : {}) });
 
   const add = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -30,10 +32,11 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
     if (!d) return toast('Informe a matrícula/CPF', 'warn');
     if (efetivo.some((f) => f.nome === n)) return toast('Colaborador já existe', 'warn');
     try {
-      await gravarFuncionarios(api, [...efetivo, comFlag({ nome: n, doc: d }, eletricista)].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
+      await gravarFuncionarios(api, [...efetivo, comFlag({ nome: n, doc: d }, eletricista, libera)].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')));
       setNome('');
       setDoc('');
       setEletricista(false);
+      setLibera(false);
       toast('Colaborador adicionado');
     } catch {
       toast('Não foi possível salvar a lista.', 'danger');
@@ -53,11 +56,13 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
   const [eNome, setENome] = useState('');
   const [eDoc, setEDoc] = useState('');
   const [eEletricista, setEEletricista] = useState(false);
-  const abrirEdicao = (f: { nome: string; doc: string; eletricista?: boolean }) => {
+  const [eLibera, setELibera] = useState(false);
+  const abrirEdicao = (f: { nome: string; doc: string; eletricista?: boolean; liberaPrensa?: boolean }) => {
     setEditando(f.nome);
     setENome(f.nome);
     setEDoc(f.doc);
     setEEletricista(!!f.eletricista);
+    setELibera(!!f.liberaPrensa);
   };
   const salvarEdicao = async (ev: FormEvent) => {
     ev.preventDefault();
@@ -67,7 +72,7 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
     if (!d) return toast('Informe a matrícula/CPF', 'warn');
     if (n !== editando && efetivo.some((f) => f.nome === n)) return toast('Já existe um colaborador com esse nome', 'warn');
     try {
-      const lista = efetivo.map((f) => (f.nome === editando ? comFlag({ nome: n, doc: d }, eEletricista) : f)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+      const lista = efetivo.map((f) => (f.nome === editando ? comFlag({ nome: n, doc: d }, eEletricista, eLibera) : f)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
       await gravarFuncionarios(api, lista);
       setEditando(null);
       toast('Colaborador atualizado');
@@ -77,8 +82,9 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
   };
 
   const q = normNome(busca);
-  const vis = efetivo.filter((f) => (!q || f.nome.includes(q)) && (!soEletricistas || f.eletricista));
+  const vis = efetivo.filter((f) => (!q || f.nome.includes(q)) && (!filtro || f[filtro]));
   const nEletricistas = efetivo.filter((f) => f.eletricista).length;
+  const nLibera = efetivo.filter((f) => f.liberaPrensa).length;
 
   return (
     <Modal
@@ -102,10 +108,18 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
         <label className="check small">
           <input type="checkbox" checked={eletricista} onChange={(e) => setEletricista(e.target.checked)} /> Técnico em elétrica (assina o teste da prensa)
         </label>
+        <label className="check small">
+          <input type="checkbox" checked={libera} onChange={(e) => setLibera(e.target.checked)} /> Supervisor/encarregado (libera a vistoria da prensa)
+        </label>
       </form>
       {nEletricistas > 0 && (
         <label className="check small">
-          <input type="checkbox" checked={soEletricistas} onChange={(e) => setSoEletricistas(e.target.checked)} /> Mostrar só técnicos em elétrica ({nEletricistas})
+          <input type="checkbox" checked={filtro === 'eletricista'} onChange={(e) => setFiltro(e.target.checked ? 'eletricista' : '')} /> Mostrar só técnicos em elétrica ({nEletricistas})
+        </label>
+      )}
+      {nLibera > 0 && (
+        <label className="check small">
+          <input type="checkbox" checked={filtro === 'liberaPrensa'} onChange={(e) => setFiltro(e.target.checked ? 'liberaPrensa' : '')} /> Mostrar só supervisores/encarregados ({nLibera})
         </label>
       )}
       {efetivo.length > 8 && (
@@ -128,6 +142,9 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
                 <label className="check small">
                   <input type="checkbox" checked={eEletricista} onChange={(e) => setEEletricista(e.target.checked)} /> Técnico em elétrica
                 </label>
+                <label className="check small">
+                  <input type="checkbox" checked={eLibera} onChange={(e) => setELibera(e.target.checked)} /> Supervisor/encarregado (libera a prensa)
+                </label>
                 <div className="row nowrap">
                   <button className="btn small" type="button" onClick={() => setEditando(null)}>
                     Cancelar
@@ -143,6 +160,7 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
               <span className="grow">
                 {f.nome}
                 {f.eletricista && <span className="tag-eletricista"> ⚡ Técnico em elétrica</span>}
+                {f.liberaPrensa && <span className="tag-libera"> ✔ Supervisor/encarregado</span>}
                 <br />
                 <span className="small muted tabnum">{mascararDoc(f.doc)}</span>
               </span>
