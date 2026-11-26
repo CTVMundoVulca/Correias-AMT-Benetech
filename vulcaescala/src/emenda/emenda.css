@@ -193,3 +193,35 @@
 .prensa-linha { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 .prensa-linha select { flex: 1 1 0; width: auto; min-width: 0; }
 .prensa-linha .btn { flex: 0 0 auto; padding: 4px 10px; }
+
+/* ---------- vistoria da prensa (FOR GTO 062) ---------- */
+.vistoria-resumo { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.vistoria.emenda-trava { display: flex; flex-direction: column; gap: 10px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.vistoria-grupo { display: flex; flex-direction: column; gap: 8px; }
+.vistoria-item { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.vistoria-nome { font-size: 0.9rem; color: var(--ink); }
+.vistoria-item .opts { display: grid; grid-template-columns: repeat(3, 1fr); }
+.opt.on.nc { background: var(--red-bg); border-color: var(--red-ink); color: var(--red-ink); }
+
+/* página do relatório/PDF: começa sempre numa página nova */
+.rel-vistoria { break-before: page; page-break-before: always; padding-top: 4px; }
+.vist-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; border: 1.5px solid #001a33; padding: 6px 8px; }
+.vist-head img { height: 30px; }
+.vist-head h1 { font-size: 1rem; text-transform: uppercase; color: #001a33; text-align: center; }
+.vist-cod { display: flex; flex-direction: column; align-items: center; font-size: 0.72rem; border-left: 1px solid #001a33; padding-left: 8px; }
+.vist-cod b { font-size: 0.85rem; }
+.vist-ref { font-size: 0.72rem; color: #4a5563; margin: 4px 0; }
+.vist-linha { display: flex; justify-content: space-between; gap: 10px; font-size: 0.8rem; border: 1px solid #d5dae1; padding: 5px 8px; margin-bottom: 6px; }
+.vist-tab { width: 100%; border-collapse: collapse; font-size: 12px; }
+.vist-tab th, .vist-tab td { border: 1px solid #d5dae1; padding: 3px 6px; text-align: left; }
+.vist-tab th { background: #f0f2f5; font-size: 11px; }
+.vist-tab .vist-r { width: 38px; text-align: center; font-weight: 700; }
+.vist-grupo td { background: #dfe3e8; font-weight: 700; text-transform: uppercase; font-size: 11px; }
+.vist-nc td { color: #b42318; }
+.vist-anot { font-size: 12px; border: 1px solid #d5dae1; border-radius: 4px; padding: 6px 8px; min-height: 40px; white-space: pre-wrap; }
+.vist-sigs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+.vist-sig { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.vist-sig > span { color: #4a5563; }
+.vist-legenda { font-size: 11px; border: 1px solid #d5dae1; padding: 4px 8px; margin-top: 8px; }
+.vist-rev { font-size: 10px; color: #1f7fc4; margin-top: 8px; }
+@media (max-width: 560px) { .vist-sigs { grid-template-columns: 1fr; } }

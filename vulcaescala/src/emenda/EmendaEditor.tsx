@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useToast } from '../ui/Toast';
+import { Modal } from '../ui/Modal';
 import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
 import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
 import { newId } from '../domain/ids';
-import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, codigoDaEntrada, descricaoItemPrensa, seriePeloFabricante, type ItemPrensa, LEGENDA_FOTO_PRENSA, ORDEM_FOTO_PRENSA } from './model';
+import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, codigoDaEntrada, descricaoItemPrensa, seriePeloFabricante, type ItemPrensa, LEGENDA_FOTO_VISTORIA, FORM_VISTORIA, GRUPOS_VISTORIA, RESPOSTAS_VISTORIA, itensNC, pendenciasVistoria, vistoriaIniciada, vistoriaObrigatoria, type ItemVistoriaId, type RespVistoria } from './model';
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
   aparelhoPorCodigo,
@@ -354,21 +355,11 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
       </Sec>
 
       <Sec n="7" t="Prensa">
-        {/* ordem de preenchimento: equipamentos → teste → técnico em elétrica → foto do check list → observações */}
+        {/* ordem de preenchimento: equipamentos → vistoria (FOR GTO 062) → observações */}
         <h3 className="sub">Equipamentos utilizados</h3>
         <EquipPrensaSection e={e} set={set} />
-        <h3 className="sub">Teste da prensa</h3>
-        <div className="g2">
-          <Opts e={e} set={set} c="prensaTestada" label="Prensa testada antes?" op={['N/A', 'Sim', 'Não']} />
-          <Txt e={e} set={set} c="dataTeste" label="Data do teste" />
-        </div>
-        <h3 className="sub">Técnico em elétrica (teste da prensa)</h3>
-        {e.assEletricista && e.assEletricista.trim().toUpperCase() !== 'N/A' && !e.libEletricista.nome && (
-          <p className="small muted">Registro anterior: {e.assEletricista}</p>
-        )}
-        <EletricistaSection e={e} set={set} />
-        <h3 className="sub">Foto do check list de inspeção da prensa</h3>
-        <FotosSection emendaId={id} antesDeGravar={() => void garantirCriado()} travado={travado} unico={{ ordem: ORDEM_FOTO_PRENSA, legenda: LEGENDA_FOTO_PRENSA }} />
+        <h3 className="sub">Vistoria da prensa ({FORM_VISTORIA.codigo})</h3>
+        <VistoriaResumo e={e} set={set} emendaId={id} antesDeGravar={() => void garantirCriado()} travado={travado} />
         <Area e={e} set={set} c="obsPrensa" label="Observações (justificar desvios)" />
       </Sec>
 
@@ -674,21 +665,22 @@ function MateriaisSection({ lista, e, set }: { lista: 'materiaisEmenda' | 'mater
   );
 }
 
-function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
+function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetFn; campo?: 'equipamentos' | 'vistoriaAparelhos' }) {
   const { aparelhos } = useEmenda();
+  const linhas = e[campo];
   // só aparelhos com patrimônio e calibração (data e validade) entram na lista
   const grupos = aparelhosPorTipo(aparelhos);
   const completos = aparelhos.filter(aparelhoCompleto);
   const [gerenciar, setGerenciar] = useState(false);
   const upd = (i: number, p: Partial<EquipItem>) => {
-    const n = [...e.equipamentos];
+    const n = [...linhas];
     n[i] = { ...n[i], ...p };
-    set({ equipamentos: n });
+    set({ [campo]: n });
   };
   return (
     <>
       {completos.length === 0 && <p className="small muted">Nenhum aparelho com calibração cadastrada. Cadastre em “Gerenciar aparelhos”.</p>}
-      {e.equipamentos.map((q, i) => {
+      {linhas.map((q, i) => {
         const escolhido = q.codigo ? aparelhoPorCodigo(completos, q.codigo) : undefined;
         // linha que não é um aparelho do cadastro (relatório antigo ou tipo ainda sem aparelho escolhido): o valor continua visível
         const avulso = !escolhido && (q.equip || q.codigo) ? [q.equip, q.codigo].filter(Boolean).join(' · ') : '';
@@ -750,7 +742,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
             </label>
           </div>
           {calibracaoVencida(q, e.data) && <p className="text-danger small">Calibração vencida em {fmtData(q.validadeCal)} (antes da data da emenda).</p>}
-          <button className="btn small ghost-danger" onClick={() => set({ equipamentos: e.equipamentos.filter((_, j) => j !== i) })}>
+          <button className="btn small ghost-danger" onClick={() => set({ [campo]: linhas.filter((_, j) => j !== i) })}>
             Remover equipamento
           </button>
         </div>
@@ -758,7 +750,7 @@ function EquipSection({ e, set }: { e: Emenda; set: SetFn }) {
       })}
       <button
         className="btn small"
-        onClick={() => set({ equipamentos: [...e.equipamentos, { equip: '', marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }] })}
+        onClick={() => set({ [campo]: [...linhas, { equip: '', marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }] })}
       >
         + Adicionar equipamento
       </button>
@@ -824,7 +816,12 @@ function CampoPatrimonio({ q, upd }: { q: EquipItem; upd: (p: Partial<EquipItem>
   );
 }
 
-const LIBERACAO_LABEL = { libTecnico: 'técnico de área', libSupervisor: 'supervisor de área', libEletricista: 'técnico em elétrica' } as const;
+const LIBERACAO_LABEL = {
+  libTecnico: 'técnico de área',
+  libSupervisor: 'supervisor de área',
+  libEletricista: 'técnico em elétrica',
+  libPrensa: 'liberação da vistoria da prensa (supervisor ou encarregado)',
+} as const;
 
 /**
  * Equipamentos da prensa (seção 7), do cadastro único, em listas suspensas com "N/A": a prensa
@@ -836,82 +833,85 @@ const NA = 'N/A';
 const ehNA = (v: string) => v.trim().toUpperCase() === 'N/A' || v.trim().toUpperCase() === 'NA';
 const rotuloItem = (it: ItemPrensa) => descricaoItemPrensa(it);
 
+/** Painéis ou bombas da prensa: uma lista suspensa por item (a primeira com "N/A"), do cadastro único. */
+function CampoItensPrensa({ e, set, c, label, tipo }: { e: Emenda; set: SetFn; c: 'paineis' | 'bombas'; label: string; tipo: 'Painel' | 'Bomba' }) {
+  const { prensa } = useEmenda();
+  const cad = prensa.filter((x) => x.tipo === tipo);
+  const marcados = separarItens(e[c]);
+  const gravar = (l: string[]) => set({ [c]: juntarItens(l) } as Partial<Emenda>);
+  const doCad = (m: string) => cad.find((it) => it.codigo === codigoDaEntrada(m));
+  // uma lista por item marcado; a primeira tem "N/A" (limpa tudo)
+  const linha = (m: string | null, idx: number) => {
+    const it = m ? doCad(m) : undefined;
+    const outros = marcados.filter((_, j) => j !== idx).map(codigoDaEntrada);
+    const livres = cad.filter((x) => !outros.includes(x.codigo));
+    return (
+      <div key={idx} className="prensa-linha">
+        <select
+          className={inp(m ?? '')}
+          aria-label={idx === 0 ? label : `${label} (${idx + 1})`}
+          value={m === null ? NA : it ? it.codigo : ANTIGO}
+          onChange={(ev) => {
+            const v = ev.target.value;
+            if (v === ANTIGO) return;
+            if (v === NA) return gravar([]);
+            const novo = cad.find((x) => x.codigo === v);
+            if (!novo) return;
+            const l = [...marcados];
+            if (m === null) l.push(descricaoItemPrensa(novo));
+            else l[idx] = descricaoItemPrensa(novo);
+            gravar(l);
+          }}
+        >
+          {idx === 0 && <option value={NA}>N/A</option>}
+          {m !== null && !it && <option value={ANTIGO}>{m} (registro anterior)</option>}
+          {livres.map((x) => (
+            <option key={x.codigo} value={x.codigo}>
+              {rotuloItem(x)}
+            </option>
+          ))}
+        </select>
+        {idx > 0 && m !== null && (
+          <button type="button" className="btn small ghost-danger" aria-label={`Remover ${m}`} onClick={() => gravar(marcados.filter((_, j) => j !== idx))}>
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  };
+  const sobra = cad.filter((x) => !marcados.some((m) => codigoDaEntrada(m) === x.codigo));
+  return (
+    <div className="field">
+      <span>{label}</span>
+      {marcados.length ? marcados.map((m, i) => linha(m, i)) : linha(null, 0)}
+      {marcados.length > 0 && sobra.length > 0 && (
+        <select
+          className="input"
+          aria-label={`Adicionar ${tipo === 'Painel' ? 'outro painel' : 'outra bomba'}`}
+          value=""
+          onChange={(ev) => {
+            const novo = cad.find((x) => x.codigo === ev.target.value);
+            if (novo) gravar([...marcados, descricaoItemPrensa(novo)]);
+          }}
+        >
+          <option value="">{tipo === 'Painel' ? '+ outro painel…' : '+ outra bomba…'}</option>
+          {sobra.map((x) => (
+            <option key={x.codigo} value={x.codigo}>
+              {rotuloItem(x)}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
   const { prensa } = useEmenda();
   const [gerenciar, setGerenciar] = useState(false);
   const prensas = prensa.filter((x) => x.tipo === 'Prensa');
   const prensaNA = ehNA(e.prensaEquip);
   const atual = prensaNA ? undefined : prensas.find((x) => x.codigo === codigoDaEntrada(e.prensaEquip));
-  const campo = (c: 'paineis' | 'bombas', label: string, tipo: 'Painel' | 'Bomba') => {
-    const cad = prensa.filter((x) => x.tipo === tipo);
-    const marcados = separarItens(e[c]);
-    const gravar = (l: string[]) => set({ [c]: juntarItens(l) } as Partial<Emenda>);
-    const doCad = (m: string) => cad.find((it) => it.codigo === codigoDaEntrada(m));
-    // uma lista por item marcado; a primeira tem "N/A" (limpa tudo)
-    const linha = (m: string | null, idx: number) => {
-      const it = m ? doCad(m) : undefined;
-      const outros = marcados.filter((_, j) => j !== idx).map(codigoDaEntrada);
-      const livres = cad.filter((x) => !outros.includes(x.codigo));
-      return (
-        <div key={idx} className="prensa-linha">
-          <select
-            className={inp(m ?? '')}
-            aria-label={idx === 0 ? label : `${label} (${idx + 1})`}
-            value={m === null ? NA : it ? it.codigo : ANTIGO}
-            onChange={(ev) => {
-              const v = ev.target.value;
-              if (v === ANTIGO) return;
-              if (v === NA) return gravar([]);
-              const novo = cad.find((x) => x.codigo === v);
-              if (!novo) return;
-              const l = [...marcados];
-              if (m === null) l.push(descricaoItemPrensa(novo));
-              else l[idx] = descricaoItemPrensa(novo);
-              gravar(l);
-            }}
-          >
-            {idx === 0 && <option value={NA}>N/A</option>}
-            {m !== null && !it && <option value={ANTIGO}>{m} (registro anterior)</option>}
-            {livres.map((x) => (
-              <option key={x.codigo} value={x.codigo}>
-                {rotuloItem(x)}
-              </option>
-            ))}
-          </select>
-          {idx > 0 && m !== null && (
-            <button type="button" className="btn small ghost-danger" aria-label={`Remover ${m}`} onClick={() => gravar(marcados.filter((_, j) => j !== idx))}>
-              ✕
-            </button>
-          )}
-        </div>
-      );
-    };
-    const sobra = cad.filter((x) => !marcados.some((m) => codigoDaEntrada(m) === x.codigo));
-    return (
-      <div className="field">
-        <span>{label}</span>
-        {marcados.length ? marcados.map((m, i) => linha(m, i)) : linha(null, 0)}
-        {marcados.length > 0 && sobra.length > 0 && (
-          <select
-            className="input"
-            aria-label={`Adicionar ${tipo === 'Painel' ? 'outro painel' : 'outra bomba'}`}
-            value=""
-            onChange={(ev) => {
-              const novo = cad.find((x) => x.codigo === ev.target.value);
-              if (novo) gravar([...marcados, descricaoItemPrensa(novo)]);
-            }}
-          >
-            <option value="">{tipo === 'Painel' ? '+ outro painel…' : '+ outra bomba…'}</option>
-            {sobra.map((x) => (
-              <option key={x.codigo} value={x.codigo}>
-                {rotuloItem(x)}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-    );
-  };
   // série (Nilos/Sampla) saiu da tela: vem da prensa escolhida; relatório antigo só com a série continua mostrando
   const serieAntiga = !e.prensaEquip && e.seriePrensa && e.seriePrensa !== 'N/A' ? e.seriePrensa : '';
   return (
@@ -943,13 +943,134 @@ function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
           ))}
         </select>
       </label>
-      {campo('paineis', 'Painéis utilizados', 'Painel')}
-      {campo('bombas', 'Bombas utilizadas', 'Bomba')}
+      <CampoItensPrensa e={e} set={set} c="paineis" label="Painéis utilizados" tipo="Painel" />
+      <CampoItensPrensa e={e} set={set} c="bombas" label="Bombas utilizadas" tipo="Bomba" />
       <button className="btn small" onClick={() => setGerenciar(true)}>
         Gerenciar equipamentos da prensa
       </button>
       {gerenciar && <PrensaDialog onClose={() => setGerenciar(false)} />}
     </>
+  );
+}
+
+/**
+ * Resumo da vistoria da prensa (FOR GTO 062) na seção 7 e o botão que abre o formulário.
+ * Obrigatória na emenda a quente; item "NC" impede a conclusão do relatório.
+ */
+function VistoriaResumo({ e, set, emendaId, antesDeGravar, travado }: { e: Emenda; set: SetFn; emendaId: string; antesDeGravar: () => void; travado: boolean }) {
+  const [aberta, setAberta] = useState(false);
+  const iniciada = vistoriaIniciada(e);
+  const faltam = pendenciasVistoria({ ...e, tipoEmenda: 'Quente' }).filter((x) => !x.includes('não conforme'));
+  const nc = itensNC(e);
+  const situacao = !iniciada ? 'Pendente' : faltam.length ? 'Em preenchimento' : 'Preenchida';
+  return (
+    <div className="vistoria-resumo">
+      <p className="small">
+        <b className={nc.length ? 'text-danger' : !iniciada || faltam.length ? '' : 'text-ok'}>
+          {situacao}
+          {nc.length > 0 && ` · ${nc.length} NC`}
+        </b>
+        {' — '}
+        {vistoriaObrigatoria(e) ? 'obrigatória na emenda a quente.' : 'opcional na emenda a frio.'}
+      </p>
+      {nc.length > 0 && <p className="small text-danger">Item não conforme impede a conclusão do relatório: {nc.map(([, n]) => n).join(', ')}.</p>}
+      {e.assEletricista && e.assEletricista.trim().toUpperCase() !== 'N/A' && !e.libEletricista.nome && (
+        <p className="small muted">Registro anterior (técnico em elétrica): {e.assEletricista}</p>
+      )}
+      {travado ? (
+        <p className="small muted">Relatório concluído: a vistoria completa aparece no relatório (PDF).</p>
+      ) : (
+        <button type="button" className="btn primary" onClick={() => setAberta(true)}>
+          {iniciada ? 'Abrir vistoria da prensa' : 'Preencher vistoria da prensa'}
+        </button>
+      )}
+      {aberta && <VistoriaDialog e={e} set={set} emendaId={emendaId} antesDeGravar={antesDeGravar} travado={travado} onClose={() => setAberta(false)} />}
+    </div>
+  );
+}
+
+/** Formulário FOR GTO 062 — Vistoria de prensas e equipamentos (dentro do relatório de emenda). */
+function VistoriaDialog({
+  e,
+  set,
+  emendaId,
+  antesDeGravar,
+  travado,
+  onClose,
+}: {
+  e: Emenda;
+  set: SetFn;
+  emendaId: string;
+  antesDeGravar: () => void;
+  travado: boolean;
+  onClose: () => void;
+}) {
+  const resp = (k: ItemVistoriaId, v: RespVistoria) => set({ vistoriaItens: { ...e.vistoriaItens, [k]: e.vistoriaItens[k] === v ? '' : v } });
+  const dataAntiga = e.dataTeste && e.dataTeste !== 'N/A' && !/^\d{4}-\d{2}-\d{2}$/.test(e.dataTeste) ? e.dataTeste : '';
+  const nc = itensNC(e);
+  return (
+    <Modal
+      title={`Vistoria de prensas e equipamentos`}
+      subtitle={`${FORM_VISTORIA.codigo} · Rev. ${FORM_VISTORIA.revisao}${vistoriaObrigatoria(e) ? ' · obrigatória na emenda a quente' : ' · opcional na emenda a frio'}`}
+      onClose={onClose}
+      footer={
+        <button type="button" className="btn primary" onClick={onClose}>
+          Concluído
+        </button>
+      }
+    >
+      <fieldset className="emenda-trava vistoria" disabled={travado}>
+        <p className="small muted">Legenda: C - Conforme · NC - Não conforme · NA - Não se aplica. Item NC impede a conclusão do relatório.</p>
+        <label className="field">
+          Data da vistoria
+          <input className={inp(e.dataTeste)} type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(e.dataTeste) ? e.dataTeste : ''} onChange={(ev) => set({ dataTeste: ev.target.value })} />
+          {dataAntiga && <span className="small muted">Registro anterior: {dataAntiga}</span>}
+        </label>
+
+        {GRUPOS_VISTORIA.map((g, gi) => (
+          <section key={g.titulo} className="vistoria-grupo">
+            <h3 className="sub">{g.titulo}</h3>
+            {gi === 0 && <CampoItensPrensa e={e} set={set} c="paineis" label="Número do painel elétrico" tipo="Painel" />}
+            {gi === 1 && <CampoItensPrensa e={e} set={set} c="bombas" label="Número do conjunto de bomba" tipo="Bomba" />}
+            {g.itens.map(([k, nome]) => (
+              <div key={k} className="vistoria-item">
+                <span className="vistoria-nome">{nome}</span>
+                <div className="opts" role="radiogroup" aria-label={nome}>
+                  {RESPOSTAS_VISTORIA.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      role="radio"
+                      aria-checked={e.vistoriaItens[k] === r}
+                      className={'opt' + (e.vistoriaItens[k] === r ? ' on' + (r === 'NC' ? ' nc' : '') : '')}
+                      onClick={() => resp(k, r)}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        ))}
+        {nc.length > 0 && <p className="small text-danger">Não conforme: {nc.map(([, n]) => n).join(', ')}. Corrija e marque “C” (ou “NA”) para poder concluir o relatório.</p>}
+
+        <h3 className="sub">Aparelhos utilizados nos testes</h3>
+        <EquipSection e={e} set={set} campo="vistoriaAparelhos" />
+
+        <h3 className="sub">Anotações</h3>
+        <Area e={e} set={set} c="vistoriaAnotacoes" label="Anotações da vistoria" />
+
+        <h3 className="sub">Registro fotográfico da inspeção</h3>
+        <FotosSection emendaId={emendaId} antesDeGravar={antesDeGravar} travado={travado} vistoria={{ legenda: LEGENDA_FOTO_VISTORIA }} />
+
+        <h3 className="sub">Responsável pela inspeção (técnico em elétrica)</h3>
+        <EletricistaSection e={e} set={set} />
+        <h3 className="sub">Liberação (supervisor ou encarregado)</h3>
+        <p className="small muted">Basta uma assinatura: o supervisor ou o encarregado.</p>
+        <LiberacaoSection e={e} set={set} c="libPrensa" rotulo="Liberado por" />
+      </fieldset>
+    </Modal>
   );
 }
 
@@ -960,7 +1081,7 @@ function EletricistaSection({ e, set }: { e: Emenda; set: SetFn }) {
   const eletricistas = efetivo.filter((f) => f.eletricista);
   return (
     <>
-      <LiberacaoSection e={e} set={set} c="libEletricista" lista={eletricistas} />
+      <LiberacaoSection e={e} set={set} c="libEletricista" lista={eletricistas} rotulo="Responsável pela inspeção" />
       {eletricistas.length === 0 && (
         <p className="small muted">
           Nenhum técnico em elétrica marcado. Em “Gerenciar efetivo”, marque “Técnico em elétrica” em quem faz o teste da prensa.
@@ -974,14 +1095,14 @@ function EletricistaSection({ e, set }: { e: Emenda; set: SetFn }) {
   );
 }
 
-function LiberacaoSection({ e, set, c, lista }: { e: Emenda; set: SetFn; c: keyof typeof LIBERACAO_LABEL; lista?: Funcionario[] }) {
+function LiberacaoSection({ e, set, c, lista, rotulo = 'Liberado por' }: { e: Emenda; set: SetFn; c: keyof typeof LIBERACAO_LABEL; lista?: Funcionario[]; rotulo?: string }) {
   const lib = e[c];
   const upd = (p: Partial<Liberacao>) => set({ [c]: { ...liberacaoVazia(), ...lib, ...p } } as Partial<Emenda>);
   return (
     <>
       <div className="g2">
         <label className="field">
-          Liberado por
+          {rotulo}
           <SelectColaborador nome={lib.nome} lista={lista} onPick={(f) => upd({ workerId: '', nome: f?.nome ?? '', matricula: f?.doc ?? '' })} />
         </label>
         <label className="field">

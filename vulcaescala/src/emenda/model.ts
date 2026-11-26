@@ -139,9 +139,18 @@ export interface Emenda {
   dataTeste: string;
   /** texto livre antigo (relatórios anteriores à assinatura do técnico em elétrica) */
   assEletricista: string;
-  /** técnico em elétrica que testou a prensa: nome, matrícula, data e assinatura */
+  /** técnico em elétrica que testou a prensa: nome, matrícula, data e assinatura
+   * (é também o responsável pela inspeção na vistoria FOR GTO 062) */
   libEletricista: Liberacao;
   obsPrensa: string;
+  // 7.1 vistoria de prensas e equipamentos (FOR GTO 062) — data = dataTeste; nº do painel/bomba = paineis/bombas
+  /** resposta de cada item (chave de ITENS_VISTORIA): C, NC, NA ou "" (sem resposta) */
+  vistoriaItens: Partial<Record<ItemVistoriaId, RespVistoria>>;
+  /** aparelhos usados nos testes da prensa (mesmo cadastro dos aparelhos de medição) */
+  vistoriaAparelhos: EquipItem[];
+  vistoriaAnotacoes: string;
+  /** "Liberado por" da vistoria: o supervisor OU o encarregado (basta um) */
+  libPrensa: Liberacao;
   // 8 problemas
   problemaTipo: string;
   problemaTemp: string;
@@ -278,11 +287,98 @@ export const equipamentosIniciais = (nomes: string[] = LISTAS_PADRAO.equipamento
  * qual foto vai nele. "+ Adicionar mais fotos" cria campos extras ("Emenda").
  */
 /**
- * Foto do check list de inspeção da prensa (seção 7): fica na mesma coleção das fotos do
- * relatório, numa posição reservada (fora dos campos numerados do registro fotográfico).
+ * Fotos da vistoria da prensa (FOR GTO 062): ficam na mesma coleção das fotos do relatório,
+ * nas posições negativas (−1, −2, …), fora dos campos numerados do registro fotográfico.
+ * A posição −1 era a antiga "foto do check list da prensa": continua aparecendo como a 1ª foto.
  */
-export const ORDEM_FOTO_PRENSA = -1;
-export const LEGENDA_FOTO_PRENSA = 'Check list de inspeção da prensa';
+export const LEGENDA_FOTO_VISTORIA = 'Inspeção da prensa';
+export const fotoDaVistoria = (f: Pick<Foto, 'ordem'>) => f.ordem < 0;
+
+// ---------------------------------------------------------------- vistoria da prensa (FOR GTO 062)
+
+/** Formulário padrão da empresa — atualizar código/revisão aqui quando o formulário mudar. */
+export const FORM_VISTORIA = { codigo: 'FOR GTO 062', revisao: '06', dataRevisao: '17/07/2020', titulo: 'Vistoria de prensas e equipamentos' };
+export type RespVistoria = 'C' | 'NC' | 'NA' | '';
+export const RESPOSTAS_VISTORIA = ['C', 'NC', 'NA'] as const;
+export const GRUPOS_VISTORIA = [
+  {
+    titulo: '1 - Parte elétrica dos platores',
+    itens: [
+      ['resistencias', 'Resistências'],
+      ['tomadas', 'Tomadas'],
+      ['cabos', 'Cabos de alimentação'],
+      ['funcPaineis', 'Funcionamento dos painéis elétricos'],
+    ],
+  },
+  {
+    titulo: '2 - Sistema de pressão',
+    itens: [
+      ['bombas', 'Bombas'],
+      ['manometro', 'Manômetro'],
+      ['conexoes', 'Conexões'],
+      ['cilindros', 'Cilindros hidráulicos'],
+      ['mangueiras', 'Fixação e amarração das mangueiras'],
+    ],
+  },
+  {
+    titulo: '3 - Itens gerais',
+    itens: [
+      ['termometro', 'Termômetro manual'],
+      ['parafusos', 'Parafusos de fixação das longarinas'],
+      ['bracadeira', 'Utilização de braçadeira de nylon para amarração das mangueiras de resfriamento'],
+    ],
+  },
+] as const;
+export type ItemVistoriaId = (typeof GRUPOS_VISTORIA)[number]['itens'][number][0];
+export const ITENS_VISTORIA: readonly (readonly [ItemVistoriaId, string])[] = GRUPOS_VISTORIA.flatMap((g) => [...g.itens] as (readonly [ItemVistoriaId, string])[]);
+
+const isoData = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+const libPreenchida = (l: Liberacao) => !!(l.nome || l.assinatura);
+
+/** Vistoria obrigatória para concluir: só na emenda a quente. */
+export const vistoriaObrigatoria = (e: Pick<Emenda, 'tipoEmenda'>) => e.tipoEmenda === 'Quente';
+
+/**
+ * A vistoria foi começada? (algum item, aparelho, anotação, liberação/visto ou a data).
+ * Relatórios anteriores à vistoria (só com técnico em elétrica/foto) não contam.
+ */
+export function vistoriaIniciada(e: Emenda): boolean {
+  return (
+    Object.values(e.vistoriaItens ?? {}).some(Boolean) ||
+    (e.vistoriaAparelhos ?? []).length > 0 ||
+    !!e.vistoriaAnotacoes?.trim() ||
+    libPreenchida(e.libPrensa)
+  );
+}
+
+/** Itens marcados como não conforme. */
+export const itensNC = (e: Pick<Emenda, 'vistoriaItens'>) => ITENS_VISTORIA.filter(([k]) => e.vistoriaItens?.[k] === 'NC');
+
+/**
+ * O que falta na vistoria. NC sempre impede a conclusão; o resto só é exigido na emenda a quente.
+ * Assinaturas: responsável pela inspeção (técnico em elétrica) e a liberação (supervisor ou encarregado).
+ */
+export function pendenciasVistoria(e: Emenda): string[] {
+  const f: string[] = [];
+  const P = 'Vistoria da prensa';
+  if (vistoriaObrigatoria(e)) {
+    const sem = ITENS_VISTORIA.filter(([k]) => !e.vistoriaItens?.[k]).length;
+    if (sem) f.push(`${P}: ${sem} ${sem === 1 ? 'item' : 'itens'} sem resposta (C/NC/NA)`);
+    if (!isoData(e.dataTeste)) f.push(`${P}: data`);
+    if (!separarItens(e.paineis).length) f.push(`${P}: nº do painel elétrico`);
+    if (!separarItens(e.bombas).length) f.push(`${P}: nº do conjunto de bomba`);
+    if (!e.vistoriaAparelhos.some((a) => a.codigo.trim())) f.push(`${P}: aparelhos utilizados nos testes`);
+    for (const [l, nome] of [
+      [e.libEletricista, 'responsável pela inspeção (técnico em elétrica)'],
+      [e.libPrensa, 'liberado por (supervisor ou encarregado)'],
+    ] as const) {
+      if (vazioTxt(l.nome)) f.push(`${P}: ${nome} — nome`);
+      if (vazioTxt(l.assinatura)) f.push(`${P}: ${nome} — assinatura`);
+    }
+  }
+  for (const [, nome] of itensNC(e)) f.push(`${P}: “${nome}” não conforme (NC) — corrigir antes de concluir`);
+  return f;
+}
 
 /**
  * Cadastro único dos equipamentos da prensa (seção 7): prensas, painéis e bombas, cada um com
@@ -416,9 +512,13 @@ export function novaEmenda(id: string, hoje: string, por: string, aparelhos: str
     prensaTestada: '',
     paineis: 'N/A',
     bombas: 'N/A',
-    dataTeste: 'N/A',
+    dataTeste: '',
     assEletricista: 'N/A',
     obsPrensa: '',
+    vistoriaItens: {},
+    vistoriaAparelhos: [],
+    vistoriaAnotacoes: '',
+    libPrensa: liberacaoVazia(),
     problemaTipo: 'N/A',
     problemaTemp: 'N/A',
     problemaPressao: 'N/A',
@@ -458,6 +558,9 @@ export function completarEmenda(raw: Partial<Emenda> & { id: string }): Emenda {
     libTecnico: { ...base.libTecnico, ...raw.libTecnico },
     libSupervisor: { ...base.libSupervisor, ...raw.libSupervisor },
     libEletricista: { ...base.libEletricista, ...raw.libEletricista },
+    libPrensa: { ...base.libPrensa, ...raw.libPrensa },
+    vistoriaItens: { ...raw.vistoriaItens },
+    vistoriaAparelhos: Array.isArray(raw.vistoriaAparelhos) ? raw.vistoriaAparelhos : [],
   };
 }
 
@@ -564,7 +667,8 @@ export function recalcular(e: Emenda, alterados: (keyof Emenda)[]): Partial<Emen
   out.tempAbertura = te === 'Quente' ? '60°' : 'N/A';
   if (te === 'Quente' && fechada) out.horaAbertura = somaHora(fechada, 240);
   else if (te !== 'Quente') out.horaAbertura = 'N/A';
-  out.dataTeste = te === 'Quente' ? e.data || 'N/A' : 'N/A';
+  // data da vistoria da prensa: na quente, sugere a data da emenda só se ainda não houver data escolhida
+  if (te === 'Quente' && e.data && !isoData(e.dataTeste)) out.dataTeste = e.data;
   return out;
 }
 
@@ -643,10 +747,8 @@ export const CAMPOS_COPIADOS = [
   'pressaoVulc',
   'seriePrensa',
   'prensaEquip',
-  'prensaTestada',
   'paineis',
   'bombas',
-  'dataTeste',
 ] as const satisfies readonly (keyof Emenda)[];
 
 /** Próximo número da emenda ("1" → "2"); se não for número, fica em branco para preencher. */
@@ -734,6 +836,8 @@ export function pendenciasConclusao(e: Emenda): string[] {
   opc(e.ckAcabamento, 'Feito acabamento?');
   opc(e.ckFaltouMaterial, 'Faltou material?');
   if (e.tipoEmenda === 'Quente') txt(e.obsVulc, 'Observações da inspeção pós-vulcanização');
+  // 7 vistoria da prensa (FOR GTO 062)
+  f.push(...pendenciasVistoria(e));
   // 9–10 liberações
   for (const [l, nome] of [
     [e.libTecnico, 'técnico de área'],
