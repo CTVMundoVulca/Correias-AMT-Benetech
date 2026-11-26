@@ -155,7 +155,12 @@ export function ouvirFuncionarios(api: FirebaseApi, cb: (l: Funcionario[]) => vo
       cb(
         (Array.isArray(l) ? l : [])
           .filter((f) => f && typeof f.nome === 'string' && f.nome)
-          .map((f) => ({ nome: f.nome, doc: typeof f.doc === 'string' ? f.doc : '', ...(f.eletricista === true ? { eletricista: true } : {}) }))
+          .map((f) => ({
+            nome: f.nome,
+            doc: typeof f.doc === 'string' ? f.doc : '',
+            ...(f.eletricista === true ? { eletricista: true } : {}),
+            ...(f.liberaPrensa === true ? { liberaPrensa: true } : {}),
+          }))
           .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
       );
     },

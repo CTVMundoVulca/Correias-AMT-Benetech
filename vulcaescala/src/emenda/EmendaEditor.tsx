@@ -1068,7 +1068,7 @@ function VistoriaDialog({
         <EletricistaSection e={e} set={set} />
         <h3 className="sub">Liberação (supervisor ou encarregado)</h3>
         <p className="small muted">Basta uma assinatura: o supervisor ou o encarregado.</p>
-        <LiberacaoSection e={e} set={set} c="libPrensa" rotulo="Liberado por" />
+        <LiberaPrensaSection e={e} set={set} />
       </fieldset>
     </Modal>
   );
@@ -1088,6 +1088,27 @@ function EletricistaSection({ e, set }: { e: Emenda; set: SetFn }) {
         </p>
       )}
       <button className="btn small" onClick={() => setGerenciar(true)}>
+        Gerenciar efetivo
+      </button>
+      {gerenciar && <EfetivoDialog onClose={() => setGerenciar(false)} />}
+    </>
+  );
+}
+
+/** Liberação da vistoria: a lista mostra só quem está marcado como supervisor/encarregado em "Gerenciar efetivo". */
+function LiberaPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
+  const { efetivo } = useEmenda();
+  const [gerenciar, setGerenciar] = useState(false);
+  const liberam = efetivo.filter((f) => f.liberaPrensa);
+  return (
+    <>
+      <LiberacaoSection e={e} set={set} c="libPrensa" lista={liberam} rotulo="Liberado por" />
+      {liberam.length === 0 && (
+        <p className="small muted">
+          Nenhum supervisor/encarregado marcado. Em “Gerenciar efetivo”, marque “Supervisor/encarregado” em quem libera a vistoria da prensa.
+        </p>
+      )}
+      <button type="button" className="btn small" onClick={() => setGerenciar(true)}>
         Gerenciar efetivo
       </button>
       {gerenciar && <EfetivoDialog onClose={() => setGerenciar(false)} />}

@@ -22,6 +22,8 @@ export interface Funcionario {
   doc: string;
   /** técnico em elétrica habilitado (assina o teste da prensa na seção 7); ausente = não */
   eletricista?: boolean;
+  /** supervisor/encarregado que libera a vistoria da prensa (FOR GTO 062); ausente = não */
+  liberaPrensa?: boolean;
 }
 
 /**
