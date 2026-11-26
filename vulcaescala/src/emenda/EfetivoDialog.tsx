@@ -109,7 +109,7 @@ export function EfetivoDialog({ onClose }: { onClose: () => void }) {
           <input type="checkbox" checked={eletricista} onChange={(e) => setEletricista(e.target.checked)} /> Técnico em elétrica (assina o teste da prensa)
         </label>
         <label className="check small">
-          <input type="checkbox" checked={libera} onChange={(e) => setLibera(e.target.checked)} /> Supervisor/encarregado (libera a vistoria da prensa)
+          <input type="checkbox" checked={libera} onChange={(e) => setLibera(e.target.checked)} /> Supervisor/encarregado (libera o relatório e a vistoria da prensa)
         </label>
       </form>
       {nEletricistas > 0 && (

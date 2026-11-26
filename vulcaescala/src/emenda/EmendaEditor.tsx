@@ -378,7 +378,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
         <LiberacaoSection e={e} set={set} c="libTecnico" />
       </Sec>
       <Sec n="10" t="Liberação do supervisor de área">
-        <LiberacaoSection e={e} set={set} c="libSupervisor" />
+        <LiberaPrensaSection e={e} set={set} c="libSupervisor" />
       </Sec>
 
       </fieldset>
@@ -1068,7 +1068,7 @@ function VistoriaDialog({
         <EletricistaSection e={e} set={set} />
         <h3 className="sub">Liberação (supervisor ou encarregado)</h3>
         <p className="small muted">Basta uma assinatura: o supervisor ou o encarregado.</p>
-        <LiberaPrensaSection e={e} set={set} />
+        <LiberaPrensaSection e={e} set={set} c="libPrensa" />
       </fieldset>
     </Modal>
   );
@@ -1095,18 +1095,19 @@ function EletricistaSection({ e, set }: { e: Emenda; set: SetFn }) {
   );
 }
 
-/** Liberação da vistoria: a lista mostra só quem está marcado como supervisor/encarregado em "Gerenciar efetivo". */
-function LiberaPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
+/**
+ * Liberação feita por supervisor/encarregado (vistoria da prensa e "10. Liberação do supervisor de área"):
+ * a lista mostra só quem está marcado como supervisor/encarregado em "Gerenciar efetivo".
+ */
+function LiberaPrensaSection({ e, set, c }: { e: Emenda; set: SetFn; c: 'libPrensa' | 'libSupervisor' }) {
   const { efetivo } = useEmenda();
   const [gerenciar, setGerenciar] = useState(false);
   const liberam = efetivo.filter((f) => f.liberaPrensa);
   return (
     <>
-      <LiberacaoSection e={e} set={set} c="libPrensa" lista={liberam} rotulo="Liberado por" />
+      <LiberacaoSection e={e} set={set} c={c} lista={liberam} rotulo="Liberado por" />
       {liberam.length === 0 && (
-        <p className="small muted">
-          Nenhum supervisor/encarregado marcado. Em “Gerenciar efetivo”, marque “Supervisor/encarregado” em quem libera a vistoria da prensa.
-        </p>
+        <p className="small muted">Nenhum supervisor/encarregado marcado. Em “Gerenciar efetivo”, marque “Supervisor/encarregado” em quem libera.</p>
       )}
       <button type="button" className="btn small" onClick={() => setGerenciar(true)}>
         Gerenciar efetivo
