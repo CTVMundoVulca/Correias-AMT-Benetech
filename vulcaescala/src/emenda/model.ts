@@ -241,12 +241,29 @@ export function tiposDeAparelho(cad: EquipItem[], antigos: string[]): string[] {
   return out;
 }
 
-/** Linhas da seção 4 do relatório novo: um por tipo; com um único aparelho cadastrado do tipo, já preenchida. */
-export function linhasIniciais(cad: EquipItem[], antigos: string[]): EquipItem[] {
-  return tiposDeAparelho(cad, antigos).map((t) => {
-    const d = aparelhosDoTipo(cad, t);
-    return d.length === 1 ? { ...d[0] } : { equip: t, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' };
-  });
+/**
+ * Aparelho pronto para o relatório: tem patrimônio, data e validade da calibração. Só esses
+ * aparecem na lista do campo Equipamento (seção 4); os incompletos ficam no cadastro, marcados.
+ */
+export const aparelhoCompleto = (a: EquipItem) => !!a.codigo.trim() && !!a.dataCal && !!a.validadeCal;
+
+/** Aparelhos completos agrupados pelo tipo (na ordem do cadastro), para a lista do relatório. */
+export function aparelhosPorTipo(cad: EquipItem[]): [string, EquipItem[]][] {
+  const out: [string, EquipItem[]][] = [];
+  for (const a of cad.filter(aparelhoCompleto)) {
+    const g = out.find(([t]) => mesmoTipo(t, a.equip));
+    if (g) g[1].push(a);
+    else out.push([a.equip, [a]]);
+  }
+  return out;
+}
+
+/**
+ * Linhas da seção 4 do relatório novo: uma por tipo de aparelho completo do cadastro; com um
+ * único aparelho do tipo, já preenchida; com mais de um, só o tipo (escolhe-se o aparelho).
+ */
+export function linhasIniciais(cad: EquipItem[]): EquipItem[] {
+  return aparelhosPorTipo(cad).map(([t, d]) => (d.length === 1 ? { ...d[0] } : { equip: t, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }));
 }
 
 /** Calibração vencida na data de referência ("AAAA-MM-DD")? Sem validade = não dá para dizer. */
@@ -269,8 +286,9 @@ export const LEGENDA_FOTO_PRENSA = 'Check list de inspeção da prensa';
 
 /**
  * Cadastro único dos equipamentos da prensa (seção 7): prensas, painéis e bombas, cada um com
- * fabricante, modelo, patrimônio/identificação e nº de série. No relatório, escolhe-se pelo
- * patrimônio e fica gravada a descrição completa (o relatório não muda se o cadastro mudar).
+ * fabricante e patrimônio/identificação. No relatório, escolhe-se pelo patrimônio e fica gravada
+ * a descrição (o relatório não muda se o cadastro mudar). `modelo` e `serie` saíram da tela,
+ * mas o que já foi gravado neles continua guardado no cadastro (não se perde).
  */
 export const TIPOS_PRENSA = ['Prensa', 'Painel', 'Bomba'] as const;
 export type TipoItemPrensa = (typeof TIPOS_PRENSA)[number];
@@ -309,9 +327,8 @@ export function cleanItensPrensa(raw: { itens?: unknown; paineis?: unknown; bomb
   return out.sort((x, y) => TIPOS_PRENSA.indexOf(x.tipo) - TIPOS_PRENSA.indexOf(y.tipo) || x.codigo.localeCompare(y.codigo, 'pt-BR'));
 }
 
-/** Descrição gravada no relatório: "P-01 · SAMPLA · MOD X · Nº série 123" */
-export const descricaoItemPrensa = (it: ItemPrensa) =>
-  [it.codigo, it.fabricante, it.modelo, it.serie && `Nº série ${it.serie}`].filter(Boolean).join(' · ');
+/** Descrição gravada no relatório: "P-01 · SAMPLA" */
+export const descricaoItemPrensa = (it: Pick<ItemPrensa, 'codigo' | 'fabricante'>) => [it.codigo, it.fabricante].filter(Boolean).join(' · ');
 
 /** Patrimônio de uma entrada gravada no relatório (o que vem antes do primeiro " · "). */
 export const codigoDaEntrada = (entrada: string) => normCodigo(entrada.split(' · ')[0] ?? '');
