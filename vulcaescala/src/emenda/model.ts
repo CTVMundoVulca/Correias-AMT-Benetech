@@ -149,10 +149,8 @@ export interface Emenda {
   /** aparelhos usados nos testes da prensa (mesmo cadastro dos aparelhos de medição) */
   vistoriaAparelhos: EquipItem[];
   vistoriaAnotacoes: string;
-  /** "Liberado por" da vistoria: supervisor */
-  libSupervisorPrensa: Liberacao;
-  /** "Visto" da vistoria: encarregado */
-  libEncarregadoPrensa: Liberacao;
+  /** "Liberado por" da vistoria: o supervisor OU o encarregado (basta um) */
+  libPrensa: Liberacao;
   // 8 problemas
   problemaTipo: string;
   problemaTemp: string;
@@ -349,15 +347,17 @@ export function vistoriaIniciada(e: Emenda): boolean {
     Object.values(e.vistoriaItens ?? {}).some(Boolean) ||
     (e.vistoriaAparelhos ?? []).length > 0 ||
     !!e.vistoriaAnotacoes?.trim() ||
-    libPreenchida(e.libSupervisorPrensa) ||
-    libPreenchida(e.libEncarregadoPrensa)
+    libPreenchida(e.libPrensa)
   );
 }
 
 /** Itens marcados como não conforme. */
 export const itensNC = (e: Pick<Emenda, 'vistoriaItens'>) => ITENS_VISTORIA.filter(([k]) => e.vistoriaItens?.[k] === 'NC');
 
-/** O que falta na vistoria. NC sempre impede a conclusão; o resto só é exigido na emenda a quente. */
+/**
+ * O que falta na vistoria. NC sempre impede a conclusão; o resto só é exigido na emenda a quente.
+ * Assinaturas: responsável pela inspeção (técnico em elétrica) e a liberação (supervisor ou encarregado).
+ */
 export function pendenciasVistoria(e: Emenda): string[] {
   const f: string[] = [];
   const P = 'Vistoria da prensa';
@@ -370,8 +370,7 @@ export function pendenciasVistoria(e: Emenda): string[] {
     if (!e.vistoriaAparelhos.some((a) => a.codigo.trim())) f.push(`${P}: aparelhos utilizados nos testes`);
     for (const [l, nome] of [
       [e.libEletricista, 'responsável pela inspeção (técnico em elétrica)'],
-      [e.libSupervisorPrensa, 'liberado por (supervisor)'],
-      [e.libEncarregadoPrensa, 'visto (encarregado)'],
+      [e.libPrensa, 'liberado por (supervisor ou encarregado)'],
     ] as const) {
       if (vazioTxt(l.nome)) f.push(`${P}: ${nome} — nome`);
       if (vazioTxt(l.assinatura)) f.push(`${P}: ${nome} — assinatura`);
@@ -519,8 +518,7 @@ export function novaEmenda(id: string, hoje: string, por: string, aparelhos: str
     vistoriaItens: {},
     vistoriaAparelhos: [],
     vistoriaAnotacoes: '',
-    libSupervisorPrensa: liberacaoVazia(),
-    libEncarregadoPrensa: liberacaoVazia(),
+    libPrensa: liberacaoVazia(),
     problemaTipo: 'N/A',
     problemaTemp: 'N/A',
     problemaPressao: 'N/A',
@@ -560,8 +558,7 @@ export function completarEmenda(raw: Partial<Emenda> & { id: string }): Emenda {
     libTecnico: { ...base.libTecnico, ...raw.libTecnico },
     libSupervisor: { ...base.libSupervisor, ...raw.libSupervisor },
     libEletricista: { ...base.libEletricista, ...raw.libEletricista },
-    libSupervisorPrensa: { ...base.libSupervisorPrensa, ...raw.libSupervisorPrensa },
-    libEncarregadoPrensa: { ...base.libEncarregadoPrensa, ...raw.libEncarregadoPrensa },
+    libPrensa: { ...base.libPrensa, ...raw.libPrensa },
     vistoriaItens: { ...raw.vistoriaItens },
     vistoriaAparelhos: Array.isArray(raw.vistoriaAparelhos) ? raw.vistoriaAparelhos : [],
   };

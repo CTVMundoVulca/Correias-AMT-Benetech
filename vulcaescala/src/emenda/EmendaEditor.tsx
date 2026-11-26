@@ -820,8 +820,7 @@ const LIBERACAO_LABEL = {
   libTecnico: 'técnico de área',
   libSupervisor: 'supervisor de área',
   libEletricista: 'técnico em elétrica',
-  libSupervisorPrensa: 'supervisor (liberação da vistoria da prensa)',
-  libEncarregadoPrensa: 'encarregado (visto da vistoria da prensa)',
+  libPrensa: 'liberação da vistoria da prensa (supervisor ou encarregado)',
 } as const;
 
 /**
@@ -1067,10 +1066,9 @@ function VistoriaDialog({
 
         <h3 className="sub">Responsável pela inspeção (técnico em elétrica)</h3>
         <EletricistaSection e={e} set={set} />
-        <h3 className="sub">Liberado por (supervisor)</h3>
-        <LiberacaoSection e={e} set={set} c="libSupervisorPrensa" rotulo="Supervisor" />
-        <h3 className="sub">Visto (encarregado)</h3>
-        <LiberacaoSection e={e} set={set} c="libEncarregadoPrensa" rotulo="Encarregado" />
+        <h3 className="sub">Liberação (supervisor ou encarregado)</h3>
+        <p className="small muted">Basta uma assinatura: o supervisor ou o encarregado.</p>
+        <LiberacaoSection e={e} set={set} c="libPrensa" rotulo="Liberado por" />
       </fieldset>
     </Modal>
   );

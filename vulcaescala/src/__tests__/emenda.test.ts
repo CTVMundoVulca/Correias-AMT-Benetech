@@ -142,7 +142,7 @@ describe('conclusão do relatório de emenda', () => {
     // vistoria da prensa completa (exigida na quente)
     const todosC = Object.fromEntries(ITENS_VISTORIA.map(([k]) => [k, 'C' as const]));
     const ap = { equip: 'MULTÍMETRO', marca: 'M', codigo: 'MT-1', certificado: 'C', dataCal: '2026-01-01', validadeCal: '2027-01-01' };
-    const vist = { vistoriaItens: todosC, dataTeste: '2026-11-16', paineis: 'P-01 · SAMPLA', bombas: 'B-01 · SAMPLA', vistoriaAparelhos: [ap], libEletricista: lib, libSupervisorPrensa: lib, libEncarregadoPrensa: lib };
+    const vist = { vistoriaItens: todosC, dataTeste: '2026-11-16', paineis: 'P-01 · SAMPLA', bombas: 'B-01 · SAMPLA', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
     const quente = pendenciasConclusao({ ...ok, ...vist, tipoEmenda: 'Quente', tempVulc: 'N/A', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '', horaAbertura: '11:00' });
     // na quente a inspeção pós-vulcanização também exige as observações
     expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa', 'Observações da inspeção pós-vulcanização']);
@@ -307,7 +307,7 @@ describe('vistoria da prensa (FOR GTO 062)', () => {
     expect(ITENS_VISTORIA).toHaveLength(12);
   });
 
-  it('quente: exige itens, data, painel, bomba, aparelhos e as três assinaturas', async () => {
+  it('quente: exige itens, data, painel, bomba, aparelhos e as duas assinaturas (responsável e liberação)', async () => {
     const { novaEmenda, pendenciasVistoria } = await import('../emenda/model');
     const e = { ...novaEmenda('x', '2026-11-16', 'p', []), tipoEmenda: 'Quente' as const };
     const p = pendenciasVistoria(e);
@@ -317,8 +317,9 @@ describe('vistoria da prensa (FOR GTO 062)', () => {
     expect(p).toContain('Vistoria da prensa: nº do conjunto de bomba');
     expect(p).toContain('Vistoria da prensa: aparelhos utilizados nos testes');
     expect(p).toContain('Vistoria da prensa: responsável pela inspeção (técnico em elétrica) — assinatura');
-    expect(p).toContain('Vistoria da prensa: liberado por (supervisor) — nome');
-    expect(p).toContain('Vistoria da prensa: visto (encarregado) — assinatura');
+    expect(p).toContain('Vistoria da prensa: liberado por (supervisor ou encarregado) — nome');
+    expect(p).toContain('Vistoria da prensa: liberado por (supervisor ou encarregado) — assinatura');
+    expect(p.filter((x) => x.includes('encarregado'))).toHaveLength(2); // uma só liberação (não duas)
   });
 
   it('frio: opcional; NC impede a conclusão em qualquer tipo', async () => {
@@ -331,7 +332,7 @@ describe('vistoria da prensa (FOR GTO 062)', () => {
   it('quente completa e sem NC: nada falta', async () => {
     const { novaEmenda, pendenciasVistoria, ITENS_VISTORIA } = await import('../emenda/model');
     const itens = Object.fromEntries(ITENS_VISTORIA.map(([k], i) => [k, i % 2 ? ('NA' as const) : ('C' as const)]));
-    const e = { ...novaEmenda('x', '2026-11-16', 'p', []), tipoEmenda: 'Quente' as const, vistoriaItens: itens, dataTeste: '2026-11-16', paineis: 'P-01', bombas: 'B-01', vistoriaAparelhos: [ap], libEletricista: lib, libSupervisorPrensa: lib, libEncarregadoPrensa: lib };
+    const e = { ...novaEmenda('x', '2026-11-16', 'p', []), tipoEmenda: 'Quente' as const, vistoriaItens: itens, dataTeste: '2026-11-16', paineis: 'P-01', bombas: 'B-01', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
     expect(pendenciasVistoria(e)).toEqual([]);
   });
 
@@ -340,7 +341,7 @@ describe('vistoria da prensa (FOR GTO 062)', () => {
     const antigo = completarEmenda({ id: 'a', libEletricista: lib, dataTeste: '2026-11-10' } as never);
     expect(vistoriaIniciada(antigo)).toBe(false);
     expect(antigo.vistoriaItens).toEqual({});
-    expect(antigo.libSupervisorPrensa.nome).toBe('');
+    expect(antigo.libPrensa.nome).toBe('');
     expect(vistoriaIniciada({ ...antigo, vistoriaItens: { cabos: 'C' } })).toBe(true);
     // a foto antiga do check list (posição −1) passa a ser a 1ª foto da vistoria
     expect(fotoDaVistoria({ ordem: -1 })).toBe(true);

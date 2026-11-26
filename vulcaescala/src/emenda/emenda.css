@@ -219,7 +219,7 @@
 .vist-grupo td { background: #dfe3e8; font-weight: 700; text-transform: uppercase; font-size: 11px; }
 .vist-nc td { color: #b42318; }
 .vist-anot { font-size: 12px; border: 1px solid #d5dae1; border-radius: 4px; padding: 6px 8px; min-height: 40px; white-space: pre-wrap; }
-.vist-sigs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.vist-sigs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
 .vist-sig { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
 .vist-sig > span { color: #4a5563; }
 .vist-legenda { font-size: 11px; border: 1px solid #d5dae1; padding: 4px 8px; margin-top: 8px; }

@@ -298,8 +298,7 @@ function PaginaVistoria({ e, fotos }: { e: Emenda; fotos: Foto[] }) {
       <p className="vist-anot">{e.vistoriaAnotacoes || '—'}</p>
       <div className="vist-sigs">
         {sig(e.libEletricista, 'Responsável pela inspeção')}
-        {sig(e.libSupervisorPrensa, 'Liberado por (supervisor)')}
-        {sig(e.libEncarregadoPrensa, 'Visto (encarregado)')}
+        {sig(e.libPrensa, 'Liberado por (supervisor ou encarregado)')}
       </div>
       <p className="vist-legenda">Legenda: C - Conforme · NC - Não Conforme · NA - Não se Aplica</p>
       {fotos.length > 0 && (
