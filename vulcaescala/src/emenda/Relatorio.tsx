@@ -149,11 +149,11 @@ export function Relatorio({ id }: { id: string }) {
       </Bloco>
 
       <Bloco t="7. Prensa">
-        <KV k="Série" v={e.seriePrensa} />
-        {e.prensaEquip && <KV k="Prensa" v={e.prensaEquip} />}
-        <KV k="Testada antes?" v={e.prensaTestada} />
+        {/* relatório antigo sem a prensa escolhida: mostra a série que foi marcada na época */}
+        <KV k="Prensa" v={e.prensaEquip || (e.seriePrensa && e.seriePrensa !== 'N/A' ? `Série ${e.seriePrensa}` : e.seriePrensa)} />
         <KV k="Painéis" v={e.paineis} />
         <KV k="Bombas" v={e.bombas} />
+        <KV k="Testada antes?" v={e.prensaTestada} />
         <KV k="Data do teste" v={fmtData(e.dataTeste)} />
         <KV k="Técnico em elétrica" v={e.libEletricista.nome || (e.assEletricista ?? '')} />
         <KV k="Matrícula/CPF" v={e.libEletricista.matricula} />
