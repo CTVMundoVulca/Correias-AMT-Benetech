@@ -354,12 +354,14 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
       </Sec>
 
       <Sec n="7" t="Prensa">
+        {/* ordem de preenchimento: equipamentos → teste → técnico em elétrica → foto do check list → observações */}
+        <h3 className="sub">Equipamentos utilizados</h3>
+        <EquipPrensaSection e={e} set={set} />
+        <h3 className="sub">Teste da prensa</h3>
         <div className="g2">
-          <Opts e={e} set={set} c="seriePrensa" label="Série da prensa" op={['N/A', 'Nilos', 'Sampla']} />
           <Opts e={e} set={set} c="prensaTestada" label="Prensa testada antes?" op={['N/A', 'Sim', 'Não']} />
           <Txt e={e} set={set} c="dataTeste" label="Data do teste" />
         </div>
-        <EquipPrensaSection e={e} set={set} />
         <h3 className="sub">Técnico em elétrica (teste da prensa)</h3>
         {e.assEletricista && e.assEletricista.trim().toUpperCase() !== 'N/A' && !e.libEletricista.nome && (
           <p className="small muted">Registro anterior: {e.assEletricista}</p>
@@ -842,7 +844,6 @@ function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
   const atual = prensaNA ? undefined : prensas.find((x) => x.codigo === codigoDaEntrada(e.prensaEquip));
   const campo = (c: 'paineis' | 'bombas', label: string, tipo: 'Painel' | 'Bomba') => {
     const cad = prensa.filter((x) => x.tipo === tipo);
-    if (!cad.length) return <Txt e={e} set={set} c={c} label={label} />;
     const marcados = separarItens(e[c]);
     const gravar = (l: string[]) => set({ [c]: juntarItens(l) } as Partial<Emenda>);
     const doCad = (m: string) => cad.find((it) => it.codigo === codigoDaEntrada(m));
@@ -911,35 +912,37 @@ function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
       </div>
     );
   };
+  // série (Nilos/Sampla) saiu da tela: vem da prensa escolhida; relatório antigo só com a série continua mostrando
+  const serieAntiga = !e.prensaEquip && e.seriePrensa && e.seriePrensa !== 'N/A' ? e.seriePrensa : '';
   return (
     <>
-      {prensas.length > 0 && (
-        <label className="field">
-          Prensa utilizada
-          <select
-            className={inp(e.prensaEquip)}
-            value={prensaNA ? NA : atual?.codigo ?? (e.prensaEquip ? ANTIGO : '')}
-            onChange={(ev) => {
-              const v = ev.target.value;
-              if (v === ANTIGO) return;
-              if (v === NA) return set({ prensaEquip: NA });
-              const it = prensas.find((x) => x.codigo === v);
-              if (!it) return set({ prensaEquip: '' });
-              const serie = seriePeloFabricante(it.fabricante);
-              set({ prensaEquip: descricaoItemPrensa(it), ...(serie ? { seriePrensa: serie } : {}) });
-            }}
-          >
-            <option value="">Selecione</option>
-            <option value={NA}>N/A</option>
-            {e.prensaEquip && !prensaNA && !atual && <option value={ANTIGO}>{e.prensaEquip} (registro anterior)</option>}
-            {prensas.map((it) => (
-              <option key={it.codigo} value={it.codigo}>
-                {rotuloItem(it)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {prensa.length === 0 && <p className="small muted">Nenhum equipamento da prensa cadastrado. Toque em “Gerenciar equipamentos da prensa” para cadastrar.</p>}
+      {serieAntiga && <p className="small muted">Registro anterior: série da prensa {serieAntiga}</p>}
+      <label className="field">
+        Prensa utilizada
+        <select
+          className={inp(e.prensaEquip)}
+          value={prensaNA ? NA : atual?.codigo ?? (e.prensaEquip ? ANTIGO : '')}
+          onChange={(ev) => {
+            const v = ev.target.value;
+            if (v === ANTIGO) return;
+            if (v === NA) return set({ prensaEquip: NA });
+            const it = prensas.find((x) => x.codigo === v);
+            if (!it) return set({ prensaEquip: '' });
+            const serie = seriePeloFabricante(it.fabricante);
+            set({ prensaEquip: descricaoItemPrensa(it), ...(serie ? { seriePrensa: serie } : {}) });
+          }}
+        >
+          <option value="">Selecione</option>
+          <option value={NA}>N/A</option>
+          {e.prensaEquip && !prensaNA && !atual && <option value={ANTIGO}>{e.prensaEquip} (registro anterior)</option>}
+          {prensas.map((it) => (
+            <option key={it.codigo} value={it.codigo}>
+              {rotuloItem(it)}
+            </option>
+          ))}
+        </select>
+      </label>
       {campo('paineis', 'Painéis utilizados', 'Painel')}
       {campo('bombas', 'Bombas utilizadas', 'Bomba')}
       <button className="btn small" onClick={() => setGerenciar(true)}>
