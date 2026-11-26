@@ -629,7 +629,10 @@ export function recalcular(e: Emenda, alterados: (keyof Emenda)[]): Partial<Emen
   if (!alterados.some((c) => CAMPOS_GATILHO.includes(c))) return orv;
   const out: Partial<Emenda> = { ...orv };
   const tc = e.tipoCorreia;
-  const te = e.tipoEmenda;
+  // cabo de aço só tem emenda A QUENTE: ao escolher cabo de aço, marca "Quente" (relatório antigo
+  // com cabo de aço + frio só muda se a pessoa escolher o tipo de correia de novo)
+  const te = tc === 'Cabo Aço' && alterados.includes('tipoCorreia') ? 'Quente' : e.tipoEmenda;
+  if (te !== e.tipoEmenda) out.tipoEmenda = te;
   const larg = num(e.largura);
   const lonas = num(e.qtdLona);
   const total = num(e.comprTotal);
@@ -782,8 +785,8 @@ const semResposta = (v: unknown) => v === '' || v === undefined;
  * O que falta para concluir o relatório: identificação, efetivo da troca, dados da emenda,
  * check lists respondidos, vulcanização, inspeção e as duas liberações assinadas.
  */
-/** Dureza Shore A obrigatória: cabo de aço ou emenda a quente. */
-export const durezaObrigatoria = (e: Pick<Emenda, 'tipoCorreia' | 'tipoEmenda'>) => e.tipoCorreia === 'Cabo Aço' || e.tipoEmenda === 'Quente';
+/** Dureza Shore A obrigatória só na emenda de CABO DE AÇO A QUENTE (lona a quente e emendas a frio: opcional). */
+export const durezaObrigatoria = (e: Pick<Emenda, 'tipoCorreia' | 'tipoEmenda'>) => e.tipoCorreia === 'Cabo Aço' && e.tipoEmenda === 'Quente';
 
 export function pendenciasConclusao(e: Emenda): string[] {
   const f: string[] = [];
@@ -831,13 +834,11 @@ export function pendenciasConclusao(e: Emenda): string[] {
     valor(e.tempAbertura, 'Temp. abertura da prensa');
     valor(e.horaAbertura, 'Hora abertura da prensa');
   }
-  // inspeção pós-vulcanização: dureza obrigatória no cabo de aço e em toda emenda A QUENTE
-  // (na lona a frio é opcional); na quente, as observações também são obrigatórias
+  // inspeção pós-vulcanização: dureza obrigatória só no cabo de aço a quente; observações nunca são obrigatórias
   if (durezaObrigatoria(e)) txt(e.dureza, 'Dureza Shore A');
   opc(e.ckBolha, 'Presença de bolha?');
   opc(e.ckAcabamento, 'Feito acabamento?');
   opc(e.ckFaltouMaterial, 'Faltou material?');
-  if (e.tipoEmenda === 'Quente') txt(e.obsVulc, 'Observações da inspeção pós-vulcanização');
   // 7 vistoria da prensa (FOR GTO 062)
   f.push(...pendenciasVistoria(e));
   // 9–10 liberações

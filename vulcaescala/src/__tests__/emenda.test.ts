@@ -34,6 +34,16 @@ describe('cálculos automáticos (regras do app do Suzano)', () => {
     expect(com({ demao1: '22:30', tipoCorreia: 'Cabo Aço' }, ['demao1'])).toMatchObject({ demao2: '23:30', horaFechada: '02:30' });
   });
 
+  it('cabo de aço só tem emenda a quente: escolher cabo de aço marca "Quente"', () => {
+    const e = com({ tipoCorreia: 'Cabo Aço', tipoEmenda: 'Frio' }, ['tipoCorreia']);
+    expect(e.tipoEmenda).toBe('Quente');
+    expect(e).toMatchObject({ tempVulc: '150°', pressaoVulc: '10' }); // já calcula como quente
+    // relatório antigo com cabo de aço + frio: outro campo mudando não troca o tipo sozinho
+    expect(com({ tipoCorreia: 'Cabo Aço', tipoEmenda: 'Frio' }, ['comprTotal']).tipoEmenda).toBe('Frio');
+    // lona continua podendo ser a frio
+    expect(com({ tipoCorreia: 'Lona', tipoEmenda: 'Frio' }, ['tipoCorreia']).tipoEmenda).toBe('Frio');
+  });
+
   it('quente: parâmetros padrão da prensa e data do teste', () => {
     const e = com({ tipoEmenda: 'Quente' }, ['tipoEmenda']);
     expect(e).toMatchObject({ tempVulc: '150°', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '60°', dataTeste: '2026-11-07', rodilhada: 'N/A' });
@@ -144,11 +154,13 @@ describe('conclusão do relatório de emenda', () => {
     const ap = { equip: 'MULTÍMETRO', marca: 'M', codigo: 'MT-1', certificado: 'C', dataCal: '2026-01-01', validadeCal: '2027-01-01' };
     const vist = { vistoriaItens: todosC, dataTeste: '2026-11-16', paineis: 'P-01 · SAMPLA', bombas: 'B-01 · SAMPLA', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
     const quente = pendenciasConclusao({ ...ok, ...vist, tipoEmenda: 'Quente', tempVulc: 'N/A', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '', horaAbertura: '11:00' });
-    // na quente a inspeção pós-vulcanização também exige as observações
-    expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa', 'Observações da inspeção pós-vulcanização']);
-    // dureza: obrigatória no cabo de aço e na emenda a quente (lona a frio: opcional)
+    // observações nunca são obrigatórias
+    expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa']);
+    // dureza: obrigatória só no cabo de aço a quente
     expect(pendenciasConclusao({ ...ok, dureza: '' })).toEqual([]);
-    expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', dureza: '' })).toContain('Dureza Shore A');
+    expect(pendenciasConclusao({ ...ok, ...vist, tipoEmenda: 'Quente', dureza: '' })).not.toContain('Dureza Shore A'); // lona a quente
+    expect(pendenciasConclusao({ ...ok, tipoCorreia: 'Cabo Aço', dureza: '' })).not.toContain('Dureza Shore A'); // cabo de aço a frio
+    expect(pendenciasConclusao({ ...ok, ...vist, tipoCorreia: 'Cabo Aço', tipoEmenda: 'Quente', dureza: '' })).toContain('Dureza Shore A');
     expect(concluido(ok)).toBe(false);
     expect(concluido({ ...ok, concluidoEm: '2026-11-16T10:00:00Z' })).toBe(true);
   });
@@ -210,13 +222,22 @@ describe('seção 7 (prensa) e inspeção pós-vulcanização', () => {
     expect(juntarItens([])).toBe('N/A');
   });
 
-  it('emenda a quente: dureza, bolha, acabamento, faltou material e observações obrigatórios para concluir', async () => {
+  it('lona a quente: bolha, acabamento e faltou material obrigatórios; dureza e observações opcionais', async () => {
     const { pendenciasConclusao } = await import('../emenda/model');
     const quente = { ...novaEmenda('q', '2026-11-25', 'x'), tipoEmenda: 'Quente' as const, tipoCorreia: 'Lona' as const };
     const p = pendenciasConclusao(quente);
-    for (const item of ['Dureza Shore A', 'Presença de bolha?', 'Feito acabamento?', 'Faltou material?', 'Observações da inspeção pós-vulcanização']) expect(p).toContain(item);
-    const ok = pendenciasConclusao({ ...quente, dureza: '58', ckBolha: 'Não', ckAcabamento: 'Sim', ckFaltouMaterial: 'Não', obsVulc: 'Sem desvios' });
-    expect(ok.some((s) => /Dureza|bolha|acabamento|Faltou|Observações da inspeção/.test(s))).toBe(false);
+    for (const item of ['Presença de bolha?', 'Feito acabamento?', 'Faltou material?']) expect(p).toContain(item);
+    expect(p).not.toContain('Dureza Shore A');
+    expect(p.some((s) => /Observações/.test(s))).toBe(false);
+    const ok = pendenciasConclusao({ ...quente, ckBolha: 'Não', ckAcabamento: 'Sim', ckFaltouMaterial: 'Não' });
+    expect(ok.some((s) => /Dureza|bolha|acabamento|Faltou|Observações/.test(s))).toBe(false);
+  });
+
+  it('cabo de aço a quente: dureza obrigatória; observações opcionais', async () => {
+    const { pendenciasConclusao } = await import('../emenda/model');
+    const p = pendenciasConclusao({ ...novaEmenda('c', '2026-11-25', 'x'), tipoEmenda: 'Quente', tipoCorreia: 'Cabo Aço' });
+    expect(p).toContain('Dureza Shore A');
+    expect(p.some((s) => /Observações/.test(s))).toBe(false);
   });
 
   it('emenda a frio em lona: dureza e observações continuam opcionais', async () => {
