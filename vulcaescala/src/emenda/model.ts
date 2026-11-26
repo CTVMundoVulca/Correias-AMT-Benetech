@@ -629,7 +629,10 @@ export function recalcular(e: Emenda, alterados: (keyof Emenda)[]): Partial<Emen
   if (!alterados.some((c) => CAMPOS_GATILHO.includes(c))) return orv;
   const out: Partial<Emenda> = { ...orv };
   const tc = e.tipoCorreia;
-  const te = e.tipoEmenda;
+  // cabo de aço só tem emenda A QUENTE: ao escolher cabo de aço, marca "Quente" (relatório antigo
+  // com cabo de aço + frio só muda se a pessoa escolher o tipo de correia de novo)
+  const te = tc === 'Cabo Aço' && alterados.includes('tipoCorreia') ? 'Quente' : e.tipoEmenda;
+  if (te !== e.tipoEmenda) out.tipoEmenda = te;
   const larg = num(e.largura);
   const lonas = num(e.qtdLona);
   const total = num(e.comprTotal);

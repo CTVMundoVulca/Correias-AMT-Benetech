@@ -34,6 +34,16 @@ describe('cálculos automáticos (regras do app do Suzano)', () => {
     expect(com({ demao1: '22:30', tipoCorreia: 'Cabo Aço' }, ['demao1'])).toMatchObject({ demao2: '23:30', horaFechada: '02:30' });
   });
 
+  it('cabo de aço só tem emenda a quente: escolher cabo de aço marca "Quente"', () => {
+    const e = com({ tipoCorreia: 'Cabo Aço', tipoEmenda: 'Frio' }, ['tipoCorreia']);
+    expect(e.tipoEmenda).toBe('Quente');
+    expect(e).toMatchObject({ tempVulc: '150°', pressaoVulc: '10' }); // já calcula como quente
+    // relatório antigo com cabo de aço + frio: outro campo mudando não troca o tipo sozinho
+    expect(com({ tipoCorreia: 'Cabo Aço', tipoEmenda: 'Frio' }, ['comprTotal']).tipoEmenda).toBe('Frio');
+    // lona continua podendo ser a frio
+    expect(com({ tipoCorreia: 'Lona', tipoEmenda: 'Frio' }, ['tipoCorreia']).tipoEmenda).toBe('Frio');
+  });
+
   it('quente: parâmetros padrão da prensa e data do teste', () => {
     const e = com({ tipoEmenda: 'Quente' }, ['tipoEmenda']);
     expect(e).toMatchObject({ tempVulc: '150°', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '60°', dataTeste: '2026-11-07', rodilhada: 'N/A' });

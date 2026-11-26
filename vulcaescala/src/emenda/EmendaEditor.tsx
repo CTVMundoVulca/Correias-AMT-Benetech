@@ -261,8 +261,11 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
       <Sec n="5" t="Dados da emenda">
         <div className="g2">
           <Opts e={e} set={set} c="tipoCorreia" label="Tipo de correia" op={['Lona', 'Cabo Aço']} />
-          <Opts e={e} set={set} c="tipoEmenda" label="Tipo de emenda" op={['Frio', 'Quente']} />
+          <Opts e={e} set={set} c="tipoEmenda" label="Tipo de emenda" op={['Frio', 'Quente']} bloqueadas={e.tipoCorreia === 'Cabo Aço' ? ['Frio'] : []} />
         </div>
+        {e.tipoCorreia === 'Cabo Aço' && e.tipoEmenda === 'Frio' && (
+          <p className="small text-danger">Correia de cabo de aço só tem emenda a quente. Corrija o tipo de emenda para “Quente”.</p>
+        )}
         <Txt e={e} set={set} c="especificacao" label="Especificação da correia (fab./modelo)" />
         <div className="g2">
           <Txt e={e} set={set} c="largura" label="Largura da correia [mm]" mode="decimal" />
@@ -490,7 +493,7 @@ function Area({ e, set, c, label }: { e: Emenda; set: SetFn; c: StrKeys; label: 
   );
 }
 
-function Opts({ e, set, c, label, op }: { e: Emenda; set: SetFn; c: StrKeys; label: string; op: string[] }) {
+function Opts({ e, set, c, label, op, bloqueadas = [] }: { e: Emenda; set: SetFn; c: StrKeys; label: string; op: string[]; bloqueadas?: string[] }) {
   const v = e[c] as string;
   return (
     <div className="field">
@@ -502,6 +505,8 @@ function Opts({ e, set, c, label, op }: { e: Emenda; set: SetFn; c: StrKeys; lab
             role="radio"
             aria-checked={v === o}
             className={'opt' + (v === o ? ' on' : '')}
+            disabled={bloqueadas.includes(o)}
+            title={bloqueadas.includes(o) ? 'Não se aplica a esta correia' : undefined}
             onClick={() => set({ [c]: v === o && c.startsWith('ck') ? ('' as SimNao) : o } as Partial<Emenda>)}
           >
             {o}
