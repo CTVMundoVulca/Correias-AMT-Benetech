@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, useEmenda } from './context';
 import { ouvirEmenda, ouvirFotos } from './data';
-import { fmtData, margemOrvalho, ORDEM_FOTO_PRENSA, type Emenda, type Foto, type Liberacao } from './model';
+import { fmtData, FORM_VISTORIA, fotoDaVistoria, GRUPOS_VISTORIA, margemOrvalho, RESPOSTAS_VISTORIA, vistoriaIniciada, type Emenda, type Foto, type Liberacao } from './model';
 
 /** Formulário padrão da empresa para o Registro de Emenda — atualizar aqui quando a revisão mudar. */
 const FORMULARIO_PADRAO = 'FOR GTO 054 — REV.08';
@@ -30,9 +30,11 @@ export function Relatorio({ id }: { id: string }) {
   if (e === null) return <p className="pad">Relatório não encontrado.</p>;
 
   const aco = e.tipoCorreia === 'Cabo Aço';
-  // foto do check list da prensa vai na seção 7; as demais no registro fotográfico
-  const fotoPrensa = fotos.find((f) => f.ordem === ORDEM_FOTO_PRENSA);
-  const fotosProcesso = fotos.filter((f) => f.ordem >= 0);
+  // fotos da vistoria da prensa (posições negativas) vão na página da vistoria; as demais no registro fotográfico
+  const fotosVistoria = fotos.filter(fotoDaVistoria).sort((a, b) => b.ordem - a.ordem);
+  const fotosProcesso = fotos.filter((f) => !fotoDaVistoria(f));
+  const comVistoria = vistoriaIniciada(e);
+  const testadaAntiga = e.prensaTestada === 'Sim' || e.prensaTestada === 'Não';
   return (
     <article className="rel" ref={ref}>
       <div className="rel-toolbar no-print">
@@ -153,13 +155,20 @@ export function Relatorio({ id }: { id: string }) {
         <KV k="Prensa" v={e.prensaEquip || (e.seriePrensa && e.seriePrensa !== 'N/A' ? `Série ${e.seriePrensa}` : e.seriePrensa)} />
         <KV k="Painéis" v={e.paineis} />
         <KV k="Bombas" v={e.bombas} />
-        <KV k="Testada antes?" v={e.prensaTestada} />
-        <KV k="Data do teste" v={fmtData(e.dataTeste)} />
-        <KV k="Técnico em elétrica" v={e.libEletricista.nome || (e.assEletricista ?? '')} />
-        <KV k="Matrícula/CPF" v={e.libEletricista.matricula} />
-        <KV k="Data (técnico em elétrica)" v={fmtData(e.libEletricista.data)} />
+        {testadaAntiga && <KV k="Testada antes?" v={e.prensaTestada} />}
+        {comVistoria ? (
+          <KV k={`Vistoria da prensa (${FORM_VISTORIA.codigo})`} v={`Em anexo — ${fmtData(e.dataTeste)}`} />
+        ) : (
+          <>
+            {/* relatórios anteriores à vistoria: dados do teste como eram registrados */}
+            <KV k="Data do teste" v={fmtData(e.dataTeste)} />
+            <KV k="Técnico em elétrica" v={e.libEletricista.nome || (e.assEletricista ?? '')} />
+            <KV k="Matrícula/CPF" v={e.libEletricista.matricula} />
+            <KV k="Data (técnico em elétrica)" v={fmtData(e.libEletricista.data)} />
+          </>
+        )}
         <KV k="Observações" v={e.obsPrensa} full />
-        {(e.libEletricista.assinatura || fotoPrensa) && (
+        {!comVistoria && (e.libEletricista.assinatura || fotosVistoria.length > 0) && (
           <div className="rel-prensa-extra full">
             {e.libEletricista.assinatura && (
               <div className="rel-sig">
@@ -167,12 +176,12 @@ export function Relatorio({ id }: { id: string }) {
                 <span className="small">Assinatura do técnico em elétrica</span>
               </div>
             )}
-            {fotoPrensa && (
-              <figure className="rel-foto-prensa">
-                <img src={fotoPrensa.data} alt={fotoPrensa.legenda} />
-                <figcaption>{fotoPrensa.legenda}</figcaption>
+            {fotosVistoria.map((f) => (
+              <figure key={f.id} className="rel-foto-prensa">
+                <img src={f.data} alt={f.legenda} />
+                <figcaption>{f.legenda}</figcaption>
               </figure>
-            )}
+            ))}
           </div>
         )}
       </Bloco>
@@ -203,7 +212,113 @@ export function Relatorio({ id }: { id: string }) {
           </div>
         </section>
       )}
+
+      {comVistoria && <PaginaVistoria e={e} fotos={fotosVistoria} />}
     </article>
+  );
+}
+
+/** Página do FOR GTO 062 — Vistoria de prensas e equipamentos (anexo do relatório, página própria no PDF). */
+function PaginaVistoria({ e, fotos }: { e: Emenda; fotos: Foto[] }) {
+  const marca = (k: string, r: string) => (e.vistoriaItens[k as keyof typeof e.vistoriaItens] === r ? 'X' : '');
+  const sig = (l: Liberacao, rotulo: string) => (
+    <div className="vist-sig pdf-inteiro">
+      <span>{rotulo}</span>
+      <b>
+        {l.nome || '—'}
+        {l.matricula ? ` · ${l.matricula}` : ''}
+        {l.data ? ` · ${fmtData(l.data)}` : ''}
+      </b>
+      <div className="rel-sig">{l.assinatura ? <img src={l.assinatura} alt={`Assinatura — ${l.nome}`} /> : <span>sem assinatura</span>}</div>
+    </div>
+  );
+  return (
+    <section className="rel-vistoria">
+      <header className="vist-head">
+        <img src="logo-benetech.png" alt="Benetech" />
+        <h1>{FORM_VISTORIA.titulo}</h1>
+        <div className="vist-cod">
+          <b>{FORM_VISTORIA.codigo}</b>
+          <span>Rev.: {FORM_VISTORIA.revisao}</span>
+        </div>
+      </header>
+      <p className="vist-ref">
+        Anexo do relatório de emenda nº {e.numero || '—'} · TAG {e.tag || '—'} · {fmtData(e.data)}
+      </p>
+      <div className="vist-linha">
+        <span>
+          Responsável pela inspeção: <b>{e.libEletricista.nome || '—'}</b>
+        </span>
+        <span>
+          Data: <b>{fmtData(e.dataTeste)}</b>
+        </span>
+      </div>
+      <table className="vist-tab">
+        <thead>
+          <tr>
+            <th>Item</th>
+            {RESPOSTAS_VISTORIA.map((r) => (
+              <th key={r} className="vist-r">
+                {r}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {GRUPOS_VISTORIA.map((g, gi) => (
+          <tbody key={g.titulo}>
+            <tr className="vist-grupo">
+              <td colSpan={4}>{g.titulo}</td>
+            </tr>
+            {gi < 2 && (
+              <tr>
+                <td colSpan={4}>
+                  {gi === 0 ? 'Número do painel elétrico' : 'Número do conjunto de bomba'}: <b>{(gi === 0 ? e.paineis : e.bombas) || '—'}</b>
+                </td>
+              </tr>
+            )}
+            {g.itens.map(([k, nome]) => (
+              <tr key={k} className={e.vistoriaItens[k] === 'NC' ? 'vist-nc' : ''}>
+                <td>{nome}</td>
+                {RESPOSTAS_VISTORIA.map((r) => (
+                  <td key={r} className="vist-r">
+                    {marca(k, r)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+      <h3 className="rel-sub">Aparelhos utilizados nos testes</h3>
+      <Tabela
+        cab={['Equipamento', 'Marca / modelo', 'Patrimônio', 'Certificado', 'Calibração', 'Validade']}
+        linhas={e.vistoriaAparelhos.map((q) => [q.equip, q.marca, q.codigo, q.certificado, fmtData(q.dataCal), fmtData(q.validadeCal)])}
+      />
+      <h3 className="rel-sub">Anotações</h3>
+      <p className="vist-anot">{e.vistoriaAnotacoes || '—'}</p>
+      <div className="vist-sigs">
+        {sig(e.libEletricista, 'Responsável pela inspeção')}
+        {sig(e.libSupervisorPrensa, 'Liberado por (supervisor)')}
+        {sig(e.libEncarregadoPrensa, 'Visto (encarregado)')}
+      </div>
+      <p className="vist-legenda">Legenda: C - Conforme · NC - Não Conforme · NA - Não se Aplica</p>
+      {fotos.length > 0 && (
+        <section className="rel-fotos">
+          <h2>Registro fotográfico da inspeção</h2>
+          <div className="rel-foto-grid">
+            {fotos.map((f) => (
+              <figure key={f.id}>
+                <img src={f.data} alt={f.legenda} />
+                <figcaption>{f.legenda}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </section>
+      )}
+      <p className="vist-rev">
+        Revisão: {FORM_VISTORIA.revisao} · Data de revisão: {FORM_VISTORIA.dataRevisao}
+      </p>
+    </section>
   );
 }
 

@@ -5,7 +5,7 @@ import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { useEmenda } from './context';
 import { comprimirFoto, excluirFoto, gravarFoto, legendaFoto, ouvirFotos } from './data';
-import { FOTO_CAMPOS, legendaSugerida, type Foto } from './model';
+import { FOTO_CAMPOS, fotoDaVistoria, legendaSugerida, type Foto } from './model';
 
 /**
  * Registro fotográfico no formato do app do Suzano: campos numerados com a descrição
@@ -17,13 +17,13 @@ export function FotosSection({
   emendaId,
   antesDeGravar,
   travado = false,
-  unico,
+  vistoria,
 }: {
   emendaId: string;
   antesDeGravar?: () => void;
   travado?: boolean;
-  /** campo de foto único, numa posição reservada (ex.: check list da prensa na seção 7) */
-  unico?: { ordem: number; legenda: string };
+  /** fotos da vistoria da prensa: posições negativas (−1, −2, …), fora do registro fotográfico */
+  vistoria?: { legenda: string };
 }) {
   const { api } = useEmenda();
   const toast = useToast();
@@ -33,19 +33,22 @@ export function FotosSection({
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [extras, setExtras] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  // campo único: a posição é sempre a reservada (nunca cai no registro fotográfico)
-  const alvo = useRef(unico ? unico.ordem : 0);
+  // vistoria: a posição é sempre negativa (nunca cai no registro fotográfico)
+  const alvo = useRef(vistoria ? -1 : 0);
 
   useEffect(() => ouvirFotos(api, emendaId, setFotos, () => setFotos([])), [api, emendaId]);
 
-  // o registro fotográfico usa as posições 0, 1, 2…; posições negativas são campos reservados
-  const minhas = unico ? fotos.filter((f) => f.ordem === unico.ordem) : fotos.filter((f) => f.ordem >= 0);
+  // o registro fotográfico usa as posições 0, 1, 2…; a vistoria da prensa, −1, −2, −3…
+  const minhas = fotos.filter((f) => (vistoria ? fotoDaVistoria(f) : !fotoDaVistoria(f)));
   const porCampo = new Map(minhas.map((f) => [f.ordem, f]));
-  const maior = minhas.reduce((m, f) => Math.max(m, f.ordem), -1);
-  const total = Math.max(FOTO_CAMPOS.length, maior + 1) + extras;
-  const campos = unico ? [unico.ordem] : Array.from({ length: total }, (_, i) => i);
-  const sugestao = (i: number) => (unico ? unico.legenda : legendaSugerida(i));
-  const num = (i: number) => (unico ? '' : `${i + 1}. `);
+  /** posição na tela (0, 1, 2…) ⇄ ordem gravada */
+  const pos = (ordem: number) => (vistoria ? -ordem - 1 : ordem);
+  const ordemDe = (p: number) => (vistoria ? -(p + 1) : p);
+  const maior = minhas.reduce((m, f) => Math.max(m, pos(f.ordem)), -1);
+  const total = Math.max(vistoria ? 1 : FOTO_CAMPOS.length, maior + 1) + extras;
+  const campos = Array.from({ length: total }, (_, p) => ordemDe(p));
+  const sugestao = (i: number) => (vistoria ? vistoria.legenda : legendaSugerida(i));
+  const num = (i: number) => `${pos(i) + 1}. `;
 
   const escolher = (i: number) => {
     alvo.current = i;
@@ -133,7 +136,7 @@ export function FotosSection({
               ) : f ? (
                 <LegendaEditavel
                   key={f.id + f.legenda}
-                  numero={unico ? undefined : i + 1}
+                  numero={pos(i) + 1}
                   valor={f.legenda}
                   onSalvar={(v) => void legendaFoto(api, emendaId, f.id, v).catch(() => toast('Não foi possível salvar a descrição.', 'danger'))}
                 />
@@ -148,7 +151,7 @@ export function FotosSection({
         })}
       </div>
       <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void adicionar(e.target.files?.[0])} />
-      {!travado && !unico && (
+      {!travado && (
         <button className="btn" onClick={() => setExtras((n) => n + 1)}>
           + Adicionar mais fotos
         </button>
@@ -164,7 +167,7 @@ export function FotosSection({
                   Remover
                 </button>
               )}
-              <a className="btn" href={ver.data} download={unico ? 'emenda-checklist-prensa.jpg' : `emenda-foto-${ver.ordem + 1}.jpg`}>
+              <a className="btn" href={ver.data} download={vistoria ? `vistoria-prensa-foto-${pos(ver.ordem) + 1}.jpg` : `emenda-foto-${ver.ordem + 1}.jpg`}>
                 Baixar
               </a>
               <button className="btn primary" onClick={() => setVer(null)}>
