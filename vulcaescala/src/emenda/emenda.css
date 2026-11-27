@@ -226,3 +226,23 @@
 .vist-legenda { font-size: 11px; border: 1px solid #d5dae1; padding: 4px 8px; margin-top: 8px; }
 .vist-rev { font-size: 10px; color: #1f7fc4; margin-top: 8px; }
 @media (max-width: 560px) { .vist-sigs { grid-template-columns: 1fr; } }
+
+/* PDF (gerado no celular ou no computador): assinaturas da vistoria sempre lado a lado, como no A4 */
+.modo-pdf .vist-sigs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* tela estreita: o cabeçalho do relatório quebra em linhas em vez de passar da largura (PDF não muda) */
+@media (max-width: 560px) {
+  .rel-head { flex-wrap: wrap; row-gap: 6px; gap: 10px; }
+  .rel-head img { height: 28px; }
+  /* título ocupa o resto da 1ª linha; o código do formulário desce para uma linha própria, à direita */
+  .rel-head > div:not(.rel-formcod) { flex: 1 1 calc(100% - 130px); min-width: 0; }
+  .rel-head h1 { font-size: 1.05rem; }
+  .rel-formcod { margin-left: auto; }
+  .vist-head { grid-template-columns: auto 1fr; }
+  .vist-head .vist-cod { grid-column: 1 / -1; flex-direction: row; gap: 8px; border-left: 0; padding-left: 0; }
+}
+.modo-pdf .rel-head { flex-wrap: nowrap; }
+.modo-pdf .rel-head > div:not(.rel-formcod) { flex: 0 1 auto; }
+.modo-pdf .rel-formcod { margin-left: auto; }
+.modo-pdf .vist-head { grid-template-columns: auto 1fr auto; }
+.modo-pdf .vist-head .vist-cod { grid-column: auto; flex-direction: column; gap: 0; border-left: 1px solid #001a33; padding-left: 8px; }

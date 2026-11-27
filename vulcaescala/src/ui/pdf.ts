@@ -57,6 +57,24 @@ function esperarImagens(root: HTMLElement): Promise<unknown> {
   );
 }
 
+/**
+ * O trecho [a, b) da página tem algo visível? (texto, imagem, assinatura, linha de tabela)
+ * Usado para não gerar página em branco com a sobra de margem do fim do relatório.
+ */
+function temConteudo(host: HTMLElement, a: number, b: number): boolean {
+  const base = host.getBoundingClientRect().top;
+  const cruza = (r: DOMRect) => r.height > 0 && r.bottom - base > a + 2 && r.top - base < b - 2;
+  for (const el of host.querySelectorAll<HTMLElement>('img, canvas, svg, hr')) if (cruza(el.getBoundingClientRect())) return true;
+  const textos = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+  const faixa = document.createRange();
+  for (let n = textos.nextNode(); n; n = textos.nextNode()) {
+    if (!n.textContent?.trim()) continue;
+    faixa.selectNodeContents(n);
+    for (const r of faixa.getClientRects()) if (cruza(r)) return true;
+  }
+  return false;
+}
+
 /** Quebras de página sem cortar linhas de tabela, imagens e blocos pequenos (respeita quebra forçada). */
 function quebras(host: HTMLElement, pageH: number): number[] {
   const base = host.getBoundingClientRect().top;
@@ -142,21 +160,27 @@ export async function gerarPdf(fonte: HTMLElement, { nome, paisagem = false, ext
     const contentW = pageW - 2 * margem;
     const pxPorMm = largura / contentW;
     const pagPx = Math.floor((pageH - 2 * margem) * pxPorMm);
+    // trechos de página; os que não têm nada visível (sobra de margem no fim) não viram página em branco
     const br = quebras(host, pagPx);
+    const trechos = br
+      .slice(1)
+      .map((b, i): [number, number] => [br[i], b])
+      .filter(([a, b]) => temConteudo(host, a, b));
     const rect = host.getBoundingClientRect();
     const topo = rect.top + window.pageYOffset;
     const esq = rect.left + window.pageXOffset;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: paisagem ? 'landscape' : 'portrait', compress: true });
     pdf.setProperties({ title: nome.replace(/\.pdf$/, ''), author: 'CTV Consultoria Técnica em Vulcanização', creator: 'Apps Benetech AMT' });
-    for (let i = 0; i < br.length - 1; i++) {
-      const h = Math.ceil(br[i + 1] - br[i]);
+    for (let i = 0; i < trechos.length; i++) {
+      const [a, b] = trechos[i];
+      const h = Math.ceil(b - a);
       const canvas = await html2canvas(host, {
         scale: 2,
         backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
         x: esq,
-        y: topo + br[i],
+        y: topo + a,
         width: largura,
         height: h,
         scrollX: -window.pageXOffset,
