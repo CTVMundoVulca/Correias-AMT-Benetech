@@ -690,7 +690,8 @@ function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetF
       {linhas.map((q, i) => {
         const escolhido = q.codigo ? aparelhoPorCodigo(completos, q.codigo) : undefined;
         // linha que não é um aparelho do cadastro (relatório antigo ou tipo ainda sem aparelho escolhido): o valor continua visível
-        const avulso = !escolhido && (q.equip || q.codigo) ? [q.equip, q.codigo].filter(Boolean).join(' · ') : '';
+        // linha que não é um aparelho do cadastro: o campo mostra só o nome do equipamento (o patrimônio tem campo próprio)
+        const avulso = !escolhido && (q.equip || q.codigo) ? q.equip || '(sem nome)' : '';
         return (
         <div key={i} className="item-card">
           <div className="g2">
@@ -717,9 +718,9 @@ function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetF
                       const vencido = calibracaoVencida(a, dataRef);
                       return (
                         <option key={a.codigo} value={AP + a.codigo} disabled={vencido && a.codigo !== escolhido?.codigo}>
-                          {a.equip} · {a.codigo}
-                          {a.marca ? ` · ${a.marca}` : ''}
-                          {vencido ? ` — calibração vencida em ${fmtData(a.validadeCal)}` : ''}
+                          {/* escolhido: o campo fechado mostra só o nome; na lista aberta, os outros com patrimônio e marca para diferenciar */}
+                          {a.codigo === escolhido?.codigo ? a.equip : `${a.equip} · ${a.codigo}${a.marca ? ` · ${a.marca}` : ''}`}
+                          {vencido && a.codigo !== escolhido?.codigo ? ` — calibração vencida em ${fmtData(a.validadeCal)}` : ''}
                         </option>
                       );
                     })}
@@ -821,7 +822,6 @@ function CampoPatrimonio({ q, upd, dataRef }: { q: EquipItem; upd: (p: Partial<E
         {opcoes.map((a) => (
           <option key={a.codigo} value={a.codigo}>
             {a.codigo}
-            {a.marca ? ` · ${a.marca}` : ''}
           </option>
         ))}
         <option value={OUTRO}>Outro (digitar)…</option>
