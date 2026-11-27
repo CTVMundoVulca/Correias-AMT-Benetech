@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PdfBotao } from '../ui/PdfBotao';
 import { irPara, useEmenda } from './context';
 import { ouvirEmenda, ouvirFotos } from './data';
-import { fmtData, FORM_VISTORIA, fotoDaVistoria, GRUPOS_VISTORIA, margemOrvalho, RESPOSTAS_VISTORIA, vistoriaIniciada, type Emenda, type Foto, type Liberacao } from './model';
+import { conjuntosDe, fmtData, FASES, FORM_VISTORIA, fotoDaVistoria, GRUPOS_VISTORIA, margemOrvalho, PLATOS, RESPOSTAS_VISTORIA, vistoriaIniciada, type ChaveResist, type ConjuntoPrensa, type Emenda, type Foto, type Liberacao } from './model';
 
 /** Formulário padrão da empresa para o Registro de Emenda — atualizar aqui quando a revisão mudar. */
 const FORMULARIO_PADRAO = 'FOR GTO 054 — REV.08';
@@ -34,6 +34,7 @@ export function Relatorio({ id }: { id: string }) {
   const fotosVistoria = fotos.filter(fotoDaVistoria).sort((a, b) => b.ordem - a.ordem);
   const fotosProcesso = fotos.filter((f) => !fotoDaVistoria(f));
   const comVistoria = vistoriaIniciada(e);
+  const conjuntos = conjuntosDe(e);
   const testadaAntiga = e.prensaTestada === 'Sim' || e.prensaTestada === 'Não';
   return (
     <article className="rel" ref={ref}>
@@ -152,9 +153,17 @@ export function Relatorio({ id }: { id: string }) {
 
       <Bloco t="7. Prensa">
         {/* relatório antigo sem a prensa escolhida: mostra a série que foi marcada na época */}
-        <KV k="Prensa" v={e.prensaEquip || (e.seriePrensa && e.seriePrensa !== 'N/A' ? `Série ${e.seriePrensa}` : e.seriePrensa)} />
-        <KV k="Painéis" v={e.paineis} />
-        <KV k="Bombas" v={e.bombas} />
+        {conjuntos.length > 1 ? (
+          conjuntos.map((c, i) => (
+            <KV key={i} k={`Conjunto ${i + 1}`} v={[`Prensa: ${c.prensa || '—'}`, `Painéis: ${c.paineis || '—'}`, `Bombas: ${c.bombas || '—'}`].join(' · ')} full />
+          ))
+        ) : (
+          <>
+            <KV k="Prensa" v={e.prensaEquip || (e.seriePrensa && e.seriePrensa !== 'N/A' ? `Série ${e.seriePrensa}` : e.seriePrensa)} />
+            <KV k="Painéis" v={e.paineis} />
+            <KV k="Bombas" v={e.bombas} />
+          </>
+        )}
         {testadaAntiga && <KV k="Testada antes?" v={e.prensaTestada} />}
         {comVistoria ? (
           <KV k={`Vistoria da prensa (${FORM_VISTORIA.codigo})`} v={`Em anexo — ${fmtData(e.dataTeste)}`} />
@@ -213,14 +222,17 @@ export function Relatorio({ id }: { id: string }) {
         </section>
       )}
 
-      {comVistoria && <PaginaVistoria e={e} fotos={fotosVistoria} />}
+      {/* uma página FOR GTO 062 por conjunto; as fotos da inspeção vão na última */}
+      {comVistoria &&
+        conjuntos.map((c, i) => <PaginaVistoria key={i} e={e} c={c} n={i + 1} total={conjuntos.length} fotos={i === conjuntos.length - 1 ? fotosVistoria : []} />)}
     </article>
   );
 }
 
 /** Página do FOR GTO 062 — Vistoria de prensas e equipamentos (anexo do relatório, página própria no PDF). */
-function PaginaVistoria({ e, fotos }: { e: Emenda; fotos: Foto[] }) {
-  const marca = (k: string, r: string) => (e.vistoriaItens[k as keyof typeof e.vistoriaItens] === r ? 'X' : '');
+function PaginaVistoria({ e, c, n, total, fotos }: { e: Emenda; c: ConjuntoPrensa; n: number; total: number; fotos: Foto[] }) {
+  const marca = (k: string, r: string) => (c.itens[k as keyof typeof c.itens] === r ? 'X' : '');
+  const ohm = (k: ChaveResist) => (c.resist[k]?.trim() ? `${c.resist[k]!.trim()} Ω` : '____');
   const sig = (l: Liberacao, rotulo: string) => (
     <div className="vist-sig pdf-inteiro">
       <span>{rotulo}</span>
@@ -244,6 +256,8 @@ function PaginaVistoria({ e, fotos }: { e: Emenda; fotos: Foto[] }) {
       </header>
       <p className="vist-ref">
         Anexo do relatório de emenda nº {e.numero || '—'} · TAG {e.tag || '—'} · {fmtData(e.data)}
+        {total > 1 ? ` · Conjunto ${n} de ${total}` : ''}
+        {c.prensa && c.prensa !== 'N/A' ? ` · Prensa ${c.prensa}` : ''}
       </p>
       <div className="vist-linha">
         <span>
@@ -272,20 +286,36 @@ function PaginaVistoria({ e, fotos }: { e: Emenda; fotos: Foto[] }) {
             {gi < 2 && (
               <tr>
                 <td colSpan={4}>
-                  {gi === 0 ? 'Número do painel elétrico' : 'Número do conjunto de bomba'}: <b>{(gi === 0 ? e.paineis : e.bombas) || '—'}</b>
+                  {gi === 0 ? 'Número do painel elétrico' : 'Número do conjunto de bomba'}: <b>{(gi === 0 ? c.paineis : c.bombas) || '—'}</b>
                 </td>
               </tr>
             )}
-            {g.itens.map(([k, nome]) => (
-              <tr key={k} className={e.vistoriaItens[k] === 'NC' ? 'vist-nc' : ''}>
+            {g.itens.map(([k, nome]) => [
+              <tr key={k} className={c.itens[k] === 'NC' ? 'vist-nc' : ''}>
                 <td>{nome}</td>
                 {RESPOSTAS_VISTORIA.map((r) => (
                   <td key={r} className="vist-r">
                     {marca(k, r)}
                   </td>
                 ))}
-              </tr>
-            ))}
+              </tr>,
+              // Rev. 07: valores de resistência de cada platô logo depois de "Resistências"
+              ...(k === 'resistencias'
+                ? PLATOS.map((pl) => (
+                    <tr key={`${k}-p${pl}`} className="vist-resist">
+                      <td colSpan={4}>
+                        {pl === 1 ? 'Valores resistência: ' : ''}
+                        <span className="vist-plato">Platô {pl}</span>
+                        {FASES.map(([f, rot]) => (
+                          <span key={f} className="vist-fase">
+                            {rot} <b>{ohm(`p${pl}${f}` as ChaveResist)}</b>
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))
+                : []),
+            ])}
           </tbody>
         ))}
       </table>
@@ -315,7 +345,8 @@ function PaginaVistoria({ e, fotos }: { e: Emenda; fotos: Foto[] }) {
         </section>
       )}
       <p className="vist-rev">
-        Revisão: {FORM_VISTORIA.revisao} · Data de revisão: {FORM_VISTORIA.dataRevisao}
+        Revisão: {FORM_VISTORIA.revisao}
+        {FORM_VISTORIA.dataRevisao ? ` · Data de revisão: ${FORM_VISTORIA.dataRevisao}` : ''}
       </p>
     </section>
   );
