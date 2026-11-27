@@ -246,3 +246,19 @@
 .modo-pdf .rel-formcod { margin-left: auto; }
 .modo-pdf .vist-head { grid-template-columns: auto 1fr auto; }
 .modo-pdf .vist-head .vist-cod { grid-column: auto; flex-direction: column; gap: 0; border-left: 1px solid #001a33; padding-left: 8px; }
+
+/* conjuntos de prensa (seção 7) e resistências dos platôs (vistoria) */
+.conjunto-card { display: flex; flex-direction: column; gap: 8px; }
+.conjunto-titulo { font-size: 0.85rem; font-weight: 700; color: var(--ink); }
+.vistoria-abas { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.resist-bloco { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 8px; border: 1px dashed var(--line-strong); border-radius: 8px; }
+.resist-linha { display: grid; grid-template-columns: 54px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: end; }
+.resist-plato { font-size: 0.8rem; font-weight: 700; padding-bottom: 10px; }
+.resist-campo { display: flex; flex-direction: column; gap: 2px; font-size: 0.75rem; color: var(--ink-2); }
+.resist-campo .input { padding: 6px 8px; text-align: center; }
+.input.invalido { border-color: var(--red-ink); }
+.vist-resist td { font-size: 11px; }
+.vist-plato { font-weight: 700; margin-right: 10px; }
+.vist-fase { margin-right: 14px; white-space: nowrap; }
+/* aviso de calibração na tela inicial (cores do .banner, claro e escuro) */
+.aviso-calibracao-lista { margin: 4px 0 4px 18px; }

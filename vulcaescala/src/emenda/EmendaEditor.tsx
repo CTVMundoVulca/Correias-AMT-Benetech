@@ -5,7 +5,7 @@ import { irPara, podeExcluir, podeReabrir, useEmenda } from './context';
 import { useExcluirEmenda } from './EmendaLista';
 import { criarEmenda, gravarCampos, ouvirEmenda } from './data';
 import { newId } from '../domain/ids';
-import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, codigoDaEntrada, descricaoItemPrensa, seriePeloFabricante, type ItemPrensa, LEGENDA_FOTO_VISTORIA, FORM_VISTORIA, GRUPOS_VISTORIA, RESPOSTAS_VISTORIA, itensNC, pendenciasVistoria, vistoriaIniciada, vistoriaObrigatoria, type ItemVistoriaId, type RespVistoria } from './model';
+import { emendaComBase, fmtData, hojeIso, durezaObrigatoria, juntarItens, separarItens, codigoDaEntrada, descricaoItemPrensa, seriePeloFabricante, type ItemPrensa, LEGENDA_FOTO_VISTORIA, FORM_VISTORIA, GRUPOS_VISTORIA, RESPOSTAS_VISTORIA, itensNC, pendenciasVistoria, vistoriaIniciada, vistoriaObrigatoria, type ItemVistoriaId, type RespVistoria, conjuntosDe, camposConjuntos, conjuntoVazio, MAX_CONJUNTOS, PLATOS, FASES, resistOk, type ChaveResist, type ConjuntoPrensa, normCodigo } from './model';
 import { useConfirm } from '../ui/ConfirmDialog';
 import {
   aparelhoPorCodigo,
@@ -57,7 +57,7 @@ export function EmendaEditor({ id, novo }: { id: string; novo?: string }) {
   // relatório novo ainda não gravado: modelo local (com a data escolhida)
   // (as linhas da seção 4 vêm do cadastro de aparelhos; recalculadas se o cadastro carregar depois)
   const modelo = useMemo(
-    () => (novo ? { ...novaEmenda(id, novo, por), equipamentos: linhasIniciais(ctx.aparelhos) } : null),
+    () => (novo ? { ...novaEmenda(id, novo, por), equipamentos: linhasIniciais(ctx.aparelhos, novo) } : null),
     [novo, id, por, ctx.aparelhos],
   );
   const criado = useRef(!novo);
@@ -676,6 +676,8 @@ function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetF
   // só aparelhos com patrimônio e calibração (data e validade) entram na lista
   const grupos = aparelhosPorTipo(aparelhos);
   const completos = aparelhos.filter(aparelhoCompleto);
+  /** data de referência da calibração: a do relatório (ou hoje) */
+  const dataRef = e.data || hojeIso();
   const [gerenciar, setGerenciar] = useState(false);
   const upd = (i: number, p: Partial<EquipItem>) => {
     const n = [...linhas];
@@ -702,6 +704,7 @@ function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetF
                   if (v === ATUAL) return;
                   // aparelho cadastrado: preenche a linha inteira
                   const a = v.startsWith(AP) ? aparelhoPorCodigo(completos, v.slice(AP.length)) : undefined;
+                  if (a && calibracaoVencida(a, dataRef)) return;
                   upd(i, a ? { ...a } : { equip: '', marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' });
                 }}
               >
@@ -709,12 +712,17 @@ function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetF
                 {avulso && <option value={ATUAL}>{!q.codigo && aparelhosDoTipo(completos, q.equip).length ? `${q.equip} — escolha o aparelho` : avulso}</option>}
                 {grupos.map(([tipo, lista]) => (
                   <optgroup key={tipo} label={tipo}>
-                    {lista.map((a) => (
-                      <option key={a.codigo} value={AP + a.codigo}>
-                        {a.equip} · {a.codigo}
-                        {a.marca ? ` · ${a.marca}` : ''}
-                      </option>
-                    ))}
+                    {lista.map((a) => {
+                      // calibração vencida na data do relatório: não pode ser escolhido
+                      const vencido = calibracaoVencida(a, dataRef);
+                      return (
+                        <option key={a.codigo} value={AP + a.codigo} disabled={vencido && a.codigo !== escolhido?.codigo}>
+                          {a.equip} · {a.codigo}
+                          {a.marca ? ` · ${a.marca}` : ''}
+                          {vencido ? ` — calibração vencida em ${fmtData(a.validadeCal)}` : ''}
+                        </option>
+                      );
+                    })}
                   </optgroup>
                 ))}
               </select>
@@ -723,7 +731,7 @@ function EquipSection({ e, set, campo = 'equipamentos' }: { e: Emenda; set: SetF
               Marca / modelo
               <input className={inp(q.marca)} value={q.marca} onChange={(ev) => upd(i, { marca: ev.target.value })} />
             </label>
-            <CampoPatrimonio q={q} upd={(p) => upd(i, p)} />
+            <CampoPatrimonio q={q} upd={(p) => upd(i, p)} dataRef={dataRef} />
             <label className="field">
               Certificado
               <input className={inp(q.certificado)} value={q.certificado} onChange={(ev) => upd(i, { certificado: ev.target.value })} />
@@ -778,8 +786,9 @@ const ATUAL = '__atual';
  * escolhido) e marca, certificado e calibração vêm do cadastro; "Outro" volta a digitar.
  * Relatórios antigos com patrimônio digitado continuam como estão.
  */
-function CampoPatrimonio({ q, upd }: { q: EquipItem; upd: (p: Partial<EquipItem>) => void }) {
-  const aparelhos = useEmenda().aparelhos.filter(aparelhoCompleto);
+function CampoPatrimonio({ q, upd, dataRef }: { q: EquipItem; upd: (p: Partial<EquipItem>) => void; dataRef: string }) {
+  // só aparelhos completos e com calibração válida na data do relatório (o já escolhido continua aparecendo)
+  const aparelhos = useEmenda().aparelhos.filter((a) => aparelhoCompleto(a) && (!calibracaoVencida(a, dataRef) || a.codigo === normCodigo(q.codigo)));
   const atual = q.codigo ? aparelhoPorCodigo(aparelhos, q.codigo) : undefined;
   const [manual, setManual] = useState(() => !!q.codigo && !atual);
   if (!aparelhos.length || manual)
@@ -838,12 +847,20 @@ const NA = 'N/A';
 const ehNA = (v: string) => v.trim().toUpperCase() === 'N/A' || v.trim().toUpperCase() === 'NA';
 const rotuloItem = (it: ItemPrensa) => descricaoItemPrensa(it);
 
+/** Conjuntos de prensa do relatório e como gravá-los (o conjunto 1 também vai para os campos antigos). */
+function useConjuntos(e: Emenda, set: SetFn) {
+  const cs = conjuntosDe(e);
+  const gravar = (lista: ConjuntoPrensa[]) => set(camposConjuntos(lista));
+  const upd = (i: number, p: Partial<ConjuntoPrensa>) => gravar(cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
+  return { cs, gravar, upd };
+}
+
 /** Painéis ou bombas da prensa: uma lista suspensa por item (a primeira com "N/A"), do cadastro único. */
-function CampoItensPrensa({ e, set, c, label, tipo }: { e: Emenda; set: SetFn; c: 'paineis' | 'bombas'; label: string; tipo: 'Painel' | 'Bomba' }) {
+function CampoItensPrensa({ valor, onChange, label, tipo }: { valor: string; onChange: (v: string) => void; label: string; tipo: 'Painel' | 'Bomba' }) {
   const { prensa } = useEmenda();
   const cad = prensa.filter((x) => x.tipo === tipo);
-  const marcados = separarItens(e[c]);
-  const gravar = (l: string[]) => set({ [c]: juntarItens(l) } as Partial<Emenda>);
+  const marcados = separarItens(valor);
+  const gravar = (l: string[]) => onChange(juntarItens(l));
   const doCad = (m: string) => cad.find((it) => it.codigo === codigoDaEntrada(m));
   // uma lista por item marcado; a primeira tem "N/A" (limpa tudo)
   const linha = (m: string | null, idx: number) => {
@@ -892,7 +909,7 @@ function CampoItensPrensa({ e, set, c, label, tipo }: { e: Emenda; set: SetFn; c
       {marcados.length > 0 && sobra.length > 0 && (
         <select
           className="input"
-          aria-label={`Adicionar ${tipo === 'Painel' ? 'outro painel' : 'outra bomba'}`}
+          aria-label={`Adicionar ${tipo === 'Painel' ? 'outro painel' : 'outra bomba'} — ${label}`}
           value=""
           onChange={(ev) => {
             const novo = cad.find((x) => x.codigo === ev.target.value);
@@ -911,51 +928,96 @@ function CampoItensPrensa({ e, set, c, label, tipo }: { e: Emenda; set: SetFn; c
   );
 }
 
+/** Prensa do conjunto, escolhida do cadastro ("N/A" e texto antigo continuam aceitos). */
+function CampoPrensa({ valor, onChange, label }: { valor: string; onChange: (descricao: string, it?: ItemPrensa) => void; label: string }) {
+  const { prensa } = useEmenda();
+  const prensas = prensa.filter((x) => x.tipo === 'Prensa');
+  const prensaNA = ehNA(valor);
+  const atual = prensaNA ? undefined : prensas.find((x) => x.codigo === codigoDaEntrada(valor));
+  return (
+    <label className="field">
+      {label}
+      <select
+        className={inp(valor)}
+        value={prensaNA ? NA : atual?.codigo ?? (valor ? ANTIGO : '')}
+        onChange={(ev) => {
+          const v = ev.target.value;
+          if (v === ANTIGO) return;
+          if (v === NA) return onChange(NA);
+          const it = prensas.find((x) => x.codigo === v);
+          onChange(it ? descricaoItemPrensa(it) : '', it);
+        }}
+      >
+        <option value="">Selecione</option>
+        <option value={NA}>N/A</option>
+        {valor && !prensaNA && !atual && <option value={ANTIGO}>{valor} (registro anterior)</option>}
+        {prensas.map((it) => (
+          <option key={it.codigo} value={it.codigo}>
+            {rotuloItem(it)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Seção 7: até 3 conjuntos (prensa + painéis + bombas). */
 function EquipPrensaSection({ e, set }: { e: Emenda; set: SetFn }) {
   const { prensa } = useEmenda();
+  const confirm = useConfirm();
   const [gerenciar, setGerenciar] = useState(false);
-  const prensas = prensa.filter((x) => x.tipo === 'Prensa');
-  const prensaNA = ehNA(e.prensaEquip);
-  const atual = prensaNA ? undefined : prensas.find((x) => x.codigo === codigoDaEntrada(e.prensaEquip));
+  const { cs, gravar, upd } = useConjuntos(e, set);
   // série (Nilos/Sampla) saiu da tela: vem da prensa escolhida; relatório antigo só com a série continua mostrando
   const serieAntiga = !e.prensaEquip && e.seriePrensa && e.seriePrensa !== 'N/A' ? e.seriePrensa : '';
+  const remover = async (i: number) => {
+    const c = cs[i];
+    const temDados = Object.values(c.itens).some(Boolean) || Object.values(c.resist).some(Boolean);
+    if (temDados && !(await confirm({ title: `Remover o conjunto ${i + 1}?`, message: <p>A vistoria preenchida deste conjunto também sai do relatório.</p>, confirmLabel: 'Remover', danger: true })))
+      return;
+    gravar(cs.filter((_, j) => j !== i));
+  };
   return (
     <>
       {prensa.length === 0 && <p className="small muted">Nenhum equipamento da prensa cadastrado. Toque em “Gerenciar equipamentos da prensa” para cadastrar.</p>}
       {serieAntiga && <p className="small muted">Registro anterior: série da prensa {serieAntiga}</p>}
-      <label className="field">
-        Prensa utilizada
-        <select
-          className={inp(e.prensaEquip)}
-          value={prensaNA ? NA : atual?.codigo ?? (e.prensaEquip ? ANTIGO : '')}
-          onChange={(ev) => {
-            const v = ev.target.value;
-            if (v === ANTIGO) return;
-            if (v === NA) return set({ prensaEquip: NA });
-            const it = prensas.find((x) => x.codigo === v);
-            if (!it) return set({ prensaEquip: '' });
-            const serie = seriePeloFabricante(it.fabricante);
-            set({ prensaEquip: descricaoItemPrensa(it), ...(serie ? { seriePrensa: serie } : {}) });
-          }}
-        >
-          <option value="">Selecione</option>
-          <option value={NA}>N/A</option>
-          {e.prensaEquip && !prensaNA && !atual && <option value={ANTIGO}>{e.prensaEquip} (registro anterior)</option>}
-          {prensas.map((it) => (
-            <option key={it.codigo} value={it.codigo}>
-              {rotuloItem(it)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <CampoItensPrensa e={e} set={set} c="paineis" label="Painéis utilizados" tipo="Painel" />
-      <CampoItensPrensa e={e} set={set} c="bombas" label="Bombas utilizadas" tipo="Bomba" />
-      <button className="btn small" onClick={() => setGerenciar(true)}>
+      {cs.map((c, i) => (
+        <div key={i} className="item-card conjunto-card">
+          {cs.length > 1 && <h4 className="conjunto-titulo">Conjunto {i + 1}</h4>}
+          <CampoPrensa
+            valor={c.prensa}
+            label={cs.length > 1 ? `Prensa (conjunto ${i + 1})` : 'Prensa utilizada'}
+            onChange={(prensaDesc, it) => {
+              upd(i, { prensa: prensaDesc });
+              // série Nilos/Sampla do conjunto 1 continua indo para o campo antigo
+              const serie = i === 0 && it ? seriePeloFabricante(it.fabricante) : null;
+              if (serie) set({ seriePrensa: serie });
+            }}
+          />
+          <CampoItensPrensa valor={c.paineis} onChange={(v) => upd(i, { paineis: v })} label={cs.length > 1 ? `Painéis (conjunto ${i + 1})` : 'Painéis utilizados'} tipo="Painel" />
+          <CampoItensPrensa valor={c.bombas} onChange={(v) => upd(i, { bombas: v })} label={cs.length > 1 ? `Bombas (conjunto ${i + 1})` : 'Bombas utilizadas'} tipo="Bomba" />
+          {i > 0 && (
+            <button type="button" className="btn small ghost-danger" onClick={() => void remover(i)}>
+              Remover conjunto {i + 1}
+            </button>
+          )}
+        </div>
+      ))}
+      {cs.length < MAX_CONJUNTOS && (
+        <button type="button" className="btn small" onClick={() => gravar([...cs, conjuntoVazio()])}>
+          + Adicionar conjunto de prensa ({cs.length + 1} de {MAX_CONJUNTOS})
+        </button>
+      )}
+      <button type="button" className="btn small" onClick={() => setGerenciar(true)}>
         Gerenciar equipamentos da prensa
       </button>
       {gerenciar && <PrensaDialog onClose={() => setGerenciar(false)} />}
     </>
   );
+}
+
+/** Itens NC de todos os conjuntos: "Manômetro" (1 conjunto) ou "Manômetro (conjunto 2)". */
+function ncDoRelatorio(cs: ConjuntoPrensa[]): string[] {
+  return cs.flatMap((c, i) => itensNC(c).map(([, n]) => (cs.length > 1 ? `${n} (conjunto ${i + 1})` : n)));
 }
 
 /**
@@ -966,7 +1028,8 @@ function VistoriaResumo({ e, set, emendaId, antesDeGravar, travado }: { e: Emend
   const [aberta, setAberta] = useState(false);
   const iniciada = vistoriaIniciada(e);
   const faltam = pendenciasVistoria({ ...e, tipoEmenda: 'Quente' }).filter((x) => !x.includes('não conforme'));
-  const nc = itensNC(e);
+  const cs = conjuntosDe(e);
+  const nc = ncDoRelatorio(cs);
   const situacao = !iniciada ? 'Pendente' : faltam.length ? 'Em preenchimento' : 'Preenchida';
   return (
     <div className="vistoria-resumo">
@@ -976,9 +1039,10 @@ function VistoriaResumo({ e, set, emendaId, antesDeGravar, travado }: { e: Emend
           {nc.length > 0 && ` · ${nc.length} NC`}
         </b>
         {' — '}
+        {cs.length > 1 ? `${cs.length} conjuntos · ` : ''}
         {vistoriaObrigatoria(e) ? 'obrigatória na emenda a quente.' : 'opcional na emenda a frio.'}
       </p>
-      {nc.length > 0 && <p className="small text-danger">Item não conforme impede a conclusão do relatório: {nc.map(([, n]) => n).join(', ')}.</p>}
+      {nc.length > 0 && <p className="small text-danger">Item não conforme impede a conclusão do relatório: {nc.join(', ')}.</p>}
       {e.assEletricista && e.assEletricista.trim().toUpperCase() !== 'N/A' && !e.libEletricista.nome && (
         <p className="small muted">Registro anterior (técnico em elétrica): {e.assEletricista}</p>
       )}
@@ -990,6 +1054,36 @@ function VistoriaResumo({ e, set, emendaId, antesDeGravar, travado }: { e: Emend
         </button>
       )}
       {aberta && <VistoriaDialog e={e} set={set} emendaId={emendaId} antesDeGravar={antesDeGravar} travado={travado} onClose={() => setAberta(false)} />}
+    </div>
+  );
+}
+
+/** Valores de resistência entre fases (Ω) dos platôs 1 e 2 de um conjunto. */
+function ResistenciasPlatos({ c, onChange }: { c: ConjuntoPrensa; onChange: (k: ChaveResist, v: string) => void }) {
+  return (
+    <div className="resist-bloco">
+      <span className="vistoria-nome">Valores de resistência (Ω)</span>
+      {PLATOS.map((pl) => (
+        <div key={pl} className="resist-linha">
+          <span className="resist-plato">Platô {pl}</span>
+          {FASES.map(([f, rot]) => {
+            const k = `p${pl}${f}` as ChaveResist;
+            const v = c.resist[k] ?? '';
+            return (
+              <label key={k} className="resist-campo">
+                <span>{rot}</span>
+                <input
+                  className={inp(v) + (v && !resistOk(v) ? ' invalido' : '')}
+                  inputMode="decimal"
+                  value={v}
+                  aria-label={`Platô ${pl} ${rot} (ohms)`}
+                  onChange={(ev) => onChange(k, ev.target.value.replace(/[^\d.,]/g, ''))}
+                />
+              </label>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1010,9 +1104,14 @@ function VistoriaDialog({
   travado: boolean;
   onClose: () => void;
 }) {
-  const resp = (k: ItemVistoriaId, v: RespVistoria) => set({ vistoriaItens: { ...e.vistoriaItens, [k]: e.vistoriaItens[k] === v ? '' : v } });
+  const { cs, upd } = useConjuntos(e, set);
+  const [aba, setAba] = useState(0);
+  const ia = Math.min(aba, cs.length - 1);
+  const c = cs[ia];
+  const resp = (k: ItemVistoriaId, v: RespVistoria) => upd(ia, { itens: { ...c.itens, [k]: c.itens[k] === v ? '' : v } });
   const dataAntiga = e.dataTeste && e.dataTeste !== 'N/A' && !/^\d{4}-\d{2}-\d{2}$/.test(e.dataTeste) ? e.dataTeste : '';
-  const nc = itensNC(e);
+  const nc = itensNC(c);
+  const pend = (i: number) => pendenciasVistoria({ ...e, tipoEmenda: 'Quente' }).filter((x) => cs.length > 1 && x.includes(`(conjunto ${i + 1})`)).length;
   return (
     <Modal
       title={`Vistoria de prensas e equipamentos`}
@@ -1032,11 +1131,25 @@ function VistoriaDialog({
           {dataAntiga && <span className="small muted">Registro anterior: {dataAntiga}</span>}
         </label>
 
+        {cs.length > 1 && (
+          <div className="opts vistoria-abas" role="tablist" aria-label="Conjuntos de prensa">
+            {cs.map((x, i) => (
+              <button key={i} type="button" role="tab" aria-selected={i === ia} className={'opt' + (i === ia ? ' on' : '')} onClick={() => setAba(i)}>
+                Conjunto {i + 1}
+                {itensNC(x).length ? ' · NC' : pend(i) ? ' · pendente' : ' ✓'}
+              </button>
+            ))}
+          </div>
+        )}
+        <p className="small">
+          <b>{cs.length > 1 ? `Conjunto ${ia + 1}` : 'Prensa'}:</b> {c.prensa && !ehNA(c.prensa) ? c.prensa : 'não escolhida (escolha na seção 7)'}
+        </p>
+
         {GRUPOS_VISTORIA.map((g, gi) => (
           <section key={g.titulo} className="vistoria-grupo">
             <h3 className="sub">{g.titulo}</h3>
-            {gi === 0 && <CampoItensPrensa e={e} set={set} c="paineis" label="Número do painel elétrico" tipo="Painel" />}
-            {gi === 1 && <CampoItensPrensa e={e} set={set} c="bombas" label="Número do conjunto de bomba" tipo="Bomba" />}
+            {gi === 0 && <CampoItensPrensa valor={c.paineis} onChange={(v) => upd(ia, { paineis: v })} label="Número do painel elétrico" tipo="Painel" />}
+            {gi === 1 && <CampoItensPrensa valor={c.bombas} onChange={(v) => upd(ia, { bombas: v })} label="Número do conjunto de bomba" tipo="Bomba" />}
             {g.itens.map(([k, nome]) => (
               <div key={k} className="vistoria-item">
                 <span className="vistoria-nome">{nome}</span>
@@ -1046,21 +1159,23 @@ function VistoriaDialog({
                       key={r}
                       type="button"
                       role="radio"
-                      aria-checked={e.vistoriaItens[k] === r}
-                      className={'opt' + (e.vistoriaItens[k] === r ? ' on' + (r === 'NC' ? ' nc' : '') : '')}
+                      aria-checked={c.itens[k] === r}
+                      className={'opt' + (c.itens[k] === r ? ' on' + (r === 'NC' ? ' nc' : '') : '')}
                       onClick={() => resp(k, r)}
                     >
                       {r}
                     </button>
                   ))}
                 </div>
+                {/* FOR GTO 062 Rev. 07: logo depois de "Resistências", os valores medidos em cada platô */}
+                {k === 'resistencias' && <ResistenciasPlatos c={c} onChange={(rk, v) => upd(ia, { resist: { ...c.resist, [rk]: v } })} />}
               </div>
             ))}
           </section>
         ))}
         {nc.length > 0 && <p className="small text-danger">Não conforme: {nc.map(([, n]) => n).join(', ')}. Corrija e marque “C” (ou “NA”) para poder concluir o relatório.</p>}
 
-        <h3 className="sub">Aparelhos utilizados nos testes</h3>
+        <h3 className="sub">Aparelhos utilizados nos testes{cs.length > 1 ? ' (todos os conjuntos)' : ''}</h3>
         <EquipSection e={e} set={set} campo="vistoriaAparelhos" />
 
         <h3 className="sub">Anotações</h3>
@@ -1072,7 +1187,7 @@ function VistoriaDialog({
         <h3 className="sub">Responsável pela inspeção (técnico em elétrica)</h3>
         <EletricistaSection e={e} set={set} />
         <h3 className="sub">Liberação (supervisor ou encarregado)</h3>
-        <p className="small muted">Basta uma assinatura: o supervisor ou o encarregado.</p>
+        <p className="small muted">Basta uma assinatura: o supervisor ou o encarregado{cs.length > 1 ? ' — vale para todos os conjuntos' : ''}.</p>
         <LiberaPrensaSection e={e} set={set} c="libPrensa" />
       </fieldset>
     </Modal>

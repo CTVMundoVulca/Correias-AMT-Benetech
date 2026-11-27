@@ -152,7 +152,9 @@ describe('conclusão do relatório de emenda', () => {
     // vistoria da prensa completa (exigida na quente)
     const todosC = Object.fromEntries(ITENS_VISTORIA.map(([k]) => [k, 'C' as const]));
     const ap = { equip: 'MULTÍMETRO', marca: 'M', codigo: 'MT-1', certificado: 'C', dataCal: '2026-01-01', validadeCal: '2027-01-01' };
-    const vist = { vistoriaItens: todosC, dataTeste: '2026-11-16', paineis: 'P-01 · SAMPLA', bombas: 'B-01 · SAMPLA', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
+    const R6 = { p1rs: '12,5', p1st: '12.4', p1tr: '12', p2rs: '12', p2st: '12', p2tr: '12' };
+    const conj = { prensa: 'PR-01 · SAMPLA', paineis: 'P-01 · SAMPLA', bombas: 'B-01 · SAMPLA', itens: todosC, resist: R6 };
+    const vist = { conjuntos: [conj], dataTeste: '2026-11-16', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
     const quente = pendenciasConclusao({ ...ok, ...vist, tipoEmenda: 'Quente', tempVulc: 'N/A', tempoVulc: '45', pressaoVulc: '8', tempAbertura: '', horaAbertura: '11:00' });
     // observações nunca são obrigatórias
     expect(quente).toEqual(['Temperatura de vulcanização', 'Temp. abertura da prensa']);
@@ -353,8 +355,19 @@ describe('vistoria da prensa (FOR GTO 062)', () => {
   it('quente completa e sem NC: nada falta', async () => {
     const { novaEmenda, pendenciasVistoria, ITENS_VISTORIA } = await import('../emenda/model');
     const itens = Object.fromEntries(ITENS_VISTORIA.map(([k], i) => [k, i % 2 ? ('NA' as const) : ('C' as const)]));
-    const e = { ...novaEmenda('x', '2026-11-16', 'p', []), tipoEmenda: 'Quente' as const, vistoriaItens: itens, dataTeste: '2026-11-16', paineis: 'P-01', bombas: 'B-01', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
+    const resist = { p1rs: '10', p1st: '10', p1tr: '10', p2rs: '10', p2st: '10', p2tr: '10' };
+    const e = { ...novaEmenda('x', '2026-11-16', 'p', []), tipoEmenda: 'Quente' as const, conjuntos: [{ prensa: 'PR-01', paineis: 'P-01', bombas: 'B-01', itens, resist }], dataTeste: '2026-11-16', vistoriaAparelhos: [ap], libEletricista: lib, libPrensa: lib };
     expect(pendenciasVistoria(e)).toEqual([]);
+    // resistências: os 6 valores (R-S, S-T, T-R dos platôs 1 e 2) são obrigatórios na quente; texto não vale
+    const semUma = { ...e, conjuntos: [{ ...e.conjuntos[0], resist: { ...resist, p2tr: '' } }] };
+    expect(pendenciasVistoria(semUma)).toEqual(['Vistoria da prensa: resistência dos platôs (faltam 1 de 6 valores)']);
+    expect(pendenciasVistoria({ ...e, conjuntos: [{ ...e.conjuntos[0], resist: { ...resist, p1rs: 'abc' } }] })).toHaveLength(1);
+    // até 3 conjuntos: cada um com a própria vistoria; as pendências dizem de qual conjunto é
+    const dois = { ...e, conjuntos: [e.conjuntos[0], { prensa: 'PR-02', paineis: 'N/A', bombas: 'B-02', itens: { ...itens, cabos: 'NC' as const }, resist }] };
+    expect(pendenciasVistoria(dois)).toEqual([
+      'Vistoria da prensa (conjunto 2): nº do painel elétrico',
+      'Vistoria da prensa (conjunto 2): “Cabos de alimentação” não conforme (NC) — corrigir antes de concluir',
+    ]);
   });
 
   it('relatório antigo (só técnico em elétrica e foto do check list) não conta como vistoria iniciada', async () => {
@@ -367,5 +380,63 @@ describe('vistoria da prensa (FOR GTO 062)', () => {
     // a foto antiga do check list (posição −1) passa a ser a 1ª foto da vistoria
     expect(fotoDaVistoria({ ordem: -1 })).toBe(true);
     expect(fotoDaVistoria({ ordem: 0 })).toBe(false);
+  });
+});
+
+describe('conjuntos de prensa (até 3) e relatórios anteriores', () => {
+  it('relatório anterior (sem conjuntos) vira o conjunto 1 com os campos antigos — nada se perde', async () => {
+    const { completarEmenda, conjuntosDe } = await import('../emenda/model');
+    const antigo = completarEmenda({ id: 'a', prensaEquip: 'PR-01 · SAMPLA', paineis: 'Sampla', bombas: 'NA', vistoriaItens: { tomadas: 'C' } } as never);
+    expect(conjuntosDe(antigo)).toEqual([{ prensa: 'PR-01 · SAMPLA', paineis: 'Sampla', bombas: 'NA', itens: { tomadas: 'C' }, resist: {} }]);
+  });
+
+  it('gravar conjuntos também grava o conjunto 1 nos campos antigos (aparelho na versão anterior continua vendo)', async () => {
+    const { camposConjuntos } = await import('../emenda/model');
+    const c1 = { prensa: 'PR-01', paineis: 'P-01', bombas: 'B-01', itens: { cabos: 'C' as const }, resist: { p1rs: '10' } };
+    const c2 = { prensa: 'PR-02', paineis: 'P-02', bombas: 'B-02', itens: {}, resist: {} };
+    expect(camposConjuntos([c1, c2])).toEqual({ conjuntos: [c1, c2], prensaEquip: 'PR-01', paineis: 'P-01', bombas: 'B-01', vistoriaItens: { cabos: 'C' } });
+  });
+
+  it('copiar relatório leva os conjuntos (prensa, painéis, bombas), mas não a vistoria', async () => {
+    const { emendaComBase, novaEmenda } = await import('../emenda/model');
+    const orig = { ...novaEmenda('o', '2026-11-20', 'p'), numero: '7', conjuntos: [
+      { prensa: 'PR-01', paineis: 'P-01', bombas: 'B-01', itens: { cabos: 'C' as const }, resist: { p1rs: '10' } },
+      { prensa: 'PR-02', paineis: 'P-02', bombas: 'B-02', itens: {}, resist: {} },
+    ] };
+    const nova = emendaComBase(orig, 'n', '2026-11-27', 'p');
+    expect(nova.conjuntos.map((c) => [c.prensa, c.paineis, c.bombas, Object.keys(c.itens).length, Object.keys(c.resist).length])).toEqual([
+      ['PR-01', 'P-01', 'B-01', 0, 0],
+      ['PR-02', 'P-02', 'B-02', 0, 0],
+    ]);
+  });
+
+  it('formulário na revisão 07', async () => {
+    const { FORM_VISTORIA, CHAVES_RESIST } = await import('../emenda/model');
+    expect(FORM_VISTORIA.revisao).toBe('07');
+    expect(CHAVES_RESIST).toEqual(['p1rs', 'p1st', 'p1tr', 'p2rs', 'p2st', 'p2tr']);
+  });
+});
+
+describe('calibração: aviso de 30 dias e bloqueio do vencido', () => {
+  const ap = (codigo: string, validadeCal: string) => ({ equip: 'MULTÍMETRO', marca: '', codigo, certificado: '', dataCal: '2025-01-01', validadeCal });
+
+  it('dias para vencer (negativo = vencida)', async () => {
+    const { diasParaVencer } = await import('../emenda/model');
+    expect(diasParaVencer('2026-12-27', '2026-11-27')).toBe(30);
+    expect(diasParaVencer('2026-11-27', '2026-11-27')).toBe(0);
+    expect(diasParaVencer('2026-11-20', '2026-11-27')).toBe(-7);
+    expect(diasParaVencer('', '2026-11-27')).toBeNull();
+  });
+
+  it('aviso: vencidos e vencendo em até 30 dias, do mais urgente; 31 dias não avisa', async () => {
+    const { alertasCalibracao } = await import('../emenda/model');
+    const l = alertasCalibracao([ap('A', '2026-12-28'), ap('B', '2026-12-27'), ap('C', '2026-11-20'), ap('D', '2026-12-01')], '2026-11-27');
+    expect(l.map((x) => [x.a.codigo, x.dias])).toEqual([['C', -7], ['D', 4], ['B', 30]]);
+  });
+
+  it('relatório novo não traz aparelho vencido na data do relatório', async () => {
+    const { linhasIniciais } = await import('../emenda/model');
+    const l = linhasIniciais([{ ...ap('V', '2026-11-20'), equip: 'DURÔMETRO' }, ap('OK', '2027-01-01')], '2026-11-27');
+    expect(l.map((x) => x.codigo)).toEqual(['OK']);
   });
 });

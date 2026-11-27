@@ -4,7 +4,7 @@ import { useToast } from '../ui/Toast';
 import { useConfirm } from '../ui/ConfirmDialog';
 import { irPara, podeExcluir, useEmenda } from './context';
 import { buscarTag, excluirEmenda, gravarCampos, ouvirMes } from './data';
-import { INICIO_CONCLUSAO, concluido, emendaVazia, foraDoControle, fmtData, hojeIso, mesAtual, nomeMes, ordenar, pendenciasConclusao, somaMes, type Emenda } from './model';
+import { INICIO_CONCLUSAO, concluido, emendaVazia, foraDoControle, fmtData, hojeIso, mesAtual, nomeMes, ordenar, pendenciasConclusao, somaMes, alertasCalibracao, AVISO_CALIBRACAO_DIAS, type Emenda, type EquipItem } from './model';
 import { ouvirFotos } from './data';
 import { ListasDialog } from './ListasDialog';
 import { buscaBate } from '../prog/model';
@@ -37,6 +37,7 @@ export function EmendaLista() {
   const [busca, setBusca] = useState('');
   const [global, setGlobal] = useState<Emenda[] | null>(null);
   const [listasOpen, setListasOpen] = useState(false);
+  const [aparelhosOpen, setAparelhosOpen] = useState(false);
   const [efetivoOpen, setEfetivoOpen] = useState(false);
   // separação: em preenchimento × concluídos (a escolha fica na sessão)
   const [aba, setAba] = useState<'preench' | 'concl' | 'antigos'>(() => {
@@ -162,6 +163,8 @@ export function EmendaLista() {
 
   return (
     <section>
+      <AvisoCalibracao aparelhos={ctx.aparelhos} onAbrir={() => setAparelhosOpen(true)} />
+      {aparelhosOpen && <ListasDialog inicial="equipamentos" onClose={() => setAparelhosOpen(false)} />}
       <div className="card pad stack">
         <div className="row between">
           <h1>Relatórios de emenda</h1>
@@ -475,5 +478,38 @@ function EmendaItem({ e, selecao }: { e: Emenda; selecao?: { marcado: boolean; a
         </button>
       )}
     </li>
+  );
+}
+
+/**
+ * Aviso na tela inicial: aparelhos de medição com calibração vencida ou vencendo em até 30 dias
+ * (conta a partir de hoje). Aparelho vencido não pode ser escolhido nos relatórios.
+ */
+function AvisoCalibracao({ aparelhos, onAbrir }: { aparelhos: EquipItem[]; onAbrir: () => void }) {
+  const lista = alertasCalibracao(aparelhos, hojeIso());
+  if (!lista.length) return null;
+  const vencidos = lista.filter((x) => x.dias < 0).length;
+  const texto = (dias: number) => (dias < 0 ? `vencida há ${-dias} ${-dias === 1 ? 'dia' : 'dias'}` : dias === 0 ? 'vence hoje' : `vence em ${dias} ${dias === 1 ? 'dia' : 'dias'}`);
+  return (
+    <div className={'banner ' + (vencidos ? 'danger' : 'warn')} role="alert">
+      <b>
+        ⚠ Calibração de aparelhos: {vencidos ? `${vencidos} vencida${vencidos > 1 ? 's' : ''}` : ''}
+        {vencidos && lista.length > vencidos ? ' e ' : ''}
+        {lista.length > vencidos ? `${lista.length - vencidos} vencendo em até ${AVISO_CALIBRACAO_DIAS} dias` : ''}
+      </b>
+      <ul className="small aviso-calibracao-lista">
+        {lista.map(({ a, dias }) => (
+          <li key={a.codigo}>
+            <b>{a.codigo}</b> · {a.equip} — {texto(dias)} ({fmtData(a.validadeCal)})
+          </li>
+        ))}
+      </ul>
+      <p className="small">
+        Aparelho com calibração vencida não aparece para escolha nos relatórios.{' '}
+        <button type="button" className="link small" onClick={onAbrir}>
+          Gerenciar aparelhos
+        </button>
+      </p>
+    </div>
   );
 }

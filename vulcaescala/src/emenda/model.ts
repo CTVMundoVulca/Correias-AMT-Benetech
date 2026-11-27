@@ -153,6 +153,12 @@ export interface Emenda {
   vistoriaAnotacoes: string;
   /** "Liberado por" da vistoria: o supervisor OU o encarregado (basta um) */
   libPrensa: Liberacao;
+  /**
+   * Conjuntos de prensa usados (até 3): prensa, painéis, bombas, itens da vistoria e resistências
+   * dos platôs de cada um. Vazio = relatório anterior: o conjunto 1 vem de prensaEquip/paineis/
+   * bombas/vistoriaItens (que continuam sendo gravados com os dados do conjunto 1).
+   */
+  conjuntos: ConjuntoPrensa[];
   // 8 problemas
   problemaTipo: string;
   problemaTemp: string;
@@ -273,8 +279,24 @@ export function aparelhosPorTipo(cad: EquipItem[]): [string, EquipItem[]][] {
  * Linhas da seção 4 do relatório novo: uma por tipo de aparelho completo do cadastro; com um
  * único aparelho do tipo, já preenchida; com mais de um, só o tipo (escolhe-se o aparelho).
  */
-export function linhasIniciais(cad: EquipItem[]): EquipItem[] {
-  return aparelhosPorTipo(cad).map(([t, d]) => (d.length === 1 ? { ...d[0] } : { equip: t, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }));
+export function linhasIniciais(cad: EquipItem[], data = ''): EquipItem[] {
+  return aparelhosPorTipo(cad.filter((a) => !calibracaoVencida(a, data))).map(([t, d]) => (d.length === 1 ? { ...d[0] } : { equip: t, marca: '', codigo: '', certificado: '', dataCal: '', validadeCal: '' }));
+}
+
+/** Aviso de calibração: vence em até 30 dias (ou já venceu). */
+export const AVISO_CALIBRACAO_DIAS = 30;
+/** Dias até a validade da calibração (negativo = vencida); null sem datas válidas. */
+export function diasParaVencer(validadeCal: string, hoje: string): number | null {
+  const ok = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!ok(validadeCal) || !ok(hoje)) return null;
+  return Math.round((Date.parse(validadeCal + 'T00:00:00Z') - Date.parse(hoje + 'T00:00:00Z')) / 86_400_000);
+}
+/** Aparelhos do cadastro vencidos ou vencendo em até 30 dias, do mais urgente ao menos. */
+export function alertasCalibracao(cad: EquipItem[], hoje: string): { a: EquipItem; dias: number }[] {
+  return cad
+    .map((a) => ({ a, dias: diasParaVencer(a.validadeCal, hoje) }))
+    .filter((x): x is { a: EquipItem; dias: number } => x.dias !== null && x.dias <= AVISO_CALIBRACAO_DIAS)
+    .sort((x, y) => x.dias - y.dias);
 }
 
 /** Calibração vencida na data de referência ("AAAA-MM-DD")? Sem validade = não dá para dizer. */
@@ -299,7 +321,7 @@ export const fotoDaVistoria = (f: Pick<Foto, 'ordem'>) => f.ordem < 0;
 // ---------------------------------------------------------------- vistoria da prensa (FOR GTO 062)
 
 /** Formulário padrão da empresa — atualizar código/revisão aqui quando o formulário mudar. */
-export const FORM_VISTORIA = { codigo: 'FOR GTO 062', revisao: '06', dataRevisao: '17/07/2020', titulo: 'Vistoria de prensas e equipamentos' };
+export const FORM_VISTORIA = { codigo: 'FOR GTO 062', revisao: '07', dataRevisao: '', titulo: 'Vistoria de prensas e equipamentos' };
 export type RespVistoria = 'C' | 'NC' | 'NA' | '';
 export const RESPOSTAS_VISTORIA = ['C', 'NC', 'NA'] as const;
 export const GRUPOS_VISTORIA = [
@@ -337,6 +359,46 @@ export const ITENS_VISTORIA: readonly (readonly [ItemVistoriaId, string])[] = GR
 const isoData = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 const libPreenchida = (l: Liberacao) => !!(l.nome || l.assinatura);
 
+// ---------- conjuntos de prensa (prensa + painéis + bombas) e resistência dos platôs
+
+export const MAX_CONJUNTOS = 3;
+/** Resistência entre fases de cada platô (ohms), como no FOR GTO 062 Rev. 07 */
+export const PLATOS = [1, 2] as const;
+export const FASES = [
+  ['rs', 'R-S'],
+  ['st', 'S-T'],
+  ['tr', 'T-R'],
+] as const;
+export type ChaveResist = `p${(typeof PLATOS)[number]}${(typeof FASES)[number][0]}`;
+export const CHAVES_RESIST: ChaveResist[] = PLATOS.flatMap((p) => FASES.map(([f]) => `p${p}${f}` as ChaveResist));
+export interface ConjuntoPrensa {
+  /** descrição da prensa escolhida no cadastro ("PR-01 · SAMPLA"), "N/A" ou "" */
+  prensa: string;
+  paineis: string;
+  bombas: string;
+  itens: Partial<Record<ItemVistoriaId, RespVistoria>>;
+  resist: Partial<Record<ChaveResist, string>>;
+}
+export const conjuntoVazio = (): ConjuntoPrensa => ({ prensa: '', paineis: 'N/A', bombas: 'N/A', itens: {}, resist: {} });
+/** valor de resistência válido: número (vírgula ou ponto) */
+export const resistOk = (v: string | undefined) => !!v && /^\d+([.,]\d+)?$/.test(v.trim());
+
+/** Conjuntos do relatório; relatório anterior (sem `conjuntos`) vira um conjunto com os campos antigos. */
+export function conjuntosDe(e: Pick<Emenda, 'conjuntos' | 'prensaEquip' | 'paineis' | 'bombas' | 'vistoriaItens'>): ConjuntoPrensa[] {
+  if (Array.isArray(e.conjuntos) && e.conjuntos.length)
+    return e.conjuntos.slice(0, MAX_CONJUNTOS).map((c) => ({ ...conjuntoVazio(), ...c, itens: { ...c?.itens }, resist: { ...c?.resist } }));
+  return [{ prensa: e.prensaEquip ?? '', paineis: e.paineis ?? 'N/A', bombas: e.bombas ?? 'N/A', itens: { ...e.vistoriaItens }, resist: {} }];
+}
+
+/** Campos a gravar: a lista de conjuntos e, nos campos antigos, o conjunto 1 (compatibilidade). */
+export function camposConjuntos(lista: ConjuntoPrensa[]): Partial<Emenda> {
+  const c0 = lista[0] ?? conjuntoVazio();
+  return { conjuntos: lista, prensaEquip: c0.prensa, paineis: c0.paineis, bombas: c0.bombas, vistoriaItens: c0.itens };
+}
+
+/** Itens não conformes de um conjunto. */
+export const itensNC = (c: Pick<ConjuntoPrensa, 'itens'>) => ITENS_VISTORIA.filter(([k]) => c.itens?.[k] === 'NC');
+
 /** Vistoria obrigatória para concluir: só na emenda a quente. */
 export const vistoriaObrigatoria = (e: Pick<Emenda, 'tipoEmenda'>) => e.tipoEmenda === 'Quente';
 
@@ -346,15 +408,12 @@ export const vistoriaObrigatoria = (e: Pick<Emenda, 'tipoEmenda'>) => e.tipoEmen
  */
 export function vistoriaIniciada(e: Emenda): boolean {
   return (
-    Object.values(e.vistoriaItens ?? {}).some(Boolean) ||
+    conjuntosDe(e).some((c) => Object.values(c.itens).some(Boolean) || Object.values(c.resist).some((v) => !!v?.trim())) ||
     (e.vistoriaAparelhos ?? []).length > 0 ||
     !!e.vistoriaAnotacoes?.trim() ||
     libPreenchida(e.libPrensa)
   );
 }
-
-/** Itens marcados como não conforme. */
-export const itensNC = (e: Pick<Emenda, 'vistoriaItens'>) => ITENS_VISTORIA.filter(([k]) => e.vistoriaItens?.[k] === 'NC');
 
 /**
  * O que falta na vistoria. NC sempre impede a conclusão; o resto só é exigido na emenda a quente.
@@ -363,12 +422,18 @@ export const itensNC = (e: Pick<Emenda, 'vistoriaItens'>) => ITENS_VISTORIA.filt
 export function pendenciasVistoria(e: Emenda): string[] {
   const f: string[] = [];
   const P = 'Vistoria da prensa';
+  const cs = conjuntosDe(e);
+  const PC = (i: number) => (cs.length > 1 ? `${P} (conjunto ${i + 1})` : P);
   if (vistoriaObrigatoria(e)) {
-    const sem = ITENS_VISTORIA.filter(([k]) => !e.vistoriaItens?.[k]).length;
-    if (sem) f.push(`${P}: ${sem} ${sem === 1 ? 'item' : 'itens'} sem resposta (C/NC/NA)`);
+    cs.forEach((c, i) => {
+      const sem = ITENS_VISTORIA.filter(([k]) => !c.itens[k]).length;
+      if (sem) f.push(`${PC(i)}: ${sem} ${sem === 1 ? 'item' : 'itens'} sem resposta (C/NC/NA)`);
+      if (!separarItens(c.paineis).length) f.push(`${PC(i)}: nº do painel elétrico`);
+      if (!separarItens(c.bombas).length) f.push(`${PC(i)}: nº do conjunto de bomba`);
+      const faltam = CHAVES_RESIST.filter((k) => !resistOk(c.resist[k])).length;
+      if (faltam) f.push(`${PC(i)}: resistência dos platôs (faltam ${faltam} de ${CHAVES_RESIST.length} valores)`);
+    });
     if (!isoData(e.dataTeste)) f.push(`${P}: data`);
-    if (!separarItens(e.paineis).length) f.push(`${P}: nº do painel elétrico`);
-    if (!separarItens(e.bombas).length) f.push(`${P}: nº do conjunto de bomba`);
     if (!e.vistoriaAparelhos.some((a) => a.codigo.trim())) f.push(`${P}: aparelhos utilizados nos testes`);
     for (const [l, nome] of [
       [e.libEletricista, 'responsável pela inspeção (técnico em elétrica)'],
@@ -378,7 +443,9 @@ export function pendenciasVistoria(e: Emenda): string[] {
       if (vazioTxt(l.assinatura)) f.push(`${P}: ${nome} — assinatura`);
     }
   }
-  for (const [, nome] of itensNC(e)) f.push(`${P}: “${nome}” não conforme (NC) — corrigir antes de concluir`);
+  cs.forEach((c, i) => {
+    for (const [, nome] of itensNC(c)) f.push(`${PC(i)}: “${nome}” não conforme (NC) — corrigir antes de concluir`);
+  });
   return f;
 }
 
@@ -521,6 +588,7 @@ export function novaEmenda(id: string, hoje: string, por: string, aparelhos: str
     vistoriaAparelhos: [],
     vistoriaAnotacoes: '',
     libPrensa: liberacaoVazia(),
+    conjuntos: [],
     problemaTipo: 'N/A',
     problemaTemp: 'N/A',
     problemaPressao: 'N/A',
@@ -561,6 +629,7 @@ export function completarEmenda(raw: Partial<Emenda> & { id: string }): Emenda {
     libSupervisor: { ...base.libSupervisor, ...raw.libSupervisor },
     libEletricista: { ...base.libEletricista, ...raw.libEletricista },
     libPrensa: { ...base.libPrensa, ...raw.libPrensa },
+    conjuntos: Array.isArray(raw.conjuntos) ? raw.conjuntos : [],
     vistoriaItens: { ...raw.vistoriaItens },
     vistoriaAparelhos: Array.isArray(raw.vistoriaAparelhos) ? raw.vistoriaAparelhos : [],
   };
@@ -766,7 +835,9 @@ export function proximoNumero(n: string): string {
 export function emendaComBase(orig: Emenda, id: string, data: string, por: string): Emenda {
   const nova = novaEmenda(id, data, por, []);
   const copia = Object.fromEntries(CAMPOS_COPIADOS.map((k) => [k, JSON.parse(JSON.stringify(orig[k] ?? nova[k]))])) as Partial<Emenda>;
-  return { ...nova, ...copia, numero: proximoNumero(orig.numero) };
+  // conjuntos de prensa: copia prensa, painéis e bombas; a vistoria (itens e resistências) é a cada uso
+  const conjuntos = Array.isArray(orig.conjuntos) && orig.conjuntos.length ? conjuntosDe(orig).map((c) => ({ ...c, itens: {}, resist: {} })) : [];
+  return { ...nova, ...copia, conjuntos, numero: proximoNumero(orig.numero) };
 }
 
 // ---------------------------------------------------------------- conclusão do relatório
